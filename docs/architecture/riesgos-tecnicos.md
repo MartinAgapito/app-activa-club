@@ -1,0 +1,31 @@
+# Riesgos técnicos y mitigaciones — Activa Club
+
+> Complemento de la [arquitectura base](./architecture-overview.md) y los
+> [ADRs](./adr/). Identifica riesgos técnicos del MVP y su mitigación. Prioridad:
+> A (alta), M (media), B (baja).
+
+| ID | Riesgo | Prob./Impacto | Prioridad | Mitigación |
+|----|--------|---------------|-----------|------------|
+| RT-01 | **Doble cobro** por reintentos o doble clic en pagos Culqi | Media / Alto | A | Idempotencia con item de constraint en DynamoDB (`attribute_not_exists` sobre `idempotencyKey`) + confirmación server-side y webhook idempotente. Ver [ADR-0007](./adr/ADR-0007-culqi-sandbox-idempotencia-pagos.md). |
+| RT-02 | **Sobreaforo o cruces** de reservas por condiciones de carrera | Media / Alto | A | Validación server-side + escrituras condicionales/transaccionales sobre ítems de slot por recurso (`GSI3`) y por participante; nunca confiar en el frontend. RN-RES-07/08/09. |
+| RT-03 | **DNI/email duplicado** (dos cuentas para una persona) | Baja / Alto | A | Ítems de unicidad con `TransactWriteItems` condicional; RN-ACT-03. Ver [modelo de datos](../data/modelo-dynamodb.md). |
+| RT-04 | **Incoherencia Cognito↔DynamoDB** en activación/registro (usuario creado en uno y no en el otro) | Media / Medio | M | Orden de operaciones definido y compensación: crear socio en DynamoDB con unicidad, luego usuario Cognito; si falla el segundo paso, revertir/limpiar. Logs de correlación. |
+| RT-05 | **Filtrado de secretos** (llave privada Culqi, config) al repo o al cliente | Baja / Alto | A | Secretos en SSM/Secrets Manager, inyectados por variable de entorno; `.gitignore` de `.env`; escaneo en CI. RN-PAG-08. |
+| RT-06 | **Almacenar datos prohibidos** (tarjeta, CVV, contraseña) | Baja / Alto | A | Tokenización en cliente (Culqi.js), contraseñas solo en Cognito, revisión de contrato y validación de que ningún DTO/tipo persista PAN/CVV. RN-PAG-08. |
+| RT-07 | **Partición caliente** en GSI de estado/expiración con muchos usuarios | Baja (MVP) / Medio | B | Aceptable para el volumen del MVP; a futuro, sharding de la clave de partición del índice de expiración. Ver [ADR-0003](./adr/ADR-0003-dynamodb-single-table.md). |
+| RT-08 | **SES en sandbox** limita destinatarios a correos verificados | Alta / Bajo | B | Suficiente para la demo (destinatarios verificados). La notificación interna es la obligatoria; el correo es best-effort. Ver [ADR-0006](./adr/ADR-0006-ses-correos-transaccionales.md). |
+| RT-09 | **Zona horaria / desfase de fechas** en reglas de 24h, expiración y límite mensual de invitados | Media / Medio | M | Fechas en UTC ISO-8601 en almacenamiento; zona `America/Lima` para reglas de negocio (cancelación 24h, mes calendario del invitado); documentado en el modelo de datos. |
+| RT-10 | **Migración no idempotente** (duplicar socios al reejecutar) | Baja / Alto | M | Migración con unicidad de DNI y escritura condicional; reejecución segura. Ver [mapeo de migración](../data/mapeo-migracion.md). |
+| RT-11 | **Deriva entre contrato y código** (frontend/backend divergen) | Media / Medio | M | `packages/shared-types` y `packages/validation` como única fuente de tipos/validación; validación de contratos en US-010; typecheck/lint en CI. |
+| RT-12 | **Arranque en frío** de Lambda afectando la demo | Baja / Bajo | B | Volumen bajo; handlers pequeños; runtime Node 20. Si molesta en demo, warm-up puntual. No se optimiza prematuramente. |
+| RT-13 | **Autorización por rol omitida** en algún endpoint | Baja / Alto | M | Autorización declarada por endpoint en el contrato + Cognito Authorizer + verificación de rol en cada handler; matriz en `docs/security`. |
+| RT-14 | **Webhook de Culqi falsificado** | Baja / Alto | M | Verificación de firma del webhook; ruta pública pero validada; idempotencia. |
+
+## Decisiones pendientes / a validar
+
+- **Precios de membresía** (mensual/anual) y moneda: valores mock a confirmar con
+  Product; no bloquean el contrato (se parametrizan). Ver `/memberships/plans`.
+- **Política exacta de "próxima a vencer"** (umbral en días): asumido 7 días como
+  mock; confirmar con Product.
+- **Salida de SES sandbox** para la demo: definir si se requiere o basta con
+  correos verificados.
