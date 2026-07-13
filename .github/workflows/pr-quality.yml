@@ -1,0 +1,232 @@
+name: CI - Calidad de Pull Request
+
+# US-005: pipeline de calidad que valida cada Pull Request hacia la rama
+# principal antes de permitir el merge. Ver docs/deployment/ci-pull-request.md
+# para el detalle de esta configuración.
+#
+# NOTA sobre la rama principal: el gobierno Git definitivo (US-007) todavía no
+# se ha ejecutado. Este workflow se dispara sobre `main` y `master` para no
+# depender de esa decisión; ajustar aquí si US-007 fija un nombre distinto.
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+# Cancela ejecuciones anteriores del mismo PR/rama cuando llegan commits nuevos.
+concurrency:
+  group: pr-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Permisos mínimos por defecto (principio de mínimo privilegio). Cada job
+# declara explícitamente los permisos adicionales que necesita.
+permissions:
+  contents: read
+
+env:
+  # Node.js LTS activa, fijada también en .nvmrc para uso local.
+  NODE_VERSION_FILE: .nvmrc
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Calidad de código: install, lint, format, typecheck, test, build.
+  # ---------------------------------------------------------------------
+  quality:
+    name: Lint, typecheck, tests y build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ env.NODE_VERSION_FILE }}
+          cache: npm
+
+      - name: Instalar dependencias del monorepo (npm workspaces)
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Formato (Prettier --check)
+        run: npm run format:check
+
+      - name: Typecheck (TypeScript estricto)
+        run: npm run typecheck
+
+      - name: Pruebas (Vitest/Jest por workspace, si existen)
+        run: npm run test
+
+      - name: Build (por workspace, si existe)
+        run: npm run build
+
+  # ---------------------------------------------------------------------
+  # Terraform: fmt + validate siempre que existan archivos .tf; plan solo
+  # cuando además haya credenciales OIDC configuradas (US-004 en adelante).
+  # No falla el pipeline si infrastructure/terraform aún no tiene código
+  # real (estado actual del Sprint 0).
+  # ---------------------------------------------------------------------
+  terraform:
+    name: Terraform fmt / validate / plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # requerido para OIDC hacia AWS cuando exista terraform plan real
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detectar archivos Terraform reales
+        id: detect-tf
+        run: |
+          if find . -type f -name '*.tf' | grep -q .; then
+            echo "has_tf=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tf=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sin archivos .tf todavia (Sprint 0) - se omite el resto del job
+        if: steps.detect-tf.outputs.has_tf != 'true'
+        run: |
+          echo "infrastructure/terraform aun no tiene codigo Terraform real (ver README.md)."
+          echo "Este job se activara automaticamente en cuanto US-004 agregue archivos .tf."
+
+      - name: Detectar si hay credenciales OIDC para 'terraform plan'
+        id: detect-plan
+        if: steps.detect-tf.outputs.has_tf == 'true'
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+        run: |
+          if [ -n "$AWS_ROLE_ARN" ]; then
+            echo "can_plan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "can_plan=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Terraform
+        if: steps.detect-tf.outputs.has_tf == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+
+      - name: Terraform fmt -check
+        if: steps.detect-tf.outputs.has_tf == 'true'
+        run: terraform fmt -check -recursive -diff
+
+      # Init sin backend: suficiente para 'terraform validate' cuando aun no
+      # hay credenciales OIDC / estado remoto configurado.
+      - name: Terraform init (sin backend, solo para validar)
+        if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan != 'true'
+        run: terraform init -backend=false -input=false
+
+      - name: Configurar credenciales AWS via OIDC
+        if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      # Init con backend remoto real (el bloque backend "s3" vive en el propio
+      # codigo Terraform de US-004; este workflow no necesita conocer sus
+      # parametros).
+      - name: Terraform init (con backend remoto)
+        if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan == 'true'
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        if: steps.detect-tf.outputs.has_tf == 'true'
+        run: terraform validate
+
+      - name: Terraform plan
+        if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan == 'true'
+        run: terraform plan -input=false -no-color
+
+  # ---------------------------------------------------------------------
+  # Controles basicos de seguridad: escaneo de patrones de secretos y
+  # auditoria informativa de dependencias.
+  # ---------------------------------------------------------------------
+  security:
+    name: Controles de seguridad basicos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Escaneo basico de patrones de secretos conocidos
+        run: |
+          set -euo pipefail
+          echo "Escaneando archivos versionados en busca de patrones de credenciales conocidos..."
+
+          # Patrones: AWS Access Key ID, bloques de clave privada, tokens de
+          # GitHub, API keys de Google, tokens de Slack. Es un control basico
+          # (no reemplaza un escaneo de historial completo tipo gitleaks /
+          # truffleHog, que se evaluara incorporar en una iteracion posterior
+          # de US-005 sin bloquear esta historia).
+          PATTERN='(AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{36,}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[0-9A-Za-z-]+)'
+
+          if MATCHES=$(git grep -nIE "$PATTERN" -- . ':(exclude).env.example' ':(exclude)package-lock.json' ':(exclude)*.md'); then
+            echo "$MATCHES"
+            echo "::error::Se detectaron patrones que parecen credenciales/secretos en archivos versionados."
+            exit 1
+          fi
+          echo "OK: no se detectaron patrones conocidos de secretos."
+
+      - name: Verificar que no se versionen archivos .env reales
+        run: |
+          set -euo pipefail
+          FOUND=$(git ls-files | grep -E '(^|/)\.env(\..+)?$' | grep -vE '\.env\.example$' || true)
+          if [ -n "$FOUND" ]; then
+            echo "$FOUND"
+            echo "::error::Se encontraron archivos .env versionados (deben permanecer fuera de git)."
+            exit 1
+          fi
+          echo "OK: no hay archivos .env reales versionados."
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ env.NODE_VERSION_FILE }}
+          cache: npm
+
+      - name: Instalar dependencias (para auditoria)
+        run: npm ci
+
+      - name: Auditoria de dependencias (npm audit, informativo)
+        # Politica Sprint 0: no bloquea el merge por hallazgos de severidad
+        # baja/media/alta mientras el arbol de dependencias es minimo
+        # (placeholders). El resultado queda visible en los logs del job.
+        # Revisar/endurecer esta politica cuando existan dependencias de
+        # produccion reales (frontend/backend).
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------
+  # Check unico agregador, util para configurar como "status check"
+  # requerido en la proteccion de la rama principal (US-007).
+  # ---------------------------------------------------------------------
+  ci-gate:
+    name: CI OK (gate)
+    runs-on: ubuntu-latest
+    needs: [quality, terraform, security]
+    if: always()
+    steps:
+      - name: Verificar resultado de los jobs
+        run: |
+          if [ "${{ needs.quality.result }}" != "success" ] || \
+             [ "${{ needs.terraform.result }}" != "success" ] || \
+             [ "${{ needs.security.result }}" != "success" ]; then
+            echo "::error::Uno o mas jobs de CI fallaron."
+            exit 1
+          fi
+          echo "Todos los jobs de CI pasaron correctamente."
