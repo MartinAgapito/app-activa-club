@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+coverage
+.terraform
+*.tfstate
+*.tfstate.backup
+*.tfplan
+mock-data/*.json
+package-lock.json

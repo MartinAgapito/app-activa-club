@@ -1,0 +1,52 @@
+# ---- Dependencias ----
+node_modules/
+.npm/
+.pnpm-store/
+
+# ---- Builds / artefactos ----
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+.turbo/
+
+# ---- Variables de entorno y secretos ----
+.env
+.env.*
+!.env.example
+
+# ---- Terraform ----
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
+# ---- Logs ----
+*.log
+npm-debug.log*
+logs/
+
+# ---- Tests / cobertura ----
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# ---- Editor / SO ----
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Configuración local de herramientas de desarrollo (no se versiona) ----
+.claude/
+
+# ---- AWS / CDK-adjacent ----
+.aws-sam/
