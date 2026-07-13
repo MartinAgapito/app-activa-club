@@ -1,0 +1,69 @@
+# CODEOWNERS — Activa Club
+#
+# Mapea las carpetas del monorepo a los "dueños" conceptuales por rol,
+# según lo definido en US-007 (docs/scrum/historias/US-007-gobierno-git-plantillas-pr.md).
+#
+# Estado actual: el proyecto tiene un único desarrollador humano cubriendo
+# distintos roles del equipo. Por eso todas las
+# rutas apuntan hoy al mismo owner de placeholder (@activa-club-owner), pero
+# el mapeo de carpeta -> rol se documenta igual para que, cuando el equipo
+# crezca, baste con reemplazar el placeholder por el usuario o equipo real
+# de GitHub sin rediseñar la política.
+#
+# TODO (cuando haya más de una persona/equipo en GitHub):
+#   Reemplazar "@activa-club-owner" en cada línea por el usuario o equipo
+#   real de GitHub responsable de ese rol (ej. @activa-club/frontend).
+#
+# GitHub usa la ÚLTIMA regla que matchea una ruta, así que las más
+# específicas van después de las más generales.
+
+# Owner por defecto para todo lo que no matchee una regla más específica.
+* @activa-club-owner
+
+# --- Frontend ---
+/apps/web/ @activa-club-owner
+
+# --- Backend ---
+/apps/api/ @activa-club-owner
+
+# --- Contratos y librerías compartidas (frontend + backend) ---
+/packages/shared-types/ @activa-club-owner
+/packages/validation/ @activa-club-owner
+/packages/ui/ @activa-club-owner
+
+# --- DevOps / Infraestructura / CI-CD ---
+/infrastructure/terraform/ @activa-club-owner
+/.github/workflows/ @activa-club-owner
+
+# --- Arquitectura, contratos de API y modelo de datos ---
+/docs/architecture/ @activa-club-owner
+/docs/api/ @activa-club-owner
+/docs/data/ @activa-club-owner
+
+# --- Seguridad (revisión conjunta Arquitecto/DevOps) ---
+/docs/security/ @activa-club-owner
+
+# --- Product Analyst / Scrum ---
+/docs/scrum/ @activa-club-owner
+/docs/product/ @activa-club-owner
+
+# --- Context Guardian: fuente única de verdad, requiere revisión reforzada ---
+/docs/product/contexto-maestro.md @activa-club-owner
+
+# --- QA / pruebas ---
+/docs/testing/ @activa-club-owner
+/apps/web/**/*.test.* @activa-club-owner
+/apps/web/**/*.spec.* @activa-club-owner
+/apps/api/**/*.test.* @activa-club-owner
+/apps/api/**/*.spec.* @activa-club-owner
+/apps/web/e2e/ @activa-club-owner
+/apps/api/e2e/ @activa-club-owner
+
+# --- Despliegue ---
+/docs/deployment/ @activa-club-owner
+
+# --- Git Steward: gobierno Git, plantillas y changelog ---
+/.github/PULL_REQUEST_TEMPLATE.md @activa-club-owner
+/.github/CODEOWNERS @activa-club-owner
+/CONTRIBUTING.md @activa-club-owner
+/CHANGELOG.md @activa-club-owner
