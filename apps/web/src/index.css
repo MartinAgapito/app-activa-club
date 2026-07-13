@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+@import './styles/theme.css';
+
+/* Fuentes de origen para las clases de utilidad de la design foundation
+   (packages/ui/src/**) además de apps/web/src/**. Ver
+   apps/web/docs/design-foundation.md. */
+@source '../../../packages/ui/src';
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "@activa-club/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frontend de Activa Club (React, TypeScript, Vite, Tailwind CSS).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@activa-club/shared-types": "*",
+    "@activa-club/ui": "*",
+    "@activa-club/validation": "*",
+    "@hookform/resolvers": "^5.4.0",
+    "@tanstack/react-query": "^5.101.2",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-hook-form": "^7.81.0",
+    "react-router-dom": "^7.18.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "jsdom": "^29.1.1",
+    "tailwindcss": "^4.3.2",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
+  }
+}
