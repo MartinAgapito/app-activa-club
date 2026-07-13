@@ -1,0 +1,17 @@
+{
+  "name": "@activa-club/validation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Esquemas de validación compartidos (Zod) entre apps/web y apps/api.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@activa-club/shared-types": "*",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {}
+}

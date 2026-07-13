@@ -1,0 +1,13 @@
+{
+  "name": "@activa-club/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contratos y tipos TypeScript compartidos entre apps/web y apps/api.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {}
+}
