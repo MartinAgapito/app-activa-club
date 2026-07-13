@@ -1,0 +1,12 @@
+# Copiar como terraform.tfvars (NO versionado, ver .gitignore) y completar.
+# Sin valores reales ni secretos en este archivo .example.
+
+github_org  = "TU_ORGANIZACION_O_USUARIO_GITHUB"
+github_repo = "Tesis-app"
+
+# Dejar en true salvo que la cuenta AWS ya tenga un proveedor OIDC de GitHub
+# creado por otro proyecto (AWS permite solo uno por cuenta para la misma URL).
+create_oidc_provider = true
+# existing_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+
+aws_region = "us-east-1"

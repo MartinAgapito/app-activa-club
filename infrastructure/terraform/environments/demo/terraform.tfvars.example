@@ -1,0 +1,5 @@
+# Copiar como terraform.tfvars (NO versionado, ver .gitignore) y completar
+# con valores reales del entorno demo. Sin secretos: este es solo el correo
+# remitente de SES (dato no sensible, pero específico del entorno).
+
+ses_sender_email = "no-reply-demo@example.com"
