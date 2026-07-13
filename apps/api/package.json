@@ -1,0 +1,27 @@
+{
+  "name": "@activa-club/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend serverless de Activa Club (Node.js, TypeScript, AWS Lambda, API Gateway REST + Lambda por endpoint, ADR-0004).",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@activa-club/shared-types": "^0.1.0",
+    "@activa-club/validation": "^0.1.0",
+    "@aws-sdk/client-dynamodb": "^3.1084.0",
+    "@aws-sdk/client-s3": "^3.1084.0",
+    "@aws-sdk/lib-dynamodb": "^3.1084.0",
+    "ulid": "^3.0.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.162",
+    "@types/node": "^26.1.1",
+    "vitest": "^4.1.10"
+  }
+}
