@@ -122,10 +122,20 @@ jobs:
         if: steps.detect-tf.outputs.has_tf == 'true'
         run: terraform fmt -check -recursive -diff
 
+      # A partir de aqui se opera sobre environments/dev: es el unico entorno
+      # con backend remoto ya aplicado (bootstrap) contra el que tiene sentido
+      # que el PR valide un plan real. infrastructure/terraform/ (la raiz) no
+      # tiene codigo Terraform propio -- solo subcarpetas -- por lo que
+      # ejecutar init/validate/plan ahi falla con "No configuration files".
+      # bootstrap/ queda fuera a proposito (US-004: se aplica manual, estado
+      # local, nunca desde CI). demo/ se incorpora cuando exista su propio
+      # pipeline de despliegue.
+      #
       # Init sin backend: suficiente para 'terraform validate' cuando aun no
       # hay credenciales OIDC / estado remoto configurado.
       - name: Terraform init (sin backend, solo para validar)
         if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan != 'true'
+        working-directory: infrastructure/terraform/environments/dev
         run: terraform init -backend=false -input=false
 
       - name: Configurar credenciales AWS via OIDC
@@ -140,14 +150,22 @@ jobs:
       # parametros).
       - name: Terraform init (con backend remoto)
         if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan == 'true'
+        working-directory: infrastructure/terraform/environments/dev
         run: terraform init -input=false
 
       - name: Terraform validate
         if: steps.detect-tf.outputs.has_tf == 'true'
+        working-directory: infrastructure/terraform/environments/dev
         run: terraform validate
 
+      # ses_sender_email no tiene default (ver variables.tf): es un dato no
+      # sensible (solo un remitente de dev), pero requerido para que el plan
+      # pueda ejecutarse en CI sin un terraform.tfvars versionado.
       - name: Terraform plan
         if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan == 'true'
+        working-directory: infrastructure/terraform/environments/dev
+        env:
+          TF_VAR_ses_sender_email: no-reply-dev@example.com
         run: terraform plan -input=false -no-color
 
   # ---------------------------------------------------------------------
