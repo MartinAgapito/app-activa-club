@@ -1,16 +1,16 @@
 # US-010 — Validar contratos e integración planificada
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-010 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | Integrador |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Media |
-| Estimación relativa | 5 |
-| Dependencias | US-003, US-008, US-009 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-010                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | Integrador                                                            |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Media                                                                 |
+| Estimación relativa | 5                                                                     |
+| Dependencias        | US-003, US-008, US-009                                                |
 
 ## Objetivo
 

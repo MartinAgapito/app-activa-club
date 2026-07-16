@@ -42,8 +42,8 @@ Se usa **Amazon SES** para el envío de correos transaccionales.
 - **Negativas**: sandbox limita destinatarios a correos verificados; salir de
   sandbox requiere solicitud a AWS (no necesario para la demo).
 - **Impacto**:
-  - *Backend (US-009)*: utilidad de envío de correo + selección de plantilla por
+  - _Backend (US-009)_: utilidad de envío de correo + selección de plantilla por
     evento; manejo de fallos sin romper la transacción de negocio.
-  - *Terraform (US-004)*: identidades/plantillas SES, permisos `ses:SendEmail`.
-  - *QA*: verificar que el fallo de correo no bloquea la operación y que la
+  - _Terraform (US-004)_: identidades/plantillas SES, permisos `ses:SendEmail`.
+  - _QA_: verificar que el fallo de correo no bloquea la operación y que la
     notificación interna siempre se crea.

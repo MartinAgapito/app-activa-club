@@ -1,16 +1,16 @@
 # US-006 — Definir estrategia y matriz inicial de pruebas
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-006 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | QA |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Media-Alta |
-| Estimación relativa | 5 |
-| Dependencias | US-001, US-003 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-006                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | QA                                                                    |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Media-Alta                                                            |
+| Estimación relativa | 5                                                                     |
+| Dependencias        | US-001, US-003                                                        |
 
 ## Objetivo
 

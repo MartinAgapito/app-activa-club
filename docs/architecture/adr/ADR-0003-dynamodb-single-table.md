@@ -57,8 +57,8 @@ Justificación del single-table frente a múltiples tablas:
   con muchos usuarios; para el MVP (pocos usuarios) es aceptable. Documentado en
   [riesgos-tecnicos.md](../riesgos-tecnicos.md).
 - **Impacto**:
-  - *Backend (US-009)*: repositorio de acceso a datos centrado en una tabla;
+  - _Backend (US-009)_: repositorio de acceso a datos centrado en una tabla;
     helpers de construcción de claves según el modelo documentado.
-  - *Terraform (US-004)*: una tabla DynamoDB on-demand con 3 GSI y TTL.
-  - *QA*: pruebas de reglas críticas (cruces, unicidad, idempotencia) contra los
+  - _Terraform (US-004)_: una tabla DynamoDB on-demand con 3 GSI y TTL.
+  - _QA_: pruebas de reglas críticas (cruces, unicidad, idempotencia) contra los
     patrones de acceso definidos.

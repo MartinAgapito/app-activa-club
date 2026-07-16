@@ -1,16 +1,16 @@
 # US-002 — Documentar arquitectura base y decisiones técnicas
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-002 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | Arquitecto |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Alta |
-| Estimación relativa | 8 |
-| Dependencias | US-001 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-002                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | Arquitecto                                                            |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Alta                                                                  |
+| Estimación relativa | 8                                                                     |
+| Dependencias        | US-001                                                                |
 
 ## Objetivo
 

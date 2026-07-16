@@ -1,16 +1,16 @@
 # US-007 — Definir gobierno Git y plantillas de Pull Request
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-007 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | Git Steward |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Media-Alta |
-| Estimación relativa | 3 |
-| Dependencias | US-000 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-007                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | Git Steward                                                           |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Media-Alta                                                            |
+| Estimación relativa | 3                                                                     |
+| Dependencias        | US-000                                                                |
 
 ## Objetivo
 

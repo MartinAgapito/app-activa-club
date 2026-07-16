@@ -43,7 +43,7 @@ Buckets privados, cifrado en reposo y acceso por IAM de mínimo privilegio.
   responsabilidades y permisos.
 - **Negativas**: más buckets que declarar; se gestiona con un módulo Terraform.
 - **Impacto**:
-  - *Terraform (US-004)*: buckets + políticas + CloudFront + OAC.
-  - *Backend (US-009)*: Lambda de migración lee del bucket de migración.
-  - *Frontend (US-008)*: pipeline publica el build al bucket `web`.
-  - *CI/CD (US-005)*: invalidación de CloudFront tras desplegar el SPA.
+  - _Terraform (US-004)_: buckets + políticas + CloudFront + OAC.
+  - _Backend (US-009)_: Lambda de migración lee del bucket de migración.
+  - _Frontend (US-008)_: pipeline publica el build al bucket `web`.
+  - _CI/CD (US-005)_: invalidación de CloudFront tras desplegar el SPA.
