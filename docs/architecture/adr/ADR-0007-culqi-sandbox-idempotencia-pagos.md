@@ -53,11 +53,11 @@ Integración con Culqi con separación estricta cliente/servidor e idempotencia.
   que deben converger idempotentemente; hay que gestionar el secreto de la llave
   privada.
 - **Impacto**:
-  - *Backend (US-009)*: Lambda de pago con idempotencia + Lambda de webhook con
+  - _Backend (US-009)_: Lambda de pago con idempotencia + Lambda de webhook con
     verificación de firma; actualización de membresía solo tras confirmación.
-  - *Frontend (US-008)*: Culqi.js con llave pública; envía token + idempotencyKey.
-  - *Terraform (US-004)*: secreto de llave privada en SSM/Secrets Manager; ruta de
+  - _Frontend (US-008)_: Culqi.js con llave pública; envía token + idempotencyKey.
+  - _Terraform (US-004)_: secreto de llave privada en SSM/Secrets Manager; ruta de
     webhook pública sin authorizer pero con verificación de firma.
-  - *Security*: RN-PAG-08 verificable; ningún secreto en repo.
-  - *QA*: pruebas de doble envío (misma idempotencyKey), pago fallido y bloqueo de
+  - _Security_: RN-PAG-08 verificable; ningún secreto en repo.
+  - _QA_: pruebas de doble envío (misma idempotencyKey), pago fallido y bloqueo de
     reserva con deuda.

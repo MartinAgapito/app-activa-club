@@ -1,16 +1,16 @@
 # US-001 — Documentar visión, alcance y reglas de negocio
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-001 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Historia de producto / documentación |
-| Responsable | Scrum / Product Analyst |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Crítica |
-| Estimación relativa | 5 |
-| Dependencias | Ninguna |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-001                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Historia de producto / documentación                                  |
+| Responsable         | Scrum / Product Analyst                                               |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Crítica                                                               |
+| Estimación relativa | 5                                                                     |
+| Dependencias        | Ninguna                                                               |
 
 ## Historia
 

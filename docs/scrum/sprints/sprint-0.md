@@ -1,13 +1,13 @@
 # Sprint 0 — Fundación técnica y documental
 
-| Campo | Valor |
-|-------|-------|
-| Sprint | 0 |
-| Nombre | Fundación técnica y documental |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Fase | MVP — Fundación |
-| Duración sugerida | 1 semana (hasta 2 semanas si hay menor disponibilidad) |
-| Estado | En progreso |
+| Campo             | Valor                                                                 |
+| ----------------- | --------------------------------------------------------------------- |
+| Sprint            | 0                                                                     |
+| Nombre            | Fundación técnica y documental                                        |
+| Épica             | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Fase              | MVP — Fundación                                                       |
+| Duración sugerida | 1 semana (hasta 2 semanas si hay menor disponibilidad)                |
+| Estado            | En progreso                                                           |
 
 ## Sprint Goal
 
@@ -19,19 +19,19 @@ Durante el Sprint 0 **no se incorpora funcionalidad de negocio**. Todo el trabaj
 
 ## Sprint Backlog
 
-| ID | Título | Responsable | Prioridad | Depende de | Estimación |
-|----|--------|-------------|-----------|------------|------------|
-| [US-000](../historias/US-000-inicializar-monorepo-estandares.md) | Inicializar monorepo y estándares de desarrollo | DevOps | Crítica | — | 5 |
-| [US-001](../historias/US-001-documentar-vision-alcance-reglas.md) | Documentar visión, alcance y reglas de negocio | Scrum/Product | Crítica | — | 5 |
-| [US-002](../historias/US-002-documentar-arquitectura-base.md) | Documentar arquitectura base y decisiones técnicas | Arquitecto | Alta | US-001 | 8 |
-| [US-003](../historias/US-003-modelo-datos-contratos-iniciales.md) | Definir modelo de datos y contratos iniciales | Arquitecto | Alta | US-001 | 8 |
-| [US-004](../historias/US-004-base-infraestructura-terraform.md) | Preparar base de infraestructura con Terraform | DevOps | Alta | US-002 | 8 |
-| [US-005](../historias/US-005-ci-calidad-github-actions.md) | Configurar CI de calidad con GitHub Actions | DevOps | Alta | US-000 | 5 |
-| [US-006](../historias/US-006-estrategia-matriz-pruebas.md) | Definir estrategia y matriz inicial de pruebas | QA | Media-Alta | US-001, US-003 | 5 |
-| [US-007](../historias/US-007-gobierno-git-plantillas-pr.md) | Definir gobierno Git y plantillas de Pull Request | Git Steward | Media-Alta | US-000 | 3 |
-| [US-008](../historias/US-008-mapa-rutas-design-foundation.md) | Diseñar mapa de rutas y design foundation | Frontend | Media | US-001, US-003 | 5 |
-| [US-009](../historias/US-009-modulos-backend-flujo-migracion.md) | Diseñar módulos backend y flujo de migración | Backend | Media | US-002, US-003 | 8 |
-| [US-010](../historias/US-010-validar-contratos-integracion.md) | Validar contratos e integración planificada | Integrador | Media | US-003, US-008, US-009 | 5 |
+| ID                                                                | Título                                             | Responsable   | Prioridad  | Depende de             | Estimación |
+| ----------------------------------------------------------------- | -------------------------------------------------- | ------------- | ---------- | ---------------------- | ---------- |
+| [US-000](../historias/US-000-inicializar-monorepo-estandares.md)  | Inicializar monorepo y estándares de desarrollo    | DevOps        | Crítica    | —                      | 5          |
+| [US-001](../historias/US-001-documentar-vision-alcance-reglas.md) | Documentar visión, alcance y reglas de negocio     | Scrum/Product | Crítica    | —                      | 5          |
+| [US-002](../historias/US-002-documentar-arquitectura-base.md)     | Documentar arquitectura base y decisiones técnicas | Arquitecto    | Alta       | US-001                 | 8          |
+| [US-003](../historias/US-003-modelo-datos-contratos-iniciales.md) | Definir modelo de datos y contratos iniciales      | Arquitecto    | Alta       | US-001                 | 8          |
+| [US-004](../historias/US-004-base-infraestructura-terraform.md)   | Preparar base de infraestructura con Terraform     | DevOps        | Alta       | US-002                 | 8          |
+| [US-005](../historias/US-005-ci-calidad-github-actions.md)        | Configurar CI de calidad con GitHub Actions        | DevOps        | Alta       | US-000                 | 5          |
+| [US-006](../historias/US-006-estrategia-matriz-pruebas.md)        | Definir estrategia y matriz inicial de pruebas     | QA            | Media-Alta | US-001, US-003         | 5          |
+| [US-007](../historias/US-007-gobierno-git-plantillas-pr.md)       | Definir gobierno Git y plantillas de Pull Request  | Git Steward   | Media-Alta | US-000                 | 3          |
+| [US-008](../historias/US-008-mapa-rutas-design-foundation.md)     | Diseñar mapa de rutas y design foundation          | Frontend      | Media      | US-001, US-003         | 5          |
+| [US-009](../historias/US-009-modulos-backend-flujo-migracion.md)  | Diseñar módulos backend y flujo de migración       | Backend       | Media      | US-002, US-003         | 8          |
+| [US-010](../historias/US-010-validar-contratos-integracion.md)    | Validar contratos e integración planificada        | Integrador    | Media      | US-003, US-008, US-009 | 5          |
 
 ## Grafo de dependencias
 
@@ -78,12 +78,12 @@ US-003 ──► US-010
 
 ## Riesgos del sprint
 
-| Riesgo | Impacto | Mitigación |
-|--------|---------|------------|
-| Contratos/modelo de datos ambiguos (US-003) | Alto: bloquea frontend, backend, QA | Priorizar US-001 y US-003; US-010 valida antes del Sprint 1 |
-| Configuración de OIDC AWS demora (US-004/US-005) | Medio: retrasa CI/CD | Aislar OIDC como tarea temprana de DevOps |
-| Menor disponibilidad del equipo | Medio: extiende el sprint | Duración flexible hasta 2 semanas; mantener el alcance sin funcionalidad |
-| Divergencia respecto al Contexto Maestro | Alto: retrabajo y decisiones inconsistentes | Toda la documentación deriva del Contexto Maestro; el guardián de contexto vela por su integridad |
+| Riesgo                                           | Impacto                                     | Mitigación                                                                                        |
+| ------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Contratos/modelo de datos ambiguos (US-003)      | Alto: bloquea frontend, backend, QA         | Priorizar US-001 y US-003; US-010 valida antes del Sprint 1                                       |
+| Configuración de OIDC AWS demora (US-004/US-005) | Medio: retrasa CI/CD                        | Aislar OIDC como tarea temprana de DevOps                                                         |
+| Menor disponibilidad del equipo                  | Medio: extiende el sprint                   | Duración flexible hasta 2 semanas; mantener el alcance sin funcionalidad                          |
+| Divergencia respecto al Contexto Maestro         | Alto: retrabajo y decisiones inconsistentes | Toda la documentación deriva del Contexto Maestro; el guardián de contexto vela por su integridad |
 
 ## Historial de cambios
 

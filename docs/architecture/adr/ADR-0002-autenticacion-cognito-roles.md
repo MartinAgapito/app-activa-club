@@ -52,10 +52,10 @@ Se usa **Amazon Cognito User Pool** como proveedor de identidad.
   hay dos fuentes de estado (Cognito para credenciales, DynamoDB para el dominio)
   que deben mantenerse coherentes en los flujos de activación/registro.
 - **Impacto**:
-  - *Backend (US-009)*: middleware que extrae `sub`/grupos del authorizer y
+  - _Backend (US-009)_: middleware que extrae `sub`/grupos del authorizer y
     resuelve el socio; funciones de activación/registro usan Admin API.
-  - *Frontend (US-008)*: login/refresh/logout contra Cognito (Amplify o SDK);
+  - _Frontend (US-008)_: login/refresh/logout contra Cognito (Amplify o SDK);
     guarda de rutas por rol como UX, no como control de seguridad.
-  - *Terraform (US-004)*: User Pool, grupos `member`/`admin`, App Client,
+  - _Terraform (US-004)_: User Pool, grupos `member`/`admin`, App Client,
     Authorizer de API Gateway.
-  - *Security (docs/security)*: matriz de permisos por rol y endpoint.
+  - _Security (docs/security)_: matriz de permisos por rol y endpoint.

@@ -1,5 +1,7 @@
 # Activa Club
 
+[![PR Quality](https://github.com/MartinAgapito/app-activa-club/actions/workflows/pr-quality.yml/badge.svg)](https://github.com/MartinAgapito/app-activa-club/actions/workflows/pr-quality.yml)
+
 Activa Club es una plataforma web responsive para modernizar un club deportivo
 privado que actualmente opera con un sistema on-premise. El proyecto demuestra
 la migración de datos hacia AWS y habilita una experiencia digital para socios

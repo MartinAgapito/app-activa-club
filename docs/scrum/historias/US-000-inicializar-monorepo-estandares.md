@@ -1,16 +1,16 @@
 # US-000 — Inicializar monorepo y estándares de desarrollo
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-000 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | DevOps |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Crítica |
-| Estimación relativa | 5 |
-| Dependencias | Ninguna |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-000                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | DevOps                                                                |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Crítica                                                               |
+| Estimación relativa | 5                                                                     |
+| Dependencias        | Ninguna                                                               |
 
 ## Objetivo
 

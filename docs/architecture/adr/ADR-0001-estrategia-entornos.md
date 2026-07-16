@@ -42,9 +42,9 @@ Se adoptan **dos entornos**: `dev` y `demo`.
 - **Negativas**: se duplican algunos recursos y la parametrización de Terraform
   debe soportar el prefijo por entorno desde el inicio.
 - **Impacto**:
-  - *Terraform (US-004)*: variable `environment` y prefijo de nombres; backend de
+  - _Terraform (US-004)_: variable `environment` y prefijo de nombres; backend de
     estado separado por entorno.
-  - *CI/CD (US-005)*: dos jobs/targets de despliegue; OIDC con roles por entorno.
-  - *Backend/Frontend*: leen configuración por entorno desde variables; no
+  - _CI/CD (US-005)_: dos jobs/targets de despliegue; OIDC con roles por entorno.
+  - _Backend/Frontend_: leen configuración por entorno desde variables; no
     hardcodear IDs.
-  - *QA*: pruebas E2E se ejecutan contra `dev`; smoke test contra `demo`.
+  - _QA_: pruebas E2E se ejecutan contra `dev`; smoke test contra `demo`.

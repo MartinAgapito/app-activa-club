@@ -54,10 +54,10 @@ Justificación de Lambda por endpoint:
   Terraform parametrizado que genera Lambda + integración + permisos por endpoint.
   Posibles arranques en frío por función; irrelevante para el volumen del MVP.
 - **Impacto**:
-  - *Backend (US-009)*: estructura `apps/api` con un handler por endpoint y
+  - _Backend (US-009)_: estructura `apps/api` con un handler por endpoint y
     utilidades compartidas.
-  - *Terraform (US-004)*: módulo reutilizable "endpoint" (Lambda + ruta + método
-    + authorizer + rol IAM).
-  - *Contratos (US-003)*: cada endpoint de [contratos-api.md](../../api/contratos-api.md)
+  - _Terraform (US-004)_: módulo reutilizable "endpoint" (Lambda + ruta + método
+    - authorizer + rol IAM).
+  - _Contratos (US-003)_: cada endpoint de [contratos-api.md](../../api/contratos-api.md)
     corresponde a una Lambda.
-  - *CI/CD (US-005)*: build/empaquetado por función.
+  - _CI/CD (US-005)_: build/empaquetado por función.

@@ -1,16 +1,16 @@
 # US-009 — Diseñar módulos backend y flujo de migración
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-009 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | Backend |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Media |
-| Estimación relativa | 8 |
-| Dependencias | US-002, US-003 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-009                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | Backend                                                               |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Media                                                                 |
+| Estimación relativa | 8                                                                     |
+| Dependencias        | US-002, US-003                                                        |
 
 ## Objetivo
 

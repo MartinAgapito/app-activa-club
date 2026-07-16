@@ -101,10 +101,10 @@ una raíz de Terraform aparte que:
 
 Dos entornos, según [ADR-0001](../architecture/adr/ADR-0001-estrategia-entornos.md):
 
-| Entorno | Carpeta | Propósito |
-|---|---|---|
-| `dev` | `environments/dev/` | Trabajo diario, despliegues frecuentes |
-| `demo` | `environments/demo/` | Presentación al jurado, desplegado desde rama principal validada |
+| Entorno | Carpeta              | Propósito                                                        |
+| ------- | -------------------- | ---------------------------------------------------------------- |
+| `dev`   | `environments/dev/`  | Trabajo diario, despliegues frecuentes                           |
+| `demo`  | `environments/demo/` | Presentación al jurado, desplegado desde rama principal validada |
 
 Ambos comparten los mismos módulos; solo cambian variables (`environment`,
 `ses_sender_email`, y potencialmente `aws_region`/cuenta si en el futuro se
@@ -112,16 +112,16 @@ separan cuentas AWS).
 
 ## 4. Recursos base declarados (módulos)
 
-| Módulo | Recursos | Referencia |
-|---|---|---|
-| `modules/dynamodb-table` | Tabla única `activa-club-<env>`, GSI1/GSI2/GSI3, TTL `expiresAt`, PITR, cifrado, `prevent_destroy` | [modelo-dynamodb.md](../data/modelo-dynamodb.md), [ADR-0003](../architecture/adr/ADR-0003-dynamodb-single-table.md) |
-| `modules/cognito-user-pool` | User Pool, App Client web, grupos `member`/`admin` | [ADR-0002](../architecture/adr/ADR-0002-autenticacion-cognito-roles.md) |
-| `modules/s3-storage` | Bucket de migración (versionado) + bucket de activos, privados y cifrados | [ADR-0005](../architecture/adr/ADR-0005-s3-migracion-activos-hosting.md) |
-| `modules/frontend-hosting` | Bucket web privado + CloudFront + Origin Access Control | [ADR-0005](../architecture/adr/ADR-0005-s3-migracion-activos-hosting.md) |
-| `modules/ses-identity` | Identidad de correo remitente verificada por entorno | [ADR-0006](../architecture/adr/ADR-0006-ses-correos-transaccionales.md) |
-| `modules/log-group` | CloudWatch Log Group genérico y reutilizable (retención parametrizable, default 14 días) | [ADR-0008](../architecture/adr/ADR-0008-observabilidad-logging-auditoria.md) |
-| `modules/endpoint` | **Placeholder sin recursos** (Lambda + ruta API Gateway + Cognito Authorizer + rol IAM + log group), interfaz de variables lista para Sprint 1 | [ADR-0004](../architecture/adr/ADR-0004-api-gateway-rest-lambda-por-endpoint.md) |
-| `infrastructure/terraform/bootstrap` | Backend de estado (S3+DynamoDB), proveedor OIDC de GitHub, rol IAM de solo lectura para CI | Este documento, sección 2 |
+| Módulo                               | Recursos                                                                                                                                       | Referencia                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `modules/dynamodb-table`             | Tabla única `activa-club-<env>`, GSI1/GSI2/GSI3, TTL `expiresAt`, PITR, cifrado, `prevent_destroy`                                             | [modelo-dynamodb.md](../data/modelo-dynamodb.md), [ADR-0003](../architecture/adr/ADR-0003-dynamodb-single-table.md) |
+| `modules/cognito-user-pool`          | User Pool, App Client web, grupos `member`/`admin`                                                                                             | [ADR-0002](../architecture/adr/ADR-0002-autenticacion-cognito-roles.md)                                             |
+| `modules/s3-storage`                 | Bucket de migración (versionado) + bucket de activos, privados y cifrados                                                                      | [ADR-0005](../architecture/adr/ADR-0005-s3-migracion-activos-hosting.md)                                            |
+| `modules/frontend-hosting`           | Bucket web privado + CloudFront + Origin Access Control                                                                                        | [ADR-0005](../architecture/adr/ADR-0005-s3-migracion-activos-hosting.md)                                            |
+| `modules/ses-identity`               | Identidad de correo remitente verificada por entorno                                                                                           | [ADR-0006](../architecture/adr/ADR-0006-ses-correos-transaccionales.md)                                             |
+| `modules/log-group`                  | CloudWatch Log Group genérico y reutilizable (retención parametrizable, default 14 días)                                                       | [ADR-0008](../architecture/adr/ADR-0008-observabilidad-logging-auditoria.md)                                        |
+| `modules/endpoint`                   | **Placeholder sin recursos** (Lambda + ruta API Gateway + Cognito Authorizer + rol IAM + log group), interfaz de variables lista para Sprint 1 | [ADR-0004](../architecture/adr/ADR-0004-api-gateway-rest-lambda-por-endpoint.md)                                    |
+| `infrastructure/terraform/bootstrap` | Backend de estado (S3+DynamoDB), proveedor OIDC de GitHub, rol IAM de solo lectura para CI                                                     | Este documento, sección 2                                                                                           |
 
 **No se declaran** todavía: funciones Lambda, API Gateway, alarmas de
 CloudWatch específicas por endpoint, plantillas SES, ni el permiso
@@ -131,12 +131,12 @@ real de `apps/api` (Sprint 1, US-009) y se agrega completando
 
 ## 5. Variables y secretos requeridos por entorno
 
-| Variable | Dónde se define | Tipo | Notas |
-|---|---|---|---|
-| `ses_sender_email` | `environments/<env>/terraform.tfvars` (no versionado) o `TF_VAR_ses_sender_email` | No secreta, pero específica del entorno | Ver `terraform.tfvars.example` en cada entorno |
-| `AWS_OIDC_ROLE_ARN` | Secreto de repositorio GitHub | Secreto | Rol de solo lectura de `bootstrap` (output `github_actions_plan_role_arn`) |
-| `AWS_REGION` | Variable de repositorio GitHub (opcional) | No secreta | Default `us-east-1` si no se define (ver `pr-quality.yml`) |
-| `github_org`, `github_repo` | `bootstrap/terraform.tfvars` (no versionado) | No secretas | Solo para aplicar `bootstrap` manualmente |
+| Variable                    | Dónde se define                                                                   | Tipo                                    | Notas                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------- |
+| `ses_sender_email`          | `environments/<env>/terraform.tfvars` (no versionado) o `TF_VAR_ses_sender_email` | No secreta, pero específica del entorno | Ver `terraform.tfvars.example` en cada entorno                             |
+| `AWS_OIDC_ROLE_ARN`         | Secreto de repositorio GitHub                                                     | Secreto                                 | Rol de solo lectura de `bootstrap` (output `github_actions_plan_role_arn`) |
+| `AWS_REGION`                | Variable de repositorio GitHub (opcional)                                         | No secreta                              | Default `us-east-1` si no se define (ver `pr-quality.yml`)                 |
+| `github_org`, `github_repo` | `bootstrap/terraform.tfvars` (no versionado)                                      | No secretas                             | Solo para aplicar `bootstrap` manualmente                                  |
 
 Ningún archivo `terraform.tfvars` real se versiona (`.gitignore` ya excluye
 `*.tfvars` y permite `*.tfvars.example`). Ninguna clave AWS estática se usa
@@ -239,5 +239,5 @@ Terraform y debe tratarse como sospechoso de estar huérfano.
 - **Cuenta AWS compartida/ajena**: como no existe aún cuenta AWS del
   proyecto, cualquier futura ejecución de `terraform plan`/`apply` debe
   verificarse primero contra el `account_id` esperado (`aws sts
-  get-caller-identity`) antes de continuar, para evitar aplicar contra una
+get-caller-identity`) antes de continuar, para evitar aplicar contra una
   cuenta incorrecta.

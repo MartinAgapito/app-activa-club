@@ -1,16 +1,16 @@
 # US-004 — Preparar base de infraestructura con Terraform
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-004 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | DevOps |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Alta |
-| Estimación relativa | 8 |
-| Dependencias | US-002 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-004                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | DevOps                                                                |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Alta                                                                  |
+| Estimación relativa | 8                                                                     |
+| Dependencias        | US-002                                                                |
 
 ## Objetivo
 

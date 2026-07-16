@@ -26,19 +26,19 @@
 
 ## 2. Componentes AWS del MVP
 
-| Capa | Servicio AWS | Responsabilidad | ADR |
-|------|--------------|-----------------|-----|
-| Frontend | S3 + CloudFront | Hosting estático del SPA React/Vite (build) y distribución HTTPS | ADR-0005 |
-| Autenticación | Amazon Cognito (User Pool + grupos `member`/`admin`) | Registro, login (correo+contraseña), emisión de JWT, recuperación de contraseña | ADR-0002 |
-| API | Amazon API Gateway (REST) | Puerta de entrada HTTP, validación de JWT vía Cognito Authorizer, enrutamiento a Lambda | ADR-0004 |
-| Cómputo | AWS Lambda (Node.js 20 + TypeScript) | Lógica de negocio; una función por endpoint | ADR-0004 |
-| Datos | Amazon DynamoDB (single-table, on-demand) | Fuente operativa: socios, membresías, pagos, reservas, recursos, notificaciones, auditoría | ADR-0003 |
-| Almacenamiento | Amazon S3 | JSON de migración on-premise y activos del sistema | ADR-0005 |
-| Correo | Amazon SES | Correos transaccionales (activación, pagos, reservas, etc.) | ADR-0006 |
-| Pagos | Culqi (sandbox) | Cobro con tarjeta; el backend crea el cargo server-side | ADR-0007 |
-| Observabilidad | Amazon CloudWatch (Logs + Metrics + Alarms) | Logging estructurado, métricas, alarmas | ADR-0008 |
-| IaC | Terraform | Aprovisionamiento reproducible de todo lo anterior | (US-004) |
-| CI/CD | GitHub Actions (OIDC → AWS) | Lint, typecheck, test, build y despliegue | (US-005) |
+| Capa           | Servicio AWS                                         | Responsabilidad                                                                            | ADR      |
+| -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------- |
+| Frontend       | S3 + CloudFront                                      | Hosting estático del SPA React/Vite (build) y distribución HTTPS                           | ADR-0005 |
+| Autenticación  | Amazon Cognito (User Pool + grupos `member`/`admin`) | Registro, login (correo+contraseña), emisión de JWT, recuperación de contraseña            | ADR-0002 |
+| API            | Amazon API Gateway (REST)                            | Puerta de entrada HTTP, validación de JWT vía Cognito Authorizer, enrutamiento a Lambda    | ADR-0004 |
+| Cómputo        | AWS Lambda (Node.js 20 + TypeScript)                 | Lógica de negocio; una función por endpoint                                                | ADR-0004 |
+| Datos          | Amazon DynamoDB (single-table, on-demand)            | Fuente operativa: socios, membresías, pagos, reservas, recursos, notificaciones, auditoría | ADR-0003 |
+| Almacenamiento | Amazon S3                                            | JSON de migración on-premise y activos del sistema                                         | ADR-0005 |
+| Correo         | Amazon SES                                           | Correos transaccionales (activación, pagos, reservas, etc.)                                | ADR-0006 |
+| Pagos          | Culqi (sandbox)                                      | Cobro con tarjeta; el backend crea el cargo server-side                                    | ADR-0007 |
+| Observabilidad | Amazon CloudWatch (Logs + Metrics + Alarms)          | Logging estructurado, métricas, alarmas                                                    | ADR-0008 |
+| IaC            | Terraform                                            | Aprovisionamiento reproducible de todo lo anterior                                         | (US-004) |
+| CI/CD          | GitHub Actions (OIDC → AWS)                          | Lint, typecheck, test, build y despliegue                                                  | (US-005) |
 
 ## 3. Diagrama de contexto (MVP)
 
@@ -88,6 +88,7 @@ flowchart TB
 ## 4. Flujos clave (resumen)
 
 ### 4.1 Migración on-premise (RN-MIG)
+
 1. Se sube el JSON mock a S3 (`mock-data/` versionado en repo; el artefacto real
    se coloca en el bucket de migración).
 2. Una Lambda operacional (`LM`) lee el JSON, valida y hace `BatchWrite` a
@@ -97,6 +98,7 @@ flowchart TB
 3. Tras migrar, DynamoDB es la fuente operativa (RN-MIG-06).
 
 ### 4.2 Activación de socio migrado (RN-ACT)
+
 1. El socio ingresa su DNI → `POST /activation/verify` valida contra la data
    migrada (unicidad de DNI, no activado previamente).
 2. `POST /activation/complete` con correo+contraseña crea el usuario en Cognito
@@ -104,12 +106,14 @@ flowchart TB
    membresía migrada está vigente. Un DNI = una sola cuenta digital (RN-ACT-03).
 
 ### 4.3 Registro de socio nuevo (RN-ACT-05..07)
+
 1. `POST /registration` crea el socio en estado `PENDING` y el usuario Cognito.
 2. Admin aprueba/rechaza (`POST /members/{id}/approve|reject`).
 3. Tras aprobación, el socio debe pagar su primera membresía para pasar a
    `ACTIVE` y poder reservar.
 
 ### 4.4 Pago con Culqi (RN-PAG)
+
 1. El frontend tokeniza la tarjeta con Culqi.js (los datos de tarjeta nunca
    tocan el backend).
 2. `POST /payments` envía el token + `idempotencyKey`. El backend crea el cargo
@@ -118,6 +122,7 @@ flowchart TB
    segura (respuesta síncrona verificada y/o webhook firmado, RN-PAG-07).
 
 ### 4.5 Reserva (RN-RES)
+
 1. `GET /resources/{id}/availability` calcula franjas libres.
 2. `POST /reservations` valida en backend: socio activo sin deuda (RN-RES-12),
    horario/aforo del recurso, ausencia de cruces por recurso (RN-RES-07) y de
@@ -127,6 +132,7 @@ flowchart TB
 3. Cancelación permitida hasta 24h antes (RN-RES-10).
 
 ### 4.6 Notificaciones (RN-NOT)
+
 - Notificación interna: item por socio en su inbox de DynamoDB (obligatorio).
 - Correo transaccional opcional vía SES para eventos relevantes.
 
