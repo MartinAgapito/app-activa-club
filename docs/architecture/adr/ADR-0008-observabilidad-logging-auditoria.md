@@ -15,6 +15,7 @@ observabilidad, todo con bajo costo. El stack fija **CloudWatch**.
 ## Decisión
 
 ### Manejo de errores (contrato)
+
 Formato de error estándar único para toda la API (ver
 [contratos-api.md](../../api/contratos-api.md)):
 
@@ -29,6 +30,7 @@ Formato de error estándar único para toda la API (ver
   trazas ni datos sensibles al cliente.
 
 ### Logging estructurado
+
 - Cada Lambda emite logs **JSON** a CloudWatch con campos mínimos: `timestamp`,
   `level`, `requestId`, `route`, `actorSub`, `role`, `entityType`, `action`,
   `outcome`, `latencyMs`. Sin PII innecesaria, sin tarjetas ni secretos.
@@ -36,6 +38,7 @@ Formato de error estándar único para toda la API (ver
   correlación.
 
 ### Auditoría (RN-ADM)
+
 - Las **acciones administrativas** relevantes (aprobar/rechazar socio, aprobar/
   rechazar reserva, mantenimiento de recurso, envío de notificaciones, ejecución
   de migración) se persisten como ítems `AuditLog` en DynamoDB
@@ -45,6 +48,7 @@ Formato de error estándar único para toda la API (ver
   registro de negocio consultable.
 
 ### Observabilidad
+
 - **Métricas** por endpoint (invocaciones, errores, duración) nativas de Lambda
   en CloudWatch.
 - **Alarmas** mínimas para la demo: tasa de errores 5xx y errores de la Lambda de
@@ -67,8 +71,8 @@ Formato de error estándar único para toda la API (ver
 - **Negativas**: disciplina para emitir logs estructurados y escribir auditoría en
   cada acción sensible; la auditoría consume capacidad de la tabla (marginal).
 - **Impacto**:
-  - *Backend (US-009)*: logger estructurado compartido + helper de respuesta de
+  - _Backend (US-009)_: logger estructurado compartido + helper de respuesta de
     error + escritura de `AuditLog` en acciones admin.
-  - *Terraform (US-004)*: grupos de logs con retención, alarmas básicas.
-  - *QA*: verificar formato de error y creación de auditoría por acción admin.
-  - *Contratos (US-003)*: formato de error y tipo `AuditLog` en shared-types.
+  - _Terraform (US-004)_: grupos de logs con retención, alarmas básicas.
+  - _QA_: verificar formato de error y creación de auditoría por acción admin.
+  - _Contratos (US-003)_: formato de error y tipo `AuditLog` en shared-types.

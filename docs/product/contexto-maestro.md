@@ -5,11 +5,13 @@
 Activa Club es una plataforma web responsive para modernizar un club deportivo privado que actualmente trabaja con un sistema on-premise. El nuevo sistema permitirá a socios y administradores gestionar operaciones desde cualquier ubicación mediante una arquitectura cloud en AWS.
 
 ## Objetivo del proyecto
+
 Demostrar la migración de información de un sistema on-premise a AWS y habilitar una experiencia digital para socios: activación de cuenta, membresías, pagos, reservas, notificaciones y dashboards.
 
 El producto se llama exactamente: Activa Club.
 
 ## Usuarios y roles
+
 Existen dos roles iniciales:
 
 1. Socio (`member`)
@@ -20,6 +22,7 @@ El diseño debe permitir agregar múltiples administradores más adelante.
 ## Funcionalidades acordadas
 
 ### Migración on-premise
+
 - La información inicial proviene de un archivo JSON mock.
 - El JSON representa el sistema on-premise de Activa Club.
 - La carga inicial migra los datos hacia Amazon DynamoDB.
@@ -29,6 +32,7 @@ El diseño debe permitir agregar múltiples administradores más adelante.
 - Después de la migración, DynamoDB será la fuente de datos operativa del sistema.
 
 ### Activación y registro
+
 - Un socio migrado activa su cuenta usando su DNI.
 - El DNI se usa para validar identidad y evitar duplicidad.
 - El inicio de sesión se realiza con correo electrónico y contraseña.
@@ -38,6 +42,7 @@ El diseño debe permitir agregar múltiples administradores más adelante.
 - Después de la aprobación, el nuevo socio debe pagar su primera membresía para quedar activo y poder reservar.
 
 ### Membresías y pagos
+
 - Existen membresías mensual y anual.
 - La membresía anual contempla facilidades de pago mediante tarjeta, sujeto a la integración disponible.
 - La renovación automática es opcional y debe requerir autorización explícita del socio.
@@ -47,7 +52,9 @@ El diseño debe permitir agregar múltiples administradores más adelante.
 - Los pagos actualizan el estado de membresía solo cuando se confirme el resultado de forma segura.
 
 ### Reservas
+
 Recursos iniciales mock:
+
 - Dos canchas de fútbol.
 - Una piscina.
 - Dos canchas de tenis.
@@ -56,6 +63,7 @@ Recursos iniciales mock:
 - Un salón social.
 
 Reglas:
+
 - Fútbol: bloques de 90 minutos, hasta 14 participantes.
 - Tenis: bloques de 60 minutos, hasta 4 participantes.
 - Pádel: bloques de 90 minutos, hasta 4 participantes.
@@ -76,12 +84,15 @@ Reglas:
 - Solo socios activos y sin deuda pueden reservar.
 
 Horario inicial mock:
+
 - Club: lunes a domingo, de 06:00 a 22:00.
 - Piscina: de 08:00 a 20:00.
 - Parrillas y salón social: de 10:00 a 22:00.
 
 ### Dashboard del socio
+
 El Home del socio funciona como dashboard personal e incluye:
+
 - Bienvenida personalizada.
 - Estado de membresía: activa, próxima a vencer, vencida o con deuda pendiente.
 - Tipo y fecha de vencimiento de membresía.
@@ -94,7 +105,9 @@ El Home del socio funciona como dashboard personal e incluye:
 - Resumen breve de pagos y reservas.
 
 ### Administración
+
 El administrador puede:
+
 - Gestionar socios migrados y nuevos.
 - Aprobar o rechazar nuevas solicitudes de socio.
 - Consultar estados de membresía y deudas.
@@ -105,11 +118,14 @@ El administrador puede:
 - Consultar dashboards y métricas.
 
 ### Notificaciones
+
 MVP:
+
 - Notificaciones internas obligatorias.
 - Correos transaccionales para eventos relevantes.
 
 El administrador puede enviar notificaciones a:
+
 - Todos los socios.
 - Socios activos.
 - Socios con deuda.
@@ -119,6 +135,7 @@ El administrador puede enviar notificaciones a:
 - Socios con reserva en un recurso específico.
 
 Eventos automáticos:
+
 - Activación de cuenta.
 - Aprobación/rechazo de solicitud.
 - Pago exitoso o fallido.
@@ -128,7 +145,9 @@ Eventos automáticos:
 - Recordatorio de reserva.
 
 ### Analytics MVP
+
 Dashboard administrativo con:
+
 - Socios por estado.
 - Membresías próximas a vencer.
 - Reservas por instalación.
@@ -139,6 +158,7 @@ Dashboard administrativo con:
 - Notificaciones enviadas.
 
 ## Arquitectura y stack acordados
+
 - Monorepo en GitHub.
 - Frontend: React, TypeScript, Vite, Tailwind CSS.
 - Formularios: React Hook Form y Zod.
@@ -157,6 +177,7 @@ Dashboard administrativo con:
 - Calidad: ESLint, Prettier y TypeScript estricto.
 
 ## Estructura conceptual del monorepo
+
 - `apps/web`: frontend React.
 - `apps/api`: backend serverless y lógica de negocio.
 - `packages/shared-types`: contratos y tipos compartidos.
@@ -174,6 +195,7 @@ Dashboard administrativo con:
 - `mock-data`: archivo JSON on-premise.
 
 ## Metodología Scrum
+
 - Toda funcionalidad debe partir de una historia de usuario aprobada.
 - Las historias deben incluir criterios de aceptación verificables.
 - Debe existir trazabilidad entre épica, historia, tarea, código, pruebas y Pull Request.
@@ -181,6 +203,7 @@ Dashboard administrativo con:
 - MVP primero; IA, QR, lista de espera, WhatsApp y predicciones quedan para fases posteriores.
 
 ## Normas de ingeniería
+
 - No inventar tablas, atributos DynamoDB, índices, endpoints o contratos.
 - Documentar contratos antes de implementar integración frontend-backend.
 - Ninguna regla crítica debe depender únicamente del frontend.
@@ -193,4 +216,5 @@ Dashboard administrativo con:
 - Los commits deben seguir Conventional Commits.
 
 ## Historial de cambios
+
 - 2026-07-09: Versión inicial del Contexto Maestro registrada.

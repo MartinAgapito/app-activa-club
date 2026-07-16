@@ -109,10 +109,10 @@ sin perder la visibilidad individual de cada job en la UI de GitHub.
 
 ## Secrets y variables (todas opcionales hoy)
 
-| Nombre | Tipo | Uso | Estado actual |
-|---|---|---|---|
-| `AWS_OIDC_ROLE_ARN` | Secret | Rol IAM que asume GitHub Actions vía OIDC para `terraform plan` | No configurado (US-004 en adelante) |
-| `AWS_REGION` | Variable de repo | Región AWS para `terraform plan` (default `us-east-1` si no se define) | No configurado |
+| Nombre              | Tipo             | Uso                                                                    | Estado actual                       |
+| ------------------- | ---------------- | ---------------------------------------------------------------------- | ----------------------------------- |
+| `AWS_OIDC_ROLE_ARN` | Secret           | Rol IAM que asume GitHub Actions vía OIDC para `terraform plan`        | No configurado (US-004 en adelante) |
+| `AWS_REGION`        | Variable de repo | Región AWS para `terraform plan` (default `us-east-1` si no se define) | No configurado                      |
 
 No se usan ni se deben usar claves AWS estáticas (`AWS_ACCESS_KEY_ID` /
 `AWS_SECRET_ACCESS_KEY`) en ningún paso de este workflow.

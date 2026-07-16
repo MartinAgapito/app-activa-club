@@ -54,13 +54,13 @@ dependencias instaladas ni scripts (`apps/web/package.json` y
 
 ## 3. Niveles de prueba y herramientas
 
-| Nivel | Herramienta | Objeto de prueba | Ubicación prevista |
-|-------|-------------|-------------------|---------------------|
-| Unitaria | **Vitest** | Funciones puras, esquemas Zod (`packages/validation`), utilidades de dominio (cálculo de aforo, solapamiento de horarios, cálculo de cancelación 24h, mapeo de migración), reducers/hooks aislados del frontend | `packages/*/src/**/*.test.ts`, `apps/api/src/**/*.test.ts`, `apps/web/src/**/*.test.ts` |
-| Integración (componentes) | **Vitest + React Testing Library (RTL)** | Componentes y formularios de `apps/web` con estado, validación cliente-servidor simulada (MSW o mocks de fetch), estados de carga/error/vacío, restricciones de permisos en UI | `apps/web/src/**/*.test.tsx` |
-| Integración (API/backend) | **Vitest + pruebas de API** (invocación directa de handlers Lambda o `supertest`/`fetch` contra emulación local: `serverless-offline`/SAM local + DynamoDB Local) | Reglas de negocio server-side: aforo, cruces, deuda, idempotencia de pago, aprobación/rechazo, unicidad de DNI/email, auditoría | `apps/api/test/integration/**` |
-| E2E | **Playwright** | Flujos completos de usuario contra un entorno desplegado (`dev`/`demo`) o local: activación → login → reserva; registro → aprobación → pago → reserva; pago exitoso/fallido en Culqi sandbox; cancelación; notificaciones; dashboard admin | `apps/web/e2e/**` (o paquete E2E dedicado, a confirmar en Sprint 1) |
-| Manual documentada | Casos exploratorios en `docs/testing/` (plantilla en §8) | Exploración de usabilidad, accesibilidad básica, responsive en dispositivos reales, casos que aún no se automatizan | `docs/testing/casos-manuales/**` |
+| Nivel                     | Herramienta                                                                                                                                                       | Objeto de prueba                                                                                                                                                                                                                           | Ubicación prevista                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Unitaria                  | **Vitest**                                                                                                                                                        | Funciones puras, esquemas Zod (`packages/validation`), utilidades de dominio (cálculo de aforo, solapamiento de horarios, cálculo de cancelación 24h, mapeo de migración), reducers/hooks aislados del frontend                            | `packages/*/src/**/*.test.ts`, `apps/api/src/**/*.test.ts`, `apps/web/src/**/*.test.ts` |
+| Integración (componentes) | **Vitest + React Testing Library (RTL)**                                                                                                                          | Componentes y formularios de `apps/web` con estado, validación cliente-servidor simulada (MSW o mocks de fetch), estados de carga/error/vacío, restricciones de permisos en UI                                                             | `apps/web/src/**/*.test.tsx`                                                            |
+| Integración (API/backend) | **Vitest + pruebas de API** (invocación directa de handlers Lambda o `supertest`/`fetch` contra emulación local: `serverless-offline`/SAM local + DynamoDB Local) | Reglas de negocio server-side: aforo, cruces, deuda, idempotencia de pago, aprobación/rechazo, unicidad de DNI/email, auditoría                                                                                                            | `apps/api/test/integration/**`                                                          |
+| E2E                       | **Playwright**                                                                                                                                                    | Flujos completos de usuario contra un entorno desplegado (`dev`/`demo`) o local: activación → login → reserva; registro → aprobación → pago → reserva; pago exitoso/fallido en Culqi sandbox; cancelación; notificaciones; dashboard admin | `apps/web/e2e/**` (o paquete E2E dedicado, a confirmar en Sprint 1)                     |
+| Manual documentada        | Casos exploratorios en `docs/testing/` (plantilla en §8)                                                                                                          | Exploración de usabilidad, accesibilidad básica, responsive en dispositivos reales, casos que aún no se automatizan                                                                                                                        | `docs/testing/casos-manuales/**`                                                        |
 
 ### 3.1 Qué NO se prueba en cada nivel
 
@@ -72,12 +72,12 @@ dependencias instaladas ni scripts (`apps/web/package.json` y
 
 ## 4. Criterio de selección de nivel según riesgo
 
-| Riesgo del flujo | Ejemplo | Nivel(es) obligatorio(s) |
-|-------------------|---------|---------------------------|
+| Riesgo del flujo                                                  | Ejemplo                                                                                                                          | Nivel(es) obligatorio(s)                                                                                 |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | **Crítico** (dinero, identidad, permisos, integridad de reservas) | Pagos (RN-PAG-04/06/07/08), unicidad de DNI (RN-ACT-03), aforo/cruces/superposición (RN-RES-07/08/09), control de acceso por rol | Unitaria **+** Integración de API **+** al menos un E2E por flujo feliz y su variante de error principal |
-| **Alto** (afecta disponibilidad o confianza del socio) | Aprobación/rechazo de socio y de reservas de parrilla/salón, cancelación 24h, mantenimiento de recurso | Unitaria + Integración de API; E2E si el flujo es visible end-to-end para el usuario |
-| **Medio** (funcionalidad secundaria, no bloquea dinero/reservas) | Notificaciones, inbox, dashboards de solo lectura, actualización de perfil | Unitaria + Integración; E2E opcional (smoke test) |
-| **Bajo** (presentación, contenido estático) | Textos, layout no funcional, tokens de diseño | RTL puntual o revisión manual |
+| **Alto** (afecta disponibilidad o confianza del socio)            | Aprobación/rechazo de socio y de reservas de parrilla/salón, cancelación 24h, mantenimiento de recurso                           | Unitaria + Integración de API; E2E si el flujo es visible end-to-end para el usuario                     |
+| **Medio** (funcionalidad secundaria, no bloquea dinero/reservas)  | Notificaciones, inbox, dashboards de solo lectura, actualización de perfil                                                       | Unitaria + Integración; E2E opcional (smoke test)                                                        |
+| **Bajo** (presentación, contenido estático)                       | Textos, layout no funcional, tokens de diseño                                                                                    | RTL puntual o revisión manual                                                                            |
 
 Regla general: **a mayor severidad de la regla si falla (bloqueante/alta), más
 niveles de prueba son obligatorios y no opcionales.** La matriz de
@@ -116,13 +116,13 @@ trazabilidad (§ siguiente documento) asigna el nivel mínimo por caso.
 
 ## 6. Responsabilidades por rol
 
-| Rol | Responsabilidad de calidad |
-|-----|------------------------------|
-| **Frontend** | Pruebas unitarias de utilidades propias; pruebas de integración con RTL de formularios, estados de carga/error/vacío y restricciones de UI por rol; participa en E2E de flujos de pantalla. |
-| **Backend** | Pruebas unitarias de lógica de dominio (aforo, solapamiento, idempotencia, expiración de membresía); pruebas de integración de cada handler Lambda contra DynamoDB Local, incluyendo variantes de error de cada código (`error.code`) del contrato. |
-| **QA** | Define y mantiene esta estrategia y la matriz de trazabilidad; diseña casos de prueba desde criterios de aceptación; ejecuta/orquesta E2E; valida permisos, seguridad básica y no filtración de datos sensibles; ejecuta regresión; reporta defectos con severidad y evidencia; es quien aprueba, aprueba con observaciones o rechaza el cierre de una historia. |
-| **DevOps** | Mantiene el pipeline de CI (US-005) ejecutando lint, typecheck y pruebas en cada Pull Request; provee la infraestructura de emulación/entorno `dev`/`demo` para integración y E2E. |
-| **Arquitecto/Integrador** | Garantiza que contratos y modelo de datos (fuente de verdad de las pruebas de contrato) se mantengan consistentes con la implementación (relacionado con US-010). |
+| Rol                       | Responsabilidad de calidad                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**              | Pruebas unitarias de utilidades propias; pruebas de integración con RTL de formularios, estados de carga/error/vacío y restricciones de UI por rol; participa en E2E de flujos de pantalla.                                                                                                                                                                      |
+| **Backend**               | Pruebas unitarias de lógica de dominio (aforo, solapamiento, idempotencia, expiración de membresía); pruebas de integración de cada handler Lambda contra DynamoDB Local, incluyendo variantes de error de cada código (`error.code`) del contrato.                                                                                                              |
+| **QA**                    | Define y mantiene esta estrategia y la matriz de trazabilidad; diseña casos de prueba desde criterios de aceptación; ejecuta/orquesta E2E; valida permisos, seguridad básica y no filtración de datos sensibles; ejecuta regresión; reporta defectos con severidad y evidencia; es quien aprueba, aprueba con observaciones o rechaza el cierre de una historia. |
+| **DevOps**                | Mantiene el pipeline de CI (US-005) ejecutando lint, typecheck y pruebas en cada Pull Request; provee la infraestructura de emulación/entorno `dev`/`demo` para integración y E2E.                                                                                                                                                                               |
+| **Arquitecto/Integrador** | Garantiza que contratos y modelo de datos (fuente de verdad de las pruebas de contrato) se mantengan consistentes con la implementación (relacionado con US-010).                                                                                                                                                                                                |
 
 Ninguna historia funcional se considera terminada solo porque el frontend "se
 ve bien"; requiere la validación de backend descrita en este documento
@@ -154,12 +154,12 @@ ve bien"; requiere la validación de backend descrita en este documento
 
 ### 8.1 Severidades
 
-| Severidad | Definición | Ejemplo |
-|-----------|------------|---------|
-| **Bloqueante** | Impide el uso del flujo principal, compromete dinero/seguridad/integridad de datos, o viola una regla `RN-*` crítica sin workaround. | Doble cobro por reintento; reserva que supera aforo; socio con deuda logra reservar; datos de tarjeta persistidos. |
-| **Alta** | Afecta un flujo importante con workaround limitado o impacto en varios usuarios. | Cancelación después de 24h no bloqueada; aprobación de socio no dispara notificación; 403 no aplicado en endpoint admin. |
-| **Media** | Afecta un caso de borde o secundario, no bloquea el flujo principal. | Mensaje de error genérico en vez del código de dominio esperado; segmentación de notificación con conteo incorrecto. |
-| **Baja** | Cosmético, de contenido o UX menor. | Texto truncado, espaciado inconsistente en mobile. |
+| Severidad      | Definición                                                                                                                           | Ejemplo                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **Bloqueante** | Impide el uso del flujo principal, compromete dinero/seguridad/integridad de datos, o viola una regla `RN-*` crítica sin workaround. | Doble cobro por reintento; reserva que supera aforo; socio con deuda logra reservar; datos de tarjeta persistidos.       |
+| **Alta**       | Afecta un flujo importante con workaround limitado o impacto en varios usuarios.                                                     | Cancelación después de 24h no bloqueada; aprobación de socio no dispara notificación; 403 no aplicado en endpoint admin. |
+| **Media**      | Afecta un caso de borde o secundario, no bloquea el flujo principal.                                                                 | Mensaje de error genérico en vez del código de dominio esperado; segmentación de notificación con conteo incorrecto.     |
+| **Baja**       | Cosmético, de contenido o UX menor.                                                                                                  | Texto truncado, espaciado inconsistente en mobile.                                                                       |
 
 ### 8.2 Plantilla mínima de reporte
 

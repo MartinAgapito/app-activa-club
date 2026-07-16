@@ -1,16 +1,16 @@
 # US-008 — Diseñar mapa de rutas y design foundation
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-008 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | Frontend |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Media |
-| Estimación relativa | 5 |
-| Dependencias | US-001, US-003 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-008                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | Frontend                                                              |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Media                                                                 |
+| Estimación relativa | 5                                                                     |
+| Dependencias        | US-001, US-003                                                        |
 
 ## Objetivo
 

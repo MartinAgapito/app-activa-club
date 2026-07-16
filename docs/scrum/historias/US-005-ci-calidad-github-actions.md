@@ -1,16 +1,16 @@
 # US-005 — Configurar CI de calidad con GitHub Actions
 
-| Campo | Valor |
-|-------|-------|
-| ID | US-005 |
-| Épica | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
-| Tipo | Tarea técnica |
-| Responsable | DevOps |
-| Fase | MVP — Fundación |
-| Sprint | Sprint 0 |
-| Prioridad | Alta |
-| Estimación relativa | 5 |
-| Dependencias | US-000 |
+| Campo               | Valor                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| ID                  | US-005                                                                |
+| Épica               | [EP-01](../epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) |
+| Tipo                | Tarea técnica                                                         |
+| Responsable         | DevOps                                                                |
+| Fase                | MVP — Fundación                                                       |
+| Sprint              | Sprint 0                                                              |
+| Prioridad           | Alta                                                                  |
+| Estimación relativa | 5                                                                     |
+| Dependencias        | US-000                                                                |
 
 ## Objetivo
 

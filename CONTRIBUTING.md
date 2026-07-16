@@ -122,16 +122,16 @@ para todos los commits, tal como lo introduce el `README.md` raíz. Formato:
 
 ### Tipos permitidos y su scope habitual
 
-| Tipo | Uso | Scopes habituales |
-|------|-----|--------------------|
-| `feat` | Nueva funcionalidad de negocio | `frontend`, `backend`, `auth`, `reservations`, o el área específica afectada |
-| `fix` | Corrección de errores | `api`, `web`, `auth`, `reservations` |
-| `test` | Pruebas nuevas o corregidas (sin cambiar comportamiento de producción) | `reservations`, `api`, `web`, o el módulo bajo prueba |
-| `infra` | Cambios de infraestructura como código | `terraform` |
-| `ci` | Cambios en pipelines/automatización de CI | `github-actions` |
-| `docs` | Documentación (producto, arquitectura, Scrum, README, etc.) | `architecture`, `scrum`, o el área documentada |
-| `refactor` | Reestructuración de código sin cambiar comportamiento observable | `web`, `backend`, o el área afectada |
-| `chore` | Tareas de mantenimiento que no encajan en los tipos anteriores (dependencias, configuración de tooling, limpieza) | `repo`, o el área afectada |
+| Tipo       | Uso                                                                                                               | Scopes habituales                                                            |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `feat`     | Nueva funcionalidad de negocio                                                                                    | `frontend`, `backend`, `auth`, `reservations`, o el área específica afectada |
+| `fix`      | Corrección de errores                                                                                             | `api`, `web`, `auth`, `reservations`                                         |
+| `test`     | Pruebas nuevas o corregidas (sin cambiar comportamiento de producción)                                            | `reservations`, `api`, `web`, o el módulo bajo prueba                        |
+| `infra`    | Cambios de infraestructura como código                                                                            | `terraform`                                                                  |
+| `ci`       | Cambios en pipelines/automatización de CI                                                                         | `github-actions`                                                             |
+| `docs`     | Documentación (producto, arquitectura, Scrum, README, etc.)                                                       | `architecture`, `scrum`, o el área documentada                               |
+| `refactor` | Reestructuración de código sin cambiar comportamiento observable                                                  | `web`, `backend`, o el área afectada                                         |
+| `chore`    | Tareas de mantenimiento que no encajan en los tipos anteriores (dependencias, configuración de tooling, limpieza) | `repo`, o el área afectada                                                   |
 
 > Nota: el `README.md` raíz también menciona `build` y `perf` como tipos
 > habituales de Conventional Commits en general. Este proyecto no los declara
