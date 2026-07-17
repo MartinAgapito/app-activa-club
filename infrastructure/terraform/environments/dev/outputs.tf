@@ -29,3 +29,12 @@ output "cloudfront_domain_name" {
 output "ses_sender_identity_arn" {
   value = module.ses.identity_arn
 }
+
+output "api_base_url" {
+  description = "URL base de invocación de la API REST de identidad/acceso (EP-02, US-011); las rutas del contrato cuelgan de aquí, p. ej. \"<api_base_url>/activation/verify\"."
+  value       = aws_api_gateway_stage.this.invoke_url
+}
+
+output "api_rest_api_id" {
+  value = aws_api_gateway_rest_api.this.id
+}
