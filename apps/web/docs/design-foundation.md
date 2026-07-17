@@ -113,10 +113,11 @@ Ninguno decide reglas de negocio ni conoce las entidades de
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
   que aplica el prefijo `VITE_API_BASE_URL`, adjunta `Authorization: Bearer`
-  cuando hay un proveedor de token configurado (placeholder hasta Sprint 1) y
-  normaliza errores al formato `{ error: { code, message, details,
-requestId } }` del contrato (`docs/api/contratos-api.md` §1.1) mediante la
-  clase `ApiRequestError`.
+  cuando hay un proveedor de token configurado y normaliza errores al formato
+  `{ error: { code, message, details, requestId } }` del contrato
+  (`docs/api/contratos-api.md` §1.1) mediante la clase `ApiRequestError`.
+  Desde US-014 (Sprint 1), `AuthContext` conecta `setAccessTokenProvider` con
+  el access token de Cognito vigente en memoria.
 - **TanStack Query** (`apps/web/src/lib/query-client.ts`): `QueryClient` con
   política de reintentos que no reintenta errores definitivos
   (`UNAUTHENTICATED`, `FORBIDDEN`, `VALIDATION_ERROR`, `NOT_FOUND`).
