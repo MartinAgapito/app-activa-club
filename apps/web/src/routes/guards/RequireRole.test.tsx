@@ -28,7 +28,14 @@ function renderWithSession(session: AuthContextValue, guarded: ReactElement) {
 describe('RequireRole', () => {
   it('redirige a /login cuando la sesión es anónima', () => {
     renderWithSession(
-      { status: 'anonymous', role: null, memberId: null, setSession: () => {}, signOut: () => {} },
+      {
+        status: 'anonymous',
+        role: null,
+        memberId: null,
+        signIn: () => Promise.reject(new Error('no usado en este test')),
+        setSession: () => {},
+        signOut: () => {},
+      },
       <p>Contenido de socio</p>,
     );
 
@@ -41,6 +48,7 @@ describe('RequireRole', () => {
         status: 'authenticated',
         role: 'admin',
         memberId: null,
+        signIn: () => Promise.reject(new Error('no usado en este test')),
         setSession: () => {},
         signOut: () => {},
       },
@@ -56,6 +64,7 @@ describe('RequireRole', () => {
         status: 'authenticated',
         role: 'member',
         memberId: '01J-test',
+        signIn: () => Promise.reject(new Error('no usado en este test')),
         setSession: () => {},
         signOut: () => {},
       },
