@@ -53,3 +53,6 @@ Thumbs.db
 
 # ---- AWS / CDK-adjacent ----
 .aws-sam/
+
+# ---- Artefactos de empaquetado de Lambdas (scripts/package-lambdas.mjs) ----
+.lambda-artifacts/

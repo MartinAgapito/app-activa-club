@@ -20,10 +20,13 @@
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "package:lambdas": "node scripts/package-lambdas.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "archiver": "8.0.0",
+    "esbuild": "0.28.1",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.7.0",
