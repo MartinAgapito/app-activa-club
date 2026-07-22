@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CognitoAuthError,
+  confirmPasswordReset,
   globalSignOut,
   initiateRefreshTokenAuth,
   initiateUserPasswordAuth,
+  requestPasswordReset,
 } from './cognito-client';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -189,6 +191,167 @@ describe('cognito-client', () => {
         'X-Amz-Target': 'AWSCognitoIdentityProviderService.GlobalSignOut',
       });
       expect(JSON.parse(requestInit.body as string)).toEqual({ AccessToken: 'access-token' });
+    });
+  });
+
+  describe('requestPasswordReset', () => {
+    it('invoca ForgotPassword con el correo', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          CodeDeliveryDetails: { Destination: 's***@example.com', DeliveryMedium: 'EMAIL' },
+        }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(requestPasswordReset('socio@example.com')).resolves.toBeUndefined();
+
+      const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(requestInit.headers).toMatchObject({
+        'X-Amz-Target': 'AWSCognitoIdentityProviderService.ForgotPassword',
+      });
+      expect(JSON.parse(requestInit.body as string)).toMatchObject({
+        Username: 'socio@example.com',
+      });
+    });
+
+    it('se resuelve sin error cuando la cuenta no existe (criterio de aceptación 2)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse(400, { __type: 'UserNotFoundException', message: 'User does not exist.' }),
+          ),
+      );
+
+      await expect(requestPasswordReset('no-existe@example.com')).resolves.toBeUndefined();
+    });
+
+    it('comunica el límite de solicitudes alcanzado', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse(400, {
+            __type: 'LimitExceededException',
+            message: 'Attempt limit exceeded, please try after some time.',
+          }),
+        ),
+      );
+
+      await expect(requestPasswordReset('socio@example.com')).rejects.toMatchObject({
+        reason: 'TOO_MANY_ATTEMPTS',
+      });
+    });
+
+    it('mapea errores de red', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+      await expect(requestPasswordReset('socio@example.com')).rejects.toMatchObject({
+        reason: 'NETWORK_ERROR',
+      });
+    });
+  });
+
+  describe('confirmPasswordReset', () => {
+    it('invoca ConfirmForgotPassword con el código y la nueva contraseña', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, {}));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(
+        confirmPasswordReset('socio@example.com', '123456', 'NuevaClave1'),
+      ).resolves.toBeUndefined();
+
+      const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(requestInit.headers).toMatchObject({
+        'X-Amz-Target': 'AWSCognitoIdentityProviderService.ConfirmForgotPassword',
+      });
+      expect(JSON.parse(requestInit.body as string)).toEqual({
+        ClientId: 'test-client-id',
+        Username: 'socio@example.com',
+        ConfirmationCode: '123456',
+        Password: 'NuevaClave1',
+      });
+    });
+
+    it('mapea un código inválido a un mensaje claro que permite reintentar (criterio de aceptación 4)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse(400, {
+            __type: 'CodeMismatchException',
+            message: 'Invalid verification code provided.',
+          }),
+        ),
+      );
+
+      await expect(
+        confirmPasswordReset('socio@example.com', '000000', 'NuevaClave1'),
+      ).rejects.toMatchObject({ reason: 'INVALID_RESET_CODE' });
+    });
+
+    it('mapea un código vencido con el mismo mensaje que un código inválido', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse(400, { __type: 'ExpiredCodeException', message: 'Code expired.' }),
+          ),
+      );
+
+      await expect(
+        confirmPasswordReset('socio@example.com', '000000', 'NuevaClave1'),
+      ).rejects.toMatchObject({ reason: 'INVALID_RESET_CODE' });
+    });
+
+    it('no distingue un correo inexistente de un código inválido', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse(400, { __type: 'UserNotFoundException', message: 'User does not exist.' }),
+          ),
+      );
+
+      await expect(
+        confirmPasswordReset('no-existe@example.com', '000000', 'NuevaClave1'),
+      ).rejects.toMatchObject({ reason: 'INVALID_RESET_CODE' });
+    });
+
+    it('mapea una contraseña que no cumple la política (criterio de aceptación 5)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse(400, {
+            __type: 'InvalidPasswordException',
+            message: 'Password does not conform to policy: Password must have uppercase characters',
+          }),
+        ),
+      );
+
+      await expect(
+        confirmPasswordReset('socio@example.com', '123456', 'nueva-clave'),
+      ).rejects.toMatchObject({
+        reason: 'WEAK_PASSWORD',
+        message: 'Password does not conform to policy: Password must have uppercase characters',
+      });
+    });
+
+    it('comunica el bloqueo temporal por demasiados intentos', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse(400, {
+            __type: 'TooManyFailedAttemptsException',
+            message: 'Too many failed attempts.',
+          }),
+        ),
+      );
+
+      await expect(
+        confirmPasswordReset('socio@example.com', '000000', 'NuevaClave1'),
+      ).rejects.toMatchObject({ reason: 'TOO_MANY_ATTEMPTS' });
     });
   });
 });
