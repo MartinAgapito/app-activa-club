@@ -250,11 +250,19 @@ module "endpoint_registration" {
 
   iam_policy_statements = [
     {
-      actions   = ["dynamodb:Query", "dynamodb:PutItem"]
+      actions   = ["dynamodb:Query", "dynamodb:PutItem", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
     {
-      actions   = ["cognito-idp:AdminCreateUser", "cognito-idp:AdminAddUserToGroup"]
+      # AdminSetUserPassword: la contraseña elegida por el socio se confirma
+      # como definitiva (Permanent: true) para que pueda loguearse de
+      # inmediato con US-014, sin el reto NEW_PASSWORD_REQUIRED que deja
+      # AdminCreateUser por sí solo.
+      actions = [
+        "cognito-idp:AdminCreateUser",
+        "cognito-idp:AdminSetUserPassword",
+        "cognito-idp:AdminAddUserToGroup",
+      ]
       resources = [local.cognito_user_pool_arn]
     },
   ]
