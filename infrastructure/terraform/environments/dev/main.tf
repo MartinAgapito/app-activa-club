@@ -419,6 +419,12 @@ module "endpoint_members_approve" {
       actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
       resources = [local.dynamodb_table_arn]
     },
+    {
+      # PutItem: registra el AuditLog "MEMBER_APPROVED" (US-017, ADR-0008)
+      # tras la transición PENDING -> APPROVED.
+      actions   = ["dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
+    },
   ]
 }
 
@@ -446,6 +452,12 @@ module "endpoint_members_reject" {
   iam_policy_statements = [
     {
       actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+    {
+      # PutItem: registra el AuditLog "MEMBER_REJECTED" (US-017, ADR-0008)
+      # tras la transición PENDING -> REJECTED, con el motivo en `metadata`.
+      actions   = ["dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn]
     },
   ]
