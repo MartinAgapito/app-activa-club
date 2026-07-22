@@ -11,6 +11,9 @@ export type { ButtonProps, ButtonVariant, ButtonSize, ButtonVariantsOptions } fr
 export { Input } from './Input';
 export type { InputProps } from './Input';
 
+export { Textarea } from './Textarea';
+export type { TextareaProps } from './Textarea';
+
 export { Card, CardHeader } from './Card';
 export type { CardProps, CardHeaderProps } from './Card';
 
@@ -28,5 +31,8 @@ export type { EmptyStateProps } from './EmptyState';
 
 export { ErrorState } from './ErrorState';
 export type { ErrorStateProps } from './ErrorState';
+
+export { ConfirmDialog } from './ConfirmDialog';
+export type { ConfirmDialogProps } from './ConfirmDialog';
 
 export { cn } from './cn';
