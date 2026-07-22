@@ -1,11 +1,13 @@
-// Cliente mínimo contra Amazon Cognito (Identity Provider Service) — US-014.
+// Cliente mínimo contra Amazon Cognito (Identity Provider Service) — US-014 /
+// US-015.
 //
 // Implementa exactamente las operaciones documentadas en el contrato
 // (docs/api/contratos-api.md §2) y en ADR-0002: `InitiateAuth`
 // (`USER_PASSWORD_AUTH`) para el login, `InitiateAuth` (`REFRESH_TOKEN_AUTH`)
-// para renovar la sesión y `GlobalSignOut` para el cierre de sesión. No hay
-// backend propio para autenticación: el frontend llama directamente al
-// endpoint público de Cognito.
+// para renovar la sesión, `GlobalSignOut` para el cierre de sesión y
+// `ForgotPassword` + `ConfirmForgotPassword` para la recuperación de
+// contraseña. No hay backend propio para autenticación: el frontend llama
+// directamente al endpoint público de Cognito.
 //
 // El App Client del SPA se crea sin secreto (`generate_secret = false`, ver
 // infrastructure/terraform/modules/cognito-user-pool/main.tf), por lo que
@@ -27,6 +29,11 @@ export type CognitoAuthErrorReason =
   | 'INVALID_CREDENTIALS'
   | 'USER_NOT_CONFIRMED'
   | 'PASSWORD_RESET_REQUIRED'
+  /** Solo de uso interno de `requestPasswordReset` (criterio de aceptación 2
+   * de US-015): nunca debe propagarse a la interfaz. */
+  | 'ACCOUNT_NOT_FOUND'
+  | 'INVALID_RESET_CODE'
+  | 'WEAK_PASSWORD'
   | 'TOO_MANY_ATTEMPTS'
   | 'NETWORK_ERROR'
   | 'CONFIG_ERROR'
@@ -84,6 +91,7 @@ interface InitiateAuthResponsePayload {
 async function callCognitoIdp<TResponse>(
   target: string,
   body: Record<string, unknown>,
+  mapError: (payload: unknown) => CognitoAuthError = mapCognitoError,
 ): Promise<TResponse> {
   const { region } = readConfig();
   const endpoint = `https://cognito-idp.${region}.amazonaws.com/`;
@@ -108,7 +116,7 @@ async function callCognitoIdp<TResponse>(
   const payload: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw mapCognitoError(payload);
+    throw mapError(payload);
   }
 
   return payload as TResponse;
@@ -175,6 +183,66 @@ function mapCognitoError(payload: unknown): CognitoAuthError {
   }
 }
 
+/** Errores de `ForgotPassword` (US-015). `UserNotFoundException` se mapea a
+ * `ACCOUNT_NOT_FOUND`, que `requestPasswordReset` resuelve como éxito
+ * silencioso: la interfaz nunca debe distinguir un correo inexistente
+ * (criterio de aceptación 2). */
+function mapForgotPasswordError(payload: unknown): CognitoAuthError {
+  const errorType = extractErrorType(payload);
+
+  switch (errorType) {
+    case 'UserNotFoundException':
+      return new CognitoAuthError('ACCOUNT_NOT_FOUND', 'Cuenta no encontrada.');
+    case 'TooManyRequestsException':
+    case 'LimitExceededException':
+      return new CognitoAuthError(
+        'TOO_MANY_ATTEMPTS',
+        'Alcanzaste el límite de solicitudes de recuperación. Intenta de nuevo en unos minutos.',
+      );
+    default:
+      return new CognitoAuthError(
+        'UNKNOWN',
+        'No se pudo procesar la solicitud. Intenta nuevamente.',
+      );
+  }
+}
+
+/** Errores de `ConfirmForgotPassword` (US-015). `CodeMismatchException`,
+ * `ExpiredCodeException` y `UserNotFoundException` se agrupan en el mismo
+ * mensaje de código inválido/vencido (criterio de aceptación 4): distinguir
+ * un correo inexistente en este paso también revelaría su existencia. */
+function mapConfirmForgotPasswordError(payload: unknown): CognitoAuthError {
+  const errorType = extractErrorType(payload);
+  const message = extractErrorMessage(payload);
+
+  switch (errorType) {
+    case 'CodeMismatchException':
+    case 'ExpiredCodeException':
+    case 'UserNotFoundException':
+      return new CognitoAuthError(
+        'INVALID_RESET_CODE',
+        'El código ingresado no es válido o venció. Solicita uno nuevo e inténtalo de nuevo.',
+      );
+    case 'InvalidPasswordException':
+      return new CognitoAuthError(
+        'WEAK_PASSWORD',
+        message || 'La nueva contraseña no cumple los requisitos de seguridad.',
+      );
+    case 'TooManyRequestsException':
+    case 'LimitExceededException':
+    case 'TooManyFailedAttemptsException':
+      return new CognitoAuthError(
+        'TOO_MANY_ATTEMPTS',
+        'Se bloqueó temporalmente por demasiados intentos. Intenta de nuevo en unos minutos.',
+      );
+    default:
+      return new CognitoAuthError(
+        'UNKNOWN',
+        'No se pudo actualizar la contraseña. Intenta nuevamente.',
+      );
+  }
+}
+
 function toTokens(result: AuthenticationResultPayload): CognitoTokens {
   return {
     idToken: result.IdToken,
@@ -233,4 +301,47 @@ export async function initiateRefreshTokenAuth(refreshToken: string): Promise<Co
  * llamador igual descarta los tokens localmente. */
 export async function globalSignOut(accessToken: string): Promise<void> {
   await callCognitoIdp('GlobalSignOut', { AccessToken: accessToken });
+}
+
+/** Solicita el código de recuperación de contraseña (US-015, criterio de
+ * aceptación 1). Nunca rechaza por cuenta inexistente: Cognito solo entrega
+ * el código si la cuenta existe, pero la promesa se resuelve igual en ambos
+ * casos para no revelar si el correo está registrado (criterio de
+ * aceptación 2). */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const { clientId } = readConfig();
+  try {
+    await callCognitoIdp(
+      'ForgotPassword',
+      { ClientId: clientId, Username: email },
+      mapForgotPasswordError,
+    );
+  } catch (error) {
+    if (error instanceof CognitoAuthError && error.reason === 'ACCOUNT_NOT_FOUND') {
+      return;
+    }
+    throw error;
+  }
+}
+
+/** Confirma el código de recuperación y establece la nueva contraseña
+ * (US-015, criterio de aceptación 3). La contraseña solo viaja en el cuerpo
+ * de esta petición hacia Cognito: nunca se registra en logs ni se persiste
+ * en el cliente (criterio de aceptación 6). */
+export async function confirmPasswordReset(
+  email: string,
+  confirmationCode: string,
+  newPassword: string,
+): Promise<void> {
+  const { clientId } = readConfig();
+  await callCognitoIdp(
+    'ConfirmForgotPassword',
+    {
+      ClientId: clientId,
+      Username: email,
+      ConfirmationCode: confirmationCode,
+      Password: newPassword,
+    },
+    mapConfirmForgotPasswordError,
+  );
 }
