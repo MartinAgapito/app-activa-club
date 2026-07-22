@@ -43,9 +43,12 @@ module "ses" {
 # ---------------------------------------------------------------------------
 # Endpoints de identidad y acceso (EP-02, US-011): API Gateway REST + una
 # Lambda por endpoint (ADR-0004), autorizadas con el Cognito Authorizer y el
-# claim `cognito:groups` (ADR-0002). Sin lógica de negocio: cada Lambda
-# despliega el stub temporal de modules/endpoint (HTTP 501) hasta que la
-# historia de backend correspondiente reemplace su source_zip_path.
+# claim `cognito:groups` (ADR-0002). Cada endpoint pasa
+# source_zip_path = local.lambda_zip_path["<function_name>"] (ver locals más
+# abajo): si var.lambda_artifacts_dir está definido (el job de despliegue a
+# dev lo hace tras correr `node scripts/package-lambdas.mjs`), despliega el
+# handler real de apps/api; si no (PRs, `terraform plan`/`validate` locales),
+# cae de vuelta al stub temporal de modules/endpoint (HTTP 501).
 #
 # El árbol de rutas (aws_api_gateway_resource) se declara una única vez aquí
 # porque varios endpoints comparten segmentos (p. ej. "members"); cada
@@ -96,6 +99,29 @@ locals {
     { for k, v in aws_api_gateway_resource.level2 : k => v.id },
     { for k, v in aws_api_gateway_resource.level3 : k => v.id },
   )
+
+  # Artefacto real por función (US-009 backend + este pipeline de deploy-dev):
+  # "function_name" -> "<lambda_artifacts_dir>/function_name.zip", generado
+  # por `node scripts/package-lambdas.mjs`. Si var.lambda_artifacts_dir es
+  # null, el mapa completo resuelve a null y cada module "endpoint_*" cae de
+  # vuelta al stub temporal (ver variables.tf), sin romper `terraform
+  # plan`/`validate` en PRs ni en ejecuciones locales sin artefactos.
+  lambda_zip_path = {
+    for function_name in [
+      "activation-verify",
+      "activation-complete",
+      "registration",
+      "members-get-me",
+      "members-update-me",
+      "members-list",
+      "members-get-by-id",
+      "members-approve",
+      "members-reject",
+      "admin-migration-run",
+      ] : function_name => (
+      var.lambda_artifacts_dir == null ? null : "${var.lambda_artifacts_dir}/${function_name}.zip"
+    )
+  }
 
   # IDs de método/integración de todos los endpoints, usados como trigger de
   # redeploy del stage (cualquier cambio en un endpoint fuerza un nuevo
@@ -175,10 +201,11 @@ module "endpoint_activation_verify" {
   project     = var.project
   environment = var.environment
 
-  function_name = "activation-verify"
-  http_method   = "POST"
-  resource_path = "activation/verify"
-  requires_auth = false
+  function_name   = "activation-verify"
+  source_zip_path = local.lambda_zip_path["activation-verify"]
+  http_method     = "POST"
+  resource_path   = "activation/verify"
+  requires_auth   = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -202,10 +229,11 @@ module "endpoint_activation_complete" {
   project     = var.project
   environment = var.environment
 
-  function_name = "activation-complete"
-  http_method   = "POST"
-  resource_path = "activation/complete"
-  requires_auth = false
+  function_name   = "activation-complete"
+  source_zip_path = local.lambda_zip_path["activation-complete"]
+  http_method     = "POST"
+  resource_path   = "activation/complete"
+  requires_auth   = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -241,10 +269,11 @@ module "endpoint_registration" {
   project     = var.project
   environment = var.environment
 
-  function_name = "registration"
-  http_method   = "POST"
-  resource_path = "registration"
-  requires_auth = false
+  function_name   = "registration"
+  source_zip_path = local.lambda_zip_path["registration"]
+  http_method     = "POST"
+  resource_path   = "registration"
+  requires_auth   = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -283,11 +312,12 @@ module "endpoint_members_get_me" {
   project     = var.project
   environment = var.environment
 
-  function_name  = "members-get-me"
-  http_method    = "GET"
-  resource_path  = "members/me"
-  requires_auth  = true
-  allowed_groups = ["member"]
+  function_name   = "members-get-me"
+  source_zip_path = local.lambda_zip_path["members-get-me"]
+  http_method     = "GET"
+  resource_path   = "members/me"
+  requires_auth   = true
+  allowed_groups  = ["member"]
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -312,11 +342,12 @@ module "endpoint_members_update_me" {
   project     = var.project
   environment = var.environment
 
-  function_name  = "members-update-me"
-  http_method    = "PATCH"
-  resource_path  = "members/me"
-  requires_auth  = true
-  allowed_groups = ["member"]
+  function_name   = "members-update-me"
+  source_zip_path = local.lambda_zip_path["members-update-me"]
+  http_method     = "PATCH"
+  resource_path   = "members/me"
+  requires_auth   = true
+  allowed_groups  = ["member"]
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -341,11 +372,12 @@ module "endpoint_members_list" {
   project     = var.project
   environment = var.environment
 
-  function_name  = "members-list"
-  http_method    = "GET"
-  resource_path  = "members"
-  requires_auth  = true
-  allowed_groups = ["admin"]
+  function_name   = "members-list"
+  source_zip_path = local.lambda_zip_path["members-list"]
+  http_method     = "GET"
+  resource_path   = "members"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -370,11 +402,12 @@ module "endpoint_members_get_by_id" {
   project     = var.project
   environment = var.environment
 
-  function_name  = "members-get-by-id"
-  http_method    = "GET"
-  resource_path  = "members/{memberId}"
-  requires_auth  = true
-  allowed_groups = ["admin"]
+  function_name   = "members-get-by-id"
+  source_zip_path = local.lambda_zip_path["members-get-by-id"]
+  http_method     = "GET"
+  resource_path   = "members/{memberId}"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -399,11 +432,12 @@ module "endpoint_members_approve" {
   project     = var.project
   environment = var.environment
 
-  function_name  = "members-approve"
-  http_method    = "POST"
-  resource_path  = "members/{memberId}/approve"
-  requires_auth  = true
-  allowed_groups = ["admin"]
+  function_name   = "members-approve"
+  source_zip_path = local.lambda_zip_path["members-approve"]
+  http_method     = "POST"
+  resource_path   = "members/{memberId}/approve"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -434,11 +468,12 @@ module "endpoint_members_reject" {
   project     = var.project
   environment = var.environment
 
-  function_name  = "members-reject"
-  http_method    = "POST"
-  resource_path  = "members/{memberId}/reject"
-  requires_auth  = true
-  allowed_groups = ["admin"]
+  function_name   = "members-reject"
+  source_zip_path = local.lambda_zip_path["members-reject"]
+  http_method     = "POST"
+  resource_path   = "members/{memberId}/reject"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -471,11 +506,12 @@ module "endpoint_admin_migration_run" {
   project     = var.project
   environment = var.environment
 
-  function_name  = "admin-migration-run"
-  http_method    = "POST"
-  resource_path  = "admin/migration/run"
-  requires_auth  = true
-  allowed_groups = ["admin"]
+  function_name   = "admin-migration-run"
+  source_zip_path = local.lambda_zip_path["admin-migration-run"]
+  http_method     = "POST"
+  resource_path   = "admin/migration/run"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
