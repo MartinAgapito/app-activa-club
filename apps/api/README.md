@@ -13,8 +13,12 @@ expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 > migración y expuso `POST /admin/migration/run` (solo `admin`) como el primer
 > endpoint con lógica de negocio real (ver
 > [docs/scrum/historias/US-012-migracion-inicial-socios-dynamodb.md](../../docs/scrum/historias/US-012-migracion-inicial-socios-dynamodb.md)).
-> **No** implementa todavía la lógica funcional del resto de dominios
-> (activación, pagos, reservas, etc.): esos siguen siendo stubs `501` en
+> También implementó el registro de socio nuevo (US-016,
+> `POST /registration`) y la activación de socio migrado por DNI (US-013,
+> `POST /activation/verify` y `POST /activation/complete`, ver
+> [docs/scrum/historias/US-013-activacion-cuenta-socio-dni.md](../../docs/scrum/historias/US-013-activacion-cuenta-socio-dni.md)).
+> **No** implementa todavía la lógica funcional del resto de dominios (pagos,
+> reservas, aprobación de socios, etc.): esos siguen siendo stubs `501` en
 > Terraform hasta sus historias correspondientes de Sprint 1+.
 
 ## 1. Estructura de módulos
@@ -22,11 +26,14 @@ expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 ```
 src/
   handlers/          # Una Lambda por endpoint (ADR-0004). Un archivo = un handler exportado.
-    health/get.ts            # GET /health (público, sin datos) — plantilla mínima.
-    members/get-me.ts        # GET /members/me (member) — auth + Query GSI1 + respuesta.
-    admin/run-migration.ts   # POST /admin/migration/run (admin) — wiring del flujo de migración.
-    (Sprint 1+: activation/, registration/, members/, payments/, resources/,
-     reservations/, notifications/, dashboard/ — un archivo por endpoint de
+    health/get.ts             # GET /health (público, sin datos) — plantilla mínima.
+    members/get-me.ts         # GET /members/me (member) — auth + Query GSI1 + respuesta.
+    admin/run-migration.ts    # POST /admin/migration/run (admin) — wiring del flujo de migración.
+    activation/verify.ts      # POST /activation/verify (público) — wiring de src/activation/verify.ts.
+    activation/complete.ts    # POST /activation/complete (público) — wiring de src/activation/complete.ts.
+    registration/post.ts      # POST /registration (público) — wiring de src/registration/register.ts.
+    (Sprint 1+: members/, payments/, resources/, reservations/,
+     notifications/, dashboard/ — un archivo por endpoint de
      docs/api/contratos-api.md.)
   middleware/
     auth.ts            # Extrae identidad (`sub`, `roles`) del Cognito Authorizer; requireRole().
@@ -42,6 +49,17 @@ src/
     repository.ts       # Persistencia idempotente (TransactWriteItems condicional).
     run.ts               # Orquestador: lee, valida por ítem, transforma, persiste, audita.
     fixtures/            # Fixtures ficticios de prueba (NO datos reales de socios).
+  registration/
+    transform.ts       # Ítems puros de un socio nuevo (Member origin=NEW/PENDING, UniqueDni/Email).
+    cognito.ts           # Alta Cognito (AdminCreateUser + AdminSetUserPassword + AdminAddUserToGroup).
+    repository.ts       # Verificación previa de unicidad + TransactWriteItems condicional.
+    register.ts          # Orquestador de POST /registration.
+  activation/
+    transform.ts       # Elegibilidad (MIGRATED sin cognitoSub), maskEmail, cálculo de la actualización.
+    cognito.ts           # Alta Cognito del socio migrado (mismo patrón que registration/cognito.ts).
+    repository.ts       # Lookup DNI->Member + TransactWriteItems (Put UniqueEmail + Update Member).
+    verify.ts             # Orquestador de POST /activation/verify.
+    complete.ts           # Orquestador de POST /activation/complete.
   testing/
     fixtures.ts          # Constructores de eventos de API Gateway para pruebas de handlers.
 ```
@@ -153,27 +171,80 @@ solo `admin`). Como `mock-data/` aún no tiene el JSON on-premise real (ver
 contiene un fixture mínimo **ficticio**, usado solo en pruebas, para validar
 el diseño de la transformación.
 
-## 7. Variables de entorno
+## 7. Registro y activación (`src/registration/`, `src/activation/`)
+
+**Registro de socio nuevo** (US-016, `POST /registration`, RN-ACT-05/06):
+verifica que el DNI/correo no estén ya asociados a otra cuenta
+(`repository.ts`), crea el usuario Cognito (grupo `member`, contraseña
+definitiva) en `cognito.ts` y persiste el `Member` `origin=NEW`/`PENDING`
+junto con sus ítems de unicidad en una única transacción (`transform.ts` +
+`repository.ts`), orquestado desde `register.ts`.
+
+**Activación de socio migrado por DNI** (US-013, `POST /activation/verify` y
+`POST /activation/complete`, RN-ACT-01/02/03/04): a diferencia del registro,
+el `Member` **ya existe** en DynamoDB (creado por la migración, US-012); la
+activación nunca hace un `PutItem` nuevo del socio, sino un `UpdateItem` que
+preserva sus atributos de migración (`legacyId`, membresía, saldo pendiente).
+
+1. **`transform.ts`** (puro, sin I/O): `isEligibleMigratedMember` (un socio
+   solo es elegible si sigue `MIGRATED` y sin `cognitoSub`), `maskEmail`
+   (`maria.quispe@example.com` -> `m***@example.com`, para `verify`) y
+   `buildActivationUpdate`, que recalcula `membershipStatus` reutilizando
+   `deriveMembershipStatus` de `../migration/transform.ts` — el mismo
+   criterio de vigencia de la migración, evaluado de nuevo por si la
+   membresía venció o entró en deuda entre la migración y la activación.
+   `memberStatus` siempre pasa a `ACTIVE` (el enum no distingue "activo con
+   deuda"; eso lo refleja `membershipStatus` por separado).
+2. **`cognito.ts`**: mismo patrón que `../registration/cognito.ts`
+   (`AdminCreateUser` + `AdminSetUserPassword` con `Permanent: true` +
+   `AdminAddUserToGroup`), para que el socio pueda iniciar sesión de
+   inmediato (US-014) sin el reto `NEW_PASSWORD_REQUIRED`.
+3. **`repository.ts`**: `findMemberIdByDni` + `getMemberById` (lectura por
+   `Query` de igualdad, no `GetItem`, igual que en registro) e
+   `isEmailRegistered` (verificación previa best-effort). La escritura final
+   (`completeActivationWrite`) es una única `TransactWriteItems`: `Put`
+   condicionado del nuevo ítem `UniqueEmail` (el socio migrado no tenía uno)
+   - `Update` condicionado del `Member` (`memberStatus=MIGRATED AND
+cognitoSub=null`), que evita una doble activación por una carrera entre
+     dos solicitudes concurrentes con el mismo DNI.
+4. **`verify.ts` / `complete.ts`**: orquestadores. `complete.ts` **revalida**
+   elegibilidad y unicidad de correo en vez de confiar en lo que respondió
+   `verify.ts`, por si pasó tiempo entre ambas llamadas (dos pestañas, otra
+   activación concurrente, etc.).
+
+`POST /activation/verify` y `POST /activation/complete` ya estaban
+provisionados como stubs `501` en Terraform (US-011); esta historia no cambió
+el árbol de rutas, solo amplió los permisos IAM de la Lambda de `complete`
+(`dynamodb:PutItem`/`TransactWriteItems`, que faltaban para el `Put` del
+`UniqueEmail` + `Update` del `Member` en una sola transacción — mismo tipo de
+ajuste ya hecho para US-016/registro).
+
+## 8. Variables de entorno
 
 Ver `.env.example` en la raíz del monorepo, sección `apps/api`. Nuevo en esta
 historia: `MIGRATION_BUCKET_NAME` (bucket S3 de migración, `lib/env.ts`).
 
-## 8. Pendiente para otras historias
+## 9. Pendiente para otras historias
 
-- **Terraform**: los 10 endpoints admin/identidad provisionados en US-011
-  (incluido `admin/migration/run`) despliegan por defecto el stub temporal
-  `501` de `infrastructure/terraform/modules/endpoint` hasta que cada Lambda
-  apunte `source_zip_path` al artefacto real de `apps/api` (fuera de alcance
-  de este paquete; coordinar con Infraestructura/CI-CD el empaquetado y
-  despliegue).
-- **Backend (Sprint 1+)**: handlers funcionales completos de activación
-  (US-013), registro (US-016), aprobación/rechazo de socios (US-017), perfil
+- **Terraform**: los endpoints admin/identidad provisionados en US-011
+  despliegan por defecto el stub temporal `501` de
+  `infrastructure/terraform/modules/endpoint` hasta que cada Lambda apunte
+  `source_zip_path` al artefacto real de `apps/api` (fuera de alcance de este
+  paquete; coordinar con Infraestructura/CI-CD el empaquetado y despliegue).
+- **Activación (US-013)**: no envía todavía la notificación
+  `ACCOUNT_ACTIVATED` mencionada en `docs/api/contratos-api.md` §3 (no existe
+  aún el módulo de notificaciones/SES en `apps/api`; mismo alcance que dejó
+  pendiente el registro, US-016). Un socio migrado con DNI ya reutilizado por
+  un registro `NEW` (mismo DNI, cuenta ya creada por `POST /registration`)
+  recibe `ALREADY_ACTIVATED` en vez de un código más específico, ya que el
+  contrato de `/activation/*` no define uno distinto para ese caso.
+- **Backend (Sprint 1+)**: aprobación/rechazo de socios (US-017), perfil
   (US-018), membresías/pagos (Culqi + idempotencia, ADR-0007), reservas
   (cruces/aforo/invitados), notificaciones y dashboards, siguiendo el patrón
   de esta carpeta.
 - **QA**: pruebas de integración contra API Gateway/DynamoDB reales (`docs/testing/`).
 
-## 9. Scripts
+## 10. Scripts
 
 ```bash
 npm run typecheck --workspace=@activa-club/api

@@ -218,7 +218,14 @@ module "endpoint_activation_complete" {
 
   iam_policy_statements = [
     {
-      actions   = ["dynamodb:Query", "dynamodb:GetItem", "dynamodb:UpdateItem"]
+      # dynamodb:PutItem/UpdateItem + dynamodb:TransactWriteItems: enlazar la
+      # cuenta digital al socio migrado escribe, en una sola transacción, el
+      # ítem UniqueEmail (nuevo, el socio migrado no tenía uno) y actualiza el
+      # Member ya existente (nunca un PutItem nuevo). AWS exige el permiso de
+      # la acción de item concreta (Put/Update) además de TransactWriteItems
+      # para cada operación dentro de la transacción (detectado al escribir
+      # este flujo, igual que el ajuste ya hecho para US-016/registro).
+      actions   = ["dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
     {
