@@ -58,13 +58,12 @@ Sin una base común (estructura del monorepo, contratos, estándares de calidad 
 
 Estas se detallarán en sprints posteriores; se listan para dar contexto de destino:
 
-- EP-02 — Migración on-premise y datos operativos.
-- EP-03 — Activación, registro y autenticación.
-- EP-04 — Membresías y pagos.
-- EP-05 — Reservas de instalaciones.
-- EP-06 — Notificaciones.
-- EP-07 — Administración.
-- EP-08 — Dashboards y analytics.
+- EP-02 — Migración de socios, activación y acceso.
+- EP-03 — Membresías y pagos.
+- EP-04 — Reservas de instalaciones.
+- EP-05 — Notificaciones.
+- EP-06 — Administración.
+- EP-07 — Dashboards y analytics.
 
 ## Historial de cambios
 
