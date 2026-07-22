@@ -232,19 +232,18 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
     ]
   }
 
+  # "s3:Get*" en vez de enumerar cada sub-configuracion (accelerate,
+  # lifecycle, replication, etc.): el proveedor AWS de Terraform refresca
+  # varias de estas al leer aws_s3_bucket y varias no siguen el patron
+  # "GetBucket*" (p. ej. "GetAccelerateConfiguration",
+  # "GetLifecycleConfiguration"). Sigue acotado a solo lectura y a los
+  # buckets del proyecto por ARN.
   statement {
     sid    = "ReadProjectS3Buckets"
     effect = "Allow"
     actions = [
-      "s3:GetBucket*",
+      "s3:Get*",
       "s3:ListBucket",
-      "s3:GetEncryptionConfiguration",
-      "s3:GetBucketPolicy",
-      "s3:GetBucketTagging",
-      # No sigue el patron "GetBucket*": el proveedor AWS de Terraform la
-      # nombra "GetAccelerateConfiguration" (sin "Bucket") al refrescar el
-      # estado de aws_s3_bucket.
-      "s3:GetAccelerateConfiguration",
     ]
     resources = [
       "arn:aws:s3:::${var.project}-*",
