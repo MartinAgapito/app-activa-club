@@ -35,7 +35,10 @@ locals {
       Project     = var.project
       Environment = var.environment
       ManagedBy   = "terraform"
-      Endpoint    = "${var.http_method} /${var.resource_path}"
+      # Los tags de AWS no admiten "{" ni "}" (regex de validacion de la API):
+      # se despojan de los path parameters (p. ej. "members/{memberId}" ->
+      # "members/memberId") en vez de perder la ruta completa del tag.
+      Endpoint = "${var.http_method} /${replace(var.resource_path, "/[{}]/", "")}"
     },
     var.tags,
   )
