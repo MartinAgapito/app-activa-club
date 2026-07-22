@@ -26,6 +26,9 @@ coverage/
 !*.tfvars.example
 crash.log
 crash.*.log
+# Stubs .zip generados localmente por modules/endpoint (data.archive_file)
+# cuando no se provee source_zip_path real; no son artefactos versionables.
+infrastructure/terraform/modules/endpoint/.build/
 
 # ---- Logs ----
 *.log

@@ -1,47 +1,61 @@
-# modules/endpoint (placeholder — Sprint 1)
+# modules/endpoint
 
-Módulo preparado pero **sin recursos** todavía. Cuando Backend (US-009,
-Sprint 1) entregue el código real de cada función (`apps/api`), este módulo
-se completará para declarar, por endpoint (ADR-0004):
+Módulo reutilizable "Lambda por endpoint" (ADR-0004): declara, para una
+ruta+verbo de `docs/api/contratos-api.md`, la función Lambda, su rol IAM de
+mínimo privilegio, el log group (`modules/log-group`), una alarma básica de
+errores (ADR-0008) y el método/integración de API Gateway que la expone.
 
-- Función Lambda (Node.js 20 + TypeScript), a partir del artefacto empaquetado
-  de `apps/api`.
-- Integración con API Gateway REST (recurso + método + integración Lambda
-  proxy).
-- Cognito Authorizer (validación de JWT en el borde, ADR-0002) y, si aplica,
-  restricción por grupo (`member`/`admin`) dentro del propio handler.
-- Rol IAM de **mínimo privilegio por función**: solo las acciones DynamoDB/
-  SES/S3/Cognito que ese endpoint específico necesita (ADR-0004).
-- Un `aws_cloudwatch_log_group` (vía `modules/log-group`) con retención básica
-  para esa función (ADR-0008).
-- Alarmas mínimas de CloudWatch para la demo (tasa de errores 5xx, errores de
-  la Lambda de pagos — ADR-0008), donde corresponda.
+## Qué NO hace este módulo
 
-## Por qué no hay recursos aún
+- **No crea la API REST** (`aws_api_gateway_rest_api`) ni el **Cognito
+  Authorizer** (`aws_api_gateway_authorizer`): se crean una única vez en el
+  entorno llamante (`environments/dev`, `environments/demo`) y se pasan por
+  variable (`rest_api_id`, `rest_api_execution_arn`, `cognito_authorizer_id`).
+- **No crea el `aws_api_gateway_resource`** (el nodo de la ruta, p. ej.
+  `members/{memberId}`): varios endpoints comparten segmentos de ruta (p. ej.
+  `members/me` y `members/{memberId}` cuelgan de `members`), así que el árbol
+  de recursos se construye una sola vez en el entorno llamante y se referencia
+  vía `parent_resource_id`, para evitar declarar el mismo recurso dos veces.
+- **No implementa lógica de negocio**: si no se pasa `source_zip_path`, la
+  Lambda despliega un stub temporal que responde `501` con el formato de
+  error estándar del contrato. Las historias de backend (US-012, US-013,
+  US-016, US-017, US-018) reemplazan el stub apuntando `source_zip_path` al
+  artefacto real de `apps/api`.
 
-Declarar Lambdas o rutas de API Gateway ahora significaría inventar nombres de
-función y contratos que no existen (el código de `apps/api` es de Sprint 1).
-Eso violaría la norma de "contratos antes de implementar" y el alcance de
-US-004 (base de infraestructura, sin funcionalidad de negocio). `variables.tf`
-documenta la interfaz esperada para que, al llegar el código real, completar
-este módulo sea un ejercicio mecánico y no un rediseño.
-
-## Uso previsto (Sprint 1, ejemplo ilustrativo — no aplicar todavía)
+## Uso (ver `environments/dev/main.tf`)
 
 ```hcl
-module "reservations_create" {
+resource "aws_api_gateway_rest_api" "this" { ... }
+
+resource "aws_api_gateway_authorizer" "cognito" {
+  type          = "COGNITO_USER_POOLS"
+  provider_arns = [module.cognito.user_pool_arn]
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  ...
+}
+
+# Árbol de recursos: ver locals.api_resource_paths en environments/dev/main.tf.
+resource "aws_api_gateway_resource" "this" {
+  for_each = toset(local.api_resource_paths)
+  ...
+}
+
+module "endpoint_members_get_me" {
   source = "../../modules/endpoint"
 
   project     = var.project
   environment = var.environment
 
-  function_name    = "reservations-create"
-  handler          = "index.handler"
-  source_zip_path  = "../../../../apps/api/dist/reservations-create.zip"
-  http_method      = "POST"
-  resource_path    = "reservations"
-  requires_auth    = true
-  allowed_groups   = ["member"]
+  function_name = "members-get-me"
+  http_method   = "GET"
+  resource_path = "members/me"
+  requires_auth = true
+  allowed_groups = ["member"]
+
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn  = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id      = aws_api_gateway_resource.this["members/me"].id
+  cognito_authorizer_id   = aws_api_gateway_authorizer.cognito.id
 
   environment_variables = {
     DYNAMODB_TABLE_NAME = module.dynamodb_table.table_name
@@ -49,9 +63,23 @@ module "reservations_create" {
 
   iam_policy_statements = [
     {
-      actions   = ["dynamodb:PutItem", "dynamodb:Query"]
+      actions   = ["dynamodb:Query"]
       resources = [module.dynamodb_table.table_arn, "${module.dynamodb_table.table_arn}/index/*"]
     }
   ]
 }
 ```
+
+Luego, el `aws_api_gateway_deployment` + `aws_api_gateway_stage` del entorno
+depende de todos los `module.endpoint_*.method_id` / `.integration_id` para
+forzar el redeploy cuando cambia cualquier endpoint (ver
+`environments/dev/main.tf`).
+
+## Alarmas y costo
+
+Cada instancia crea, por defecto, una alarma de CloudWatch sobre `Errors`
+(`enable_error_alarm = true`), sin acciones asociadas (sin SNS) para no
+incurrir en costo por notificación. Con 10 endpoints de EP-02 esto usa 10 de
+las 10 alarmas incluidas en la capa gratuita de CloudWatch; si un futuro
+entorno (p. ej. `demo`) necesita desactivarlas para no exceder ese límite,
+pasar `enable_error_alarm = false` en las instancias menos críticas.

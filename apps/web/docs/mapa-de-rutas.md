@@ -43,11 +43,10 @@ Según [ADR-0002](../../../docs/architecture/adr/ADR-0002-autenticacion-cognito-
   permitida. **Es solo experiencia de usuario**: la autorización real siempre
   la valida el backend (API Gateway Cognito Authorizer + Lambda), que revisa
   el claim `cognito:groups` del JWT.
-- El contexto de sesión (`src/auth/AuthContext.tsx`) es un **placeholder de
-  fundación**: expone sesión anónima por defecto y no integra Cognito
-  todavía (login/refresh/logout). La integración real es de Sprint 1, sobre
-  la misma interfaz (`useAuth()`), sin tener que reescribir los guards ni las
-  páginas.
+- El contexto de sesión (`src/auth/AuthContext.tsx`) integra Cognito
+  (login/refresh/logout) desde US-014 (Sprint 1), sobre la misma interfaz
+  (`useAuth()`) prevista en Sprint 0: no fue necesario reescribir los guards
+  ni las páginas que ya consumían `useAuth()`.
 - Un guard adicional por **estado del socio** (`memberStatus`,
   `membershipStatus`, `canReserve`) no está implementado en Sprint 0: se
   documenta como pendiente en la tabla de rutas de socio (columna "Notas") y
@@ -56,16 +55,16 @@ Según [ADR-0002](../../../docs/architecture/adr/ADR-0002-autenticacion-cognito-
 
 ## 3. Rutas públicas (sin autenticación)
 
-| Ruta                  | Página                  | Contrato relacionado                                   | Notas                                                                                   |
-| --------------------- | ----------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `/`                   | Inicio institucional    | — (contenido estático)                                 | Único contenido "terminado" del Sprint 0: copy institucional, sin datos ni formularios. |
-| `/login`              | Iniciar sesión          | Cognito `InitiateAuth` (`USER_PASSWORD_AUTH`)          | RN-ACT-04. Placeholder "en construcción".                                               |
-| `/activar-cuenta`     | Activar cuenta con DNI  | `POST /activation/verify`, `POST /activation/complete` | RN-ACT-01/02/03. Placeholder.                                                           |
-| `/registro`           | Registro de socio nuevo | `POST /registration`                                   | RN-ACT-05/06. Placeholder.                                                              |
-| `/recuperar-password` | Recuperar contraseña    | Cognito `ForgotPassword` + `ConfirmForgotPassword`     | Placeholder.                                                                            |
-| `/verificar-correo`   | Verificar correo        | Cognito (confirmación de atributo email)               | Placeholder.                                                                            |
-| `/403`                | Sin permisos            | —                                                      | Estado "sin permisos" cuando el rol no coincide.                                        |
-| `*`                   | No encontrado           | —                                                      | Catch-all 404.                                                                          |
+| Ruta                  | Página                  | Contrato relacionado                                                                | Notas                                                                                                       |
+| --------------------- | ----------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `/`                   | Inicio institucional    | — (contenido estático)                                                              | Único contenido "terminado" del Sprint 0: copy institucional, sin datos ni formularios.                     |
+| `/login`              | Iniciar sesión          | Cognito `InitiateAuth` (`USER_PASSWORD_AUTH`/`REFRESH_TOKEN_AUTH`), `GlobalSignOut` | RN-ACT-04. Implementada (US-014, Sprint 1): login/refresh/logout reales contra Cognito, sin backend propio. |
+| `/activar-cuenta`     | Activar cuenta con DNI  | `POST /activation/verify`, `POST /activation/complete`                              | RN-ACT-01/02/03. Placeholder.                                                                               |
+| `/registro`           | Registro de socio nuevo | `POST /registration`                                                                | RN-ACT-05/06. Placeholder.                                                                                  |
+| `/recuperar-password` | Recuperar contraseña    | Cognito `ForgotPassword` + `ConfirmForgotPassword`                                  | Placeholder.                                                                                                |
+| `/verificar-correo`   | Verificar correo        | Cognito (confirmación de atributo email)                                            | Placeholder.                                                                                                |
+| `/403`                | Sin permisos            | —                                                                                   | Estado "sin permisos" cuando el rol no coincide.                                                            |
+| `*`                   | No encontrado           | —                                                                                   | Catch-all 404.                                                                                              |
 
 ## 4. Rutas de socio (`member`)
 
@@ -178,3 +177,9 @@ vía `canReserve` en `GET /dashboard/member`.
 ## 9. Historial de cambios
 
 - 2026-07-10: Versión inicial (US-008, Sprint 0).
+- 2026-07-16: `/login` implementada (US-014, Sprint 1): login/refresh/logout
+  directos contra Cognito (`apps/web/src/auth/`), rol resuelto desde
+  `cognito:groups` y `AuthContext`/`RequireRole` conectados a la sesión real.
+  El resto de rutas públicas (`/activar-cuenta`, `/registro`,
+  `/recuperar-password`, `/verificar-correo`) sigue como placeholder,
+  pendiente de sus propias historias.

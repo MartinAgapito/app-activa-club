@@ -4,9 +4,16 @@ Infraestructura como código (Terraform) de Activa Club en AWS.
 
 Base de infraestructura de US-004 (Sprint 0): estructura de módulos,
 entornos `dev`/`demo`, y preparación del backend de estado remoto y de la
-autenticación OIDC de GitHub Actions. **No** contiene todavía Lambdas ni API
-Gateway (eso depende del código real de `apps/api`, Sprint 1, US-009) ni fue
-aplicada (`terraform apply`) contra ninguna cuenta AWS real.
+autenticación OIDC de GitHub Actions.
+
+Desde US-011 (Sprint 1), `environments/dev` además provisiona la API REST +
+Lambda por endpoint (ADR-0004) de los endpoints de identidad/acceso de EP-02
+(`docs/api/contratos-api.md`), con Cognito Authorizer por rol (ADR-0002) y
+log group + alarma por función (ADR-0008). Las Lambdas despliegan un stub
+temporal (HTTP 501) hasta que las historias de backend correspondientes
+(US-012, US-013, US-016, US-017, US-018) reemplacen su artefacto real; ver
+`modules/endpoint/README.md`. `environments/demo` todavía no instancia estos
+endpoints (queda para cuando exista su propio pipeline de despliegue).
 
 Documentación completa: [`docs/deployment/terraform-infraestructura.md`](../../docs/deployment/terraform-infraestructura.md).
 
@@ -22,7 +29,7 @@ infrastructure/terraform/
 │   ├── frontend-hosting/
 │   ├── ses-identity/
 │   ├── log-group/
-│   └── endpoint/           # placeholder Sprint 1, sin recursos aún
+│   └── endpoint/           # Lambda + método API Gateway por endpoint (US-011)
 └── environments/
     ├── dev/
     └── demo/
