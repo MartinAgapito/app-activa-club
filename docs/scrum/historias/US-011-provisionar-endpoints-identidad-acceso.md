@@ -1,16 +1,16 @@
 # US-011 — Provisionar endpoints serverless de identidad y acceso
 
-| Campo               | Valor                                                     |
-| ------------------- | --------------------------------------------------------- |
-| ID                  | US-011                                                    |
-| Épica               | [EP-02](../epicas/EP-02-migracion-activacion-acceso.md)   |
-| Tipo                | Tarea técnica                                             |
-| Responsable         | DevOps                                                    |
-| Fase                | MVP                                                       |
-| Sprint              | Sprint 1                                                  |
-| Prioridad           | Crítica                                                   |
-| Estimación relativa | 8                                                         |
-| Dependencias        | —                                                         |
+| Campo               | Valor                                                   |
+| ------------------- | ------------------------------------------------------- |
+| ID                  | US-011                                                  |
+| Épica               | [EP-02](../epicas/EP-02-migracion-activacion-acceso.md) |
+| Tipo                | Tarea técnica                                           |
+| Responsable         | DevOps                                                  |
+| Fase                | MVP                                                     |
+| Sprint              | Sprint 1                                                |
+| Prioridad           | Crítica                                                 |
+| Estimación relativa | 8                                                       |
+| Dependencias        | —                                                       |
 
 ## Objetivo
 
