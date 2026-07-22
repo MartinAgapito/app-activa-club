@@ -4,13 +4,18 @@ Backend serverless de Activa Club — Node.js + TypeScript sobre AWS Lambda,
 expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 ([ADR-0004](../../docs/architecture/adr/ADR-0004-api-gateway-rest-lambda-por-endpoint.md)).
 
-> Sprint 0 (US-009): este paquete contiene el **scaffolding** del backend —
-> estructura de carpetas, middleware compartido y el flujo de migración — más
-> dos handlers de referencia (`GET /health`, `GET /members/me`) y el handler de
-> migración (`POST /admin/migration/run`) que demuestran el patrón a replicar.
-> **No** implementa todavía la lógica funcional completa de activación, pagos
-> o reservas: eso corresponde a las historias de Sprint 1+ (ver
+> Sprint 0 (US-009) dejó el **scaffolding** del backend — estructura de
+> carpetas, middleware compartido y el diseño del flujo de migración — más dos
+> handlers de referencia (`GET /health`, `GET /members/me`) que demuestran el
+> patrón a replicar (ver
 > [docs/scrum/historias/US-009-modulos-backend-flujo-migracion.md](../../docs/scrum/historias/US-009-modulos-backend-flujo-migracion.md)).
+> Sprint 1 (US-012) implementó la lógica funcional completa del flujo de
+> migración y expuso `POST /admin/migration/run` (solo `admin`) como el primer
+> endpoint con lógica de negocio real (ver
+> [docs/scrum/historias/US-012-migracion-inicial-socios-dynamodb.md](../../docs/scrum/historias/US-012-migracion-inicial-socios-dynamodb.md)).
+> **No** implementa todavía la lógica funcional del resto de dominios
+> (activación, pagos, reservas, etc.): esos siguen siendo stubs `501` en
+> Terraform hasta sus historias correspondientes de Sprint 1+.
 
 ## 1. Estructura de módulos
 
@@ -107,7 +112,8 @@ convención de clave se haga en un solo lugar.
 
 ## 6. Flujo de migración (`src/migration/`)
 
-Diseño según [docs/data/mapeo-migracion.md](../../docs/data/mapeo-migracion.md)
+Implementación funcional (US-012) del diseño de
+[docs/data/mapeo-migracion.md](../../docs/data/mapeo-migracion.md)
 (RN-MIG-01..06), separado en tres módulos con una única responsabilidad cada
 uno (fácil de probar sin AWS real):
 
@@ -152,13 +158,17 @@ el diseño de la transformación.
 Ver `.env.example` en la raíz del monorepo, sección `apps/api`. Nuevo en esta
 historia: `MIGRATION_BUCKET_NAME` (bucket S3 de migración, `lib/env.ts`).
 
-## 8. Pendiente para otras historias (fuera de alcance de US-009)
+## 8. Pendiente para otras historias
 
-- **Terraform (US-004)**: tabla DynamoDB (3 GSI + TTL), User Pool + grupos
-  `member`/`admin` + Authorizer, bucket S3 de migración, permisos IAM de
-  mínimo privilegio por función, empaquetado/bundling por handler.
-- **Backend (Sprint 1+)**: handlers funcionales completos de activación,
-  registro, membresías/pagos (Culqi + idempotencia, ADR-0007), reservas
+- **Terraform**: los 10 endpoints admin/identidad provisionados en US-011
+  (incluido `admin/migration/run`) despliegan por defecto el stub temporal
+  `501` de `infrastructure/terraform/modules/endpoint` hasta que cada Lambda
+  apunte `source_zip_path` al artefacto real de `apps/api` (fuera de alcance
+  de este paquete; coordinar con Infraestructura/CI-CD el empaquetado y
+  despliegue).
+- **Backend (Sprint 1+)**: handlers funcionales completos de activación
+  (US-013), registro (US-016), aprobación/rechazo de socios (US-017), perfil
+  (US-018), membresías/pagos (Culqi + idempotencia, ADR-0007), reservas
   (cruces/aforo/invitados), notificaciones y dashboards, siguiendo el patrón
   de esta carpeta.
 - **QA**: pruebas de integración contra API Gateway/DynamoDB reales (`docs/testing/`).
