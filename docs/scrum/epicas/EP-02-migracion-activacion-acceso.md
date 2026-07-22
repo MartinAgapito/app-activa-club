@@ -29,16 +29,16 @@ Sin migración e identidad no hay usuarios que puedan operar el sistema: ningún
 
 ## Historias asociadas
 
-| ID                                                                    | Título                                                        | Responsable        | Depende de     |
-| --------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------ | -------------- |
-| [US-011](../historias/US-011-provisionar-endpoints-identidad-acceso.md) | Provisionar endpoints serverless de identidad y acceso       | DevOps             | —              |
-| [US-012](../historias/US-012-migracion-inicial-socios-dynamodb.md)      | Ejecutar la migración inicial de socios hacia DynamoDB       | Backend            | US-011         |
-| [US-013](../historias/US-013-activacion-cuenta-socio-dni.md)            | Activar cuenta de socio migrado con DNI                      | Backend + Frontend | US-011, US-012 |
-| [US-014](../historias/US-014-login-correo-contrasena.md)                | Iniciar sesión con correo y contraseña                       | Frontend           | —              |
-| [US-015](../historias/US-015-recuperacion-contrasena.md)                | Recuperar contraseña                                         | Frontend           | US-014         |
-| [US-016](../historias/US-016-registro-socio-nuevo.md)                   | Registrarse como socio nuevo                                 | Backend + Frontend | US-011         |
-| [US-017](../historias/US-017-aprobacion-rechazo-socios.md)              | Aprobar o rechazar solicitudes de socios nuevos              | Backend + Frontend | US-011, US-016 |
-| [US-018](../historias/US-018-perfil-usuario.md)                         | Consultar y actualizar el perfil de usuario                  | Backend + Frontend | US-011         |
+| ID                                                                      | Título                                                 | Responsable        | Depende de     |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ | ------------------ | -------------- |
+| [US-011](../historias/US-011-provisionar-endpoints-identidad-acceso.md) | Provisionar endpoints serverless de identidad y acceso | DevOps             | —              |
+| [US-012](../historias/US-012-migracion-inicial-socios-dynamodb.md)      | Ejecutar la migración inicial de socios hacia DynamoDB | Backend            | US-011         |
+| [US-013](../historias/US-013-activacion-cuenta-socio-dni.md)            | Activar cuenta de socio migrado con DNI                | Backend + Frontend | US-011, US-012 |
+| [US-014](../historias/US-014-login-correo-contrasena.md)                | Iniciar sesión con correo y contraseña                 | Frontend           | —              |
+| [US-015](../historias/US-015-recuperacion-contrasena.md)                | Recuperar contraseña                                   | Frontend           | US-014         |
+| [US-016](../historias/US-016-registro-socio-nuevo.md)                   | Registrarse como socio nuevo                           | Backend + Frontend | US-011         |
+| [US-017](../historias/US-017-aprobacion-rechazo-socios.md)              | Aprobar o rechazar solicitudes de socios nuevos        | Backend + Frontend | US-011, US-016 |
+| [US-018](../historias/US-018-perfil-usuario.md)                         | Consultar y actualizar el perfil de usuario            | Backend + Frontend | US-011         |
 
 ## Criterios de aceptación de la épica
 

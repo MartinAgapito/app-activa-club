@@ -52,8 +52,8 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 
 ## Historias del Sprint 1 (EP-02)
 
-| ID                                                                    | Título                                                 | Responsable        | Prioridad | Depende de     |
-| --------------------------------------------------------------------- | ------------------------------------------------------ | ------------------ | --------- | -------------- |
+| ID                                                                     | Título                                                 | Responsable        | Prioridad | Depende de     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------ | ------------------ | --------- | -------------- |
 | [US-011](./historias/US-011-provisionar-endpoints-identidad-acceso.md) | Provisionar endpoints serverless de identidad y acceso | DevOps             | Crítica   | —              |
 | [US-012](./historias/US-012-migracion-inicial-socios-dynamodb.md)      | Ejecutar la migración inicial de socios hacia DynamoDB | Backend            | Crítica   | US-011         |
 | [US-013](./historias/US-013-activacion-cuenta-socio-dni.md)            | Activar cuenta de socio migrado con DNI                | Backend + Frontend | Alta      | US-011, US-012 |

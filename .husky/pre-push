@@ -1,0 +1,7 @@
+npm run format:check
+npm run lint
+npm run typecheck
+
+if command -v terraform >/dev/null 2>&1 && find infrastructure/terraform -name '*.tf' -print -quit | grep -q .; then
+  (cd infrastructure/terraform && terraform fmt -check -recursive -diff)
+fi

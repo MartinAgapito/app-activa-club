@@ -1,0 +1,5 @@
+# Normaliza todos los archivos de texto a LF, sin importar el OS del
+# desarrollador. Evita falsos positivos de `prettier --check` en Windows
+# (donde core.autocrlf=true convierte el working tree a CRLF por defecto)
+# y asegura que el contenido versionado sea siempre el que CI valida.
+* text=auto eol=lf

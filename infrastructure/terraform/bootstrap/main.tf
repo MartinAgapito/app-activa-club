@@ -232,15 +232,18 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
     ]
   }
 
+  # "s3:Get*" en vez de enumerar cada sub-configuracion (accelerate,
+  # lifecycle, replication, etc.): el proveedor AWS de Terraform refresca
+  # varias de estas al leer aws_s3_bucket y varias no siguen el patron
+  # "GetBucket*" (p. ej. "GetAccelerateConfiguration",
+  # "GetLifecycleConfiguration"). Sigue acotado a solo lectura y a los
+  # buckets del proyecto por ARN.
   statement {
     sid    = "ReadProjectS3Buckets"
     effect = "Allow"
     actions = [
-      "s3:GetBucket*",
+      "s3:Get*",
       "s3:ListBucket",
-      "s3:GetEncryptionConfiguration",
-      "s3:GetBucketPolicy",
-      "s3:GetBucketTagging",
     ]
     resources = [
       "arn:aws:s3:::${var.project}-*",
@@ -275,6 +278,18 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       "s3:GetAccountPublicAccessBlock",
       "s3:ListAllMyBuckets",
       "tag:GetResources",
+      # US-011: lectura de Lambda, API Gateway y alarmas de CloudWatch, para
+      # que `terraform plan` pueda refrescar el estado de los endpoints
+      # serverless de EP-02 (ninguna de estas APIs admite scoping por ARN de
+      # recurso en sus acciones "describe"/"get"/"list").
+      "lambda:GetFunction*",
+      "lambda:GetPolicy",
+      "lambda:GetAlias",
+      "lambda:List*",
+      "apigateway:GET",
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:GetMetricData",
+      "cloudwatch:ListTagsForResource",
     ]
     resources = ["*"]
   }

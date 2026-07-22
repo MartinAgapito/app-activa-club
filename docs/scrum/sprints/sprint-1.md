@@ -1,13 +1,13 @@
 # Sprint 1 — Migración de socios, activación y acceso
 
-| Campo             | Valor                                                     |
-| ----------------- | --------------------------------------------------------- |
-| Sprint            | 1                                                         |
-| Nombre            | Migración de socios, activación y acceso                  |
-| Épica             | [EP-02](../epicas/EP-02-migracion-activacion-acceso.md)   |
-| Fase              | MVP                                                       |
-| Duración sugerida | 2 semanas                                                 |
-| Estado            | Planificada                                               |
+| Campo             | Valor                                                   |
+| ----------------- | ------------------------------------------------------- |
+| Sprint            | 1                                                       |
+| Nombre            | Migración de socios, activación y acceso                |
+| Épica             | [EP-02](../epicas/EP-02-migracion-activacion-acceso.md) |
+| Fase              | MVP                                                     |
+| Duración sugerida | 2 semanas                                               |
+| Estado            | Planificada                                             |
 
 ## Sprint Goal
 
@@ -75,14 +75,14 @@ Estimación total: 45 puntos relativos.
 
 ## Riesgos del sprint
 
-| Riesgo                                                     | Impacto                                            | Mitigación                                                                                          |
-| ---------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Retraso de US-011 (infra de endpoints)                     | Alto: bloquea US-012, US-013, US-016, US-017, US-018 | Priorizar US-011 en Ola 1; usar stubs de Lambda para que Backend/Frontend integren en paralelo    |
-| Ajustes del módulo `modules/endpoint` para path params/roles | Medio: retrasa el despliegue de endpoints           | Validar el módulo temprano; documentar cambios antes de aplicar                                    |
-| Divergencia del JSON real respecto al contrato de entrada  | Medio: reproceso de la migración                    | Ajustar `mapeo-migracion.md` antes de implementar; no inventar campos; migración reejecutable      |
-| Manejo de creación de usuario Cognito (activación/registro) | Medio: fallos de unicidad o de enlace `cognitoSub`  | Validar unicidad de DNI/correo en backend; transacciones idempotentes sobre claves `UNIQ#`         |
-| Costos fuera de Free Tier al agregar API Gateway/Lambda    | Bajo-Medio: presupuesto                             | Dimensionar mínimo, sin recursos siempre-encendidos; revisar en el plan de Terraform               |
-| Divergencia respecto al Contexto Maestro                   | Alto: retrabajo y scope creep                       | Toda historia deriva de la matriz de alcance MVP; validación contra el Contexto Maestro en planning |
+| Riesgo                                                       | Impacto                                              | Mitigación                                                                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Retraso de US-011 (infra de endpoints)                       | Alto: bloquea US-012, US-013, US-016, US-017, US-018 | Priorizar US-011 en Ola 1; usar stubs de Lambda para que Backend/Frontend integren en paralelo      |
+| Ajustes del módulo `modules/endpoint` para path params/roles | Medio: retrasa el despliegue de endpoints            | Validar el módulo temprano; documentar cambios antes de aplicar                                     |
+| Divergencia del JSON real respecto al contrato de entrada    | Medio: reproceso de la migración                     | Ajustar `mapeo-migracion.md` antes de implementar; no inventar campos; migración reejecutable       |
+| Manejo de creación de usuario Cognito (activación/registro)  | Medio: fallos de unicidad o de enlace `cognitoSub`   | Validar unicidad de DNI/correo en backend; transacciones idempotentes sobre claves `UNIQ#`          |
+| Costos fuera de Free Tier al agregar API Gateway/Lambda      | Bajo-Medio: presupuesto                              | Dimensionar mínimo, sin recursos siempre-encendidos; revisar en el plan de Terraform                |
+| Divergencia respecto al Contexto Maestro                     | Alto: retrabajo y scope creep                        | Toda historia deriva de la matriz de alcance MVP; validación contra el Contexto Maestro en planning |
 
 ## Historial de cambios
 
