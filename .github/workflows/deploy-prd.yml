@@ -1,13 +1,13 @@
-name: CD - Despliegue final (demo)
+name: CD - Despliegue final (prd)
 
-# Pipeline de despliegue al entorno `demo` (presentación al jurado), que
+# Pipeline de despliegue al entorno `prd` (presentación al jurado), que
 # cumple aquí el rol de "entorno final/producción" del proyecto — no existe
 # un entorno `prod` separado (ver docs/deployment/README.md y ADR-0001).
 #
 # ESTADO ACTUAL (léase antes de ejecutar): este workflow queda preparado
-# pero **no es ejecutable todavía**. `infrastructure/terraform/environments/demo`
+# pero **no es ejecutable todavía**. `infrastructure/terraform/environments/prd`
 # nunca tuvo un `terraform apply` real (no hay bootstrap de estado remoto ni
-# rol OIDC de escritura para demo, a diferencia de dev — ver
+# rol OIDC de escritura para prd, a diferencia de dev — ver
 # docs/deployment/terraform-infraestructura.md y
 # docs/deployment/despliegue-dev.md). El job "verificar-prerequisitos" falla
 # rápido y con un mensaje explícito mientras eso no se resuelva, en vez de
@@ -16,19 +16,19 @@ name: CD - Despliegue final (demo)
 # Disparo: SOLO manual (workflow_dispatch), nunca por push/pull_request, y
 # solo tiene efecto real sobre una rama o tag protegido (main, o un tag
 # "v*" de una versión concreta para la demo). Requiere aprobación manual del
-# GitHub Environment "demo" (reviewers) antes del `terraform apply` real —
-# ver el job terraform-apply-demo. Configuración de ese Environment: ver
-# el recordatorio al final de este archivo y docs/deployment/despliegue-demo.md.
+# GitHub Environment "prd" (reviewers) antes del `terraform apply` real —
+# ver el job terraform-apply-prd. Configuración de ese Environment: ver
+# el recordatorio al final de este archivo y docs/deployment/despliegue-prd.md.
 on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Etiqueta de la versión a desplegar (informativa, p. ej. v1.0.0-demo-jurado). Se registra en el resumen del despliegue.'
+        description: 'Etiqueta de la versión a desplegar (informativa, p. ej. v1.0.0-prd-jurado). Se registra en el resumen del despliegue.'
         required: false
         default: ''
 
 concurrency:
-  group: deploy-demo
+  group: deploy-prd
   cancel-in-progress: false
 
 permissions:
@@ -41,10 +41,10 @@ env:
 jobs:
   # ---------------------------------------------------------------------
   # Puerta de prerequisitos: valida que (a) se dispara desde una rama/tag
-  # protegido y (b) el entorno demo ya fue aprovisionado en AWS (existe el
+  # protegido y (b) el entorno prd ya fue aprovisionado en AWS (existe el
   # secreto del rol de escritura). Sin Environment/aprobación todavía: es
   # una validación rápida, de solo lectura, para fallar cuanto antes con un
-  # mensaje claro si demo no está listo.
+  # mensaje claro si prd no está listo.
   # ---------------------------------------------------------------------
   verificar-prerequisitos:
     name: 'Etapa 1/6 - Verificar prerequisitos'
@@ -56,28 +56,28 @@ jobs:
           if [ "$ref" = "refs/heads/main" ] || [[ "$ref" == refs/tags/v* ]]; then
             echo "OK: disparado desde '$ref'."
           else
-            echo "::error::deploy-demo.yml solo puede dispararse desde 'main' o un tag 'v*' (recibido: '$ref')."
+            echo "::error::deploy-prd.yml solo puede dispararse desde 'main' o un tag 'v*' (recibido: '$ref')."
             exit 1
           fi
 
-      - name: Verificar que el entorno demo ya fue aprovisionado en AWS
+      - name: Verificar que el entorno prd ya fue aprovisionado en AWS
         env:
-          ROLE_ARN: ${{ secrets.AWS_DEPLOY_DEMO_ROLE_ARN }}
+          ROLE_ARN: ${{ secrets.AWS_DEPLOY_PRD_ROLE_ARN }}
         run: |
           if [ -z "$ROLE_ARN" ]; then
-            echo "::error::El secreto AWS_DEPLOY_DEMO_ROLE_ARN no está configurado."
-            echo "::error::El entorno demo todavia NO fue aprovisionado en AWS: falta aplicar"
+            echo "::error::El secreto AWS_DEPLOY_PRD_ROLE_ARN no está configurado."
+            echo "::error::El entorno prd todavia NO fue aprovisionado en AWS: falta aplicar"
             echo "::error::manualmente infrastructure/terraform/bootstrap con el rol de escritura"
-            echo "::error::de demo (historia posterior, ver docs/deployment/despliegue-demo.md)"
+            echo "::error::de prd (historia posterior, ver docs/deployment/despliegue-prd.md)"
             echo "::error::y luego cargar ese ARN en el secreto de repositorio/entorno."
             exit 1
           fi
-          echo "OK: secreto AWS_DEPLOY_DEMO_ROLE_ARN configurado."
+          echo "OK: secreto AWS_DEPLOY_PRD_ROLE_ARN configurado."
 
       - name: Registrar versión solicitada
         run: |
           {
-            echo "### Despliegue a demo solicitado"
+            echo "### Despliegue a prd solicitado"
             echo ""
             echo "- Ref: \`${{ github.ref }}\`"
             echo "- SHA: \`${{ github.sha }}\`"
@@ -88,7 +88,7 @@ jobs:
   # Empaquetar backend: mismo mecanismo que dev (scripts/package-lambdas.mjs),
   # el .zip de cada handler no depende del entorno destino.
   # ---------------------------------------------------------------------
-  build-lambdas-demo:
+  build-lambdas-prd:
     name: 'Etapa 2/6 - Empaquetar backend (Lambdas)'
     needs: verificar-prerequisitos
     runs-on: ubuntu-latest
@@ -111,7 +111,7 @@ jobs:
       - name: Publicar artefactos de Lambda
         uses: actions/upload-artifact@v4
         with:
-          name: lambda-artifacts-demo
+          name: lambda-artifacts-prd
           path: .lambda-artifacts
           retention-days: 7
 
@@ -120,16 +120,16 @@ jobs:
   # en el resumen del run, para que quien apruebe el siguiente job pueda
   # revisar exactamente qué se va a aplicar antes de aprobarlo.
   # ---------------------------------------------------------------------
-  terraform-plan-demo:
-    name: 'Etapa 3/6 - Terraform plan (demo)'
-    needs: build-lambdas-demo
+  terraform-plan-prd:
+    name: 'Etapa 3/6 - Terraform plan (prd)'
+    needs: build-lambdas-prd
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     defaults:
       run:
-        working-directory: infrastructure/terraform/environments/demo
+        working-directory: infrastructure/terraform/environments/prd
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -137,13 +137,13 @@ jobs:
       - name: Descargar artefactos de Lambda
         uses: actions/download-artifact@v4
         with:
-          name: lambda-artifacts-demo
+          name: lambda-artifacts-prd
           path: .lambda-artifacts
 
-      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-demo)
+      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-prd)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_DEMO_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_PRD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -159,20 +159,20 @@ jobs:
         run: terraform validate
 
       # TF_VAR_lambda_artifacts_dir solo tiene efecto una vez que
-      # environments/demo/main.tf instancie modules/endpoint (historia
-      # posterior); hoy demo solo declara recursos base (ver main.tf), así
+      # environments/prd/main.tf instancie modules/endpoint (historia
+      # posterior); hoy prd solo declara recursos base (ver main.tf), así
       # que se define igual por adelanto y sin costo, para no requerir
       # tocar este workflow cuando eso ocurra.
       - name: Terraform plan
         env:
-          TF_VAR_ses_sender_email: ${{ vars.DEMO_SES_SENDER_EMAIL || 'no-reply-demo@example.com' }}
+          TF_VAR_ses_sender_email: ${{ vars.PRD_SES_SENDER_EMAIL || 'no-reply-prd@example.com' }}
           TF_VAR_lambda_artifacts_dir: ${{ github.workspace }}/.lambda-artifacts
-        run: terraform plan -input=false -no-color -out=tfplan-demo | tee plan-output.txt
+        run: terraform plan -input=false -no-color -out=tfplan-prd | tee plan-output.txt
 
       - name: Publicar plan en el resumen del run
         run: |
           {
-            echo "### Terraform plan - demo"
+            echo "### Terraform plan - prd"
             echo '```'
             tail -c 60000 plan-output.txt
             echo '```'
@@ -181,22 +181,22 @@ jobs:
       - name: Publicar plan como artefacto (para el job de apply)
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-demo
-          path: infrastructure/terraform/environments/demo/tfplan-demo
+          name: tfplan-prd
+          path: infrastructure/terraform/environments/prd/tfplan-prd
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Aprobación manual (GitHub Environment "demo" con reviewers requeridos,
+  # Aprobación manual (GitHub Environment "prd" con reviewers requeridos,
   # configurado en la UI del repositorio — ver recordatorio al final de este
   # archivo) + apply EXACTO del plan generado en la etapa anterior (nunca se
   # recalcula un plan nuevo en este job): lo que se aprueba es exactamente
   # lo que se aplica.
   # ---------------------------------------------------------------------
-  terraform-apply-demo:
-    name: 'Etapa 4/6 - Terraform apply (demo, requiere aprobación)'
-    needs: terraform-plan-demo
+  terraform-apply-prd:
+    name: 'Etapa 4/6 - Terraform apply (prd, requiere aprobación)'
+    needs: terraform-plan-prd
     runs-on: ubuntu-latest
-    environment: demo
+    environment: prd
     permissions:
       contents: read
       id-token: write
@@ -206,7 +206,7 @@ jobs:
       cloudfront_domain_name: ${{ steps.outputs.outputs.cloudfront_domain_name }}
     defaults:
       run:
-        working-directory: infrastructure/terraform/environments/demo
+        working-directory: infrastructure/terraform/environments/prd
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -214,13 +214,13 @@ jobs:
       - name: Descargar plan aprobado
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-demo
-          path: infrastructure/terraform/environments/demo
+          name: tfplan-prd
+          path: infrastructure/terraform/environments/prd
 
-      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-demo)
+      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-prd)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_DEMO_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_PRD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
@@ -233,7 +233,7 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform apply (plan ya aprobado)
-        run: terraform apply -input=false tfplan-demo
+        run: terraform apply -input=false tfplan-prd
 
       - name: Leer outputs de Terraform
         id: outputs
@@ -246,11 +246,11 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------
-  # Build + deploy del frontend a demo, mismo mecanismo que dev.
+  # Build + deploy del frontend a prd, mismo mecanismo que dev.
   # ---------------------------------------------------------------------
-  deploy-frontend-demo:
+  deploy-frontend-prd:
     name: 'Etapa 5/6 - Deploy frontend (S3 + CloudFront)'
-    needs: terraform-apply-demo
+    needs: terraform-apply-prd
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -271,20 +271,20 @@ jobs:
       - name: Build de apps/web
         run: npm run build --workspace apps/web
 
-      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-demo)
+      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-prd)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_DEMO_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_PRD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Sincronizar build a S3 (bucket privado, servido vía CloudFront)
         run: |
-          aws s3 sync apps/web/dist "s3://${{ needs.terraform-apply-demo.outputs.web_bucket_name }}" --delete
+          aws s3 sync apps/web/dist "s3://${{ needs.terraform-apply-prd.outputs.web_bucket_name }}" --delete
 
       - name: Invalidar caché de CloudFront
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id "${{ needs.terraform-apply-demo.outputs.cloudfront_distribution_id }}" \
+            --distribution-id "${{ needs.terraform-apply-prd.outputs.cloudfront_distribution_id }}" \
             --paths "/*"
 
   # ---------------------------------------------------------------------
@@ -292,15 +292,15 @@ jobs:
   # aprobaciones del Environment, visible en la pestaña "Environments" del
   # repositorio).
   # ---------------------------------------------------------------------
-  registro-version-demo:
+  registro-version-prd:
     name: 'Etapa 6/6 - Registrar versión desplegada'
     needs:
       [
         verificar-prerequisitos,
-        build-lambdas-demo,
-        terraform-plan-demo,
-        terraform-apply-demo,
-        deploy-frontend-demo,
+        build-lambdas-prd,
+        terraform-plan-prd,
+        terraform-apply-prd,
+        deploy-frontend-prd,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -308,46 +308,46 @@ jobs:
       - name: Publicar resumen final
         run: |
           {
-            echo "### Despliegue a demo - resultado final"
+            echo "### Despliegue a prd - resultado final"
             echo ""
             echo "| Dato | Valor |"
             echo "| --- | --- |"
             echo "| Ref desplegado | \`${{ github.ref }}\` |"
             echo "| SHA | \`${{ github.sha }}\` |"
             echo "| Version tag | \`${{ inputs.version_tag || '(sin especificar)' }}\` |"
-            echo "| Frontend | https://${{ needs.terraform-apply-demo.outputs.cloudfront_domain_name }}/ |"
+            echo "| Frontend | https://${{ needs.terraform-apply-prd.outputs.cloudfront_domain_name }}/ |"
             echo "| verificar-prerequisitos | ${{ needs.verificar-prerequisitos.result }} |"
-            echo "| build-lambdas-demo | ${{ needs.build-lambdas-demo.result }} |"
-            echo "| terraform-plan-demo | ${{ needs.terraform-plan-demo.result }} |"
-            echo "| terraform-apply-demo | ${{ needs.terraform-apply-demo.result }} |"
-            echo "| deploy-frontend-demo | ${{ needs.deploy-frontend-demo.result }} |"
+            echo "| build-lambdas-prd | ${{ needs.build-lambdas-prd.result }} |"
+            echo "| terraform-plan-prd | ${{ needs.terraform-plan-prd.result }} |"
+            echo "| terraform-apply-prd | ${{ needs.terraform-apply-prd.result }} |"
+            echo "| deploy-frontend-prd | ${{ needs.deploy-frontend-prd.result }} |"
             echo ""
-            echo "Historial de aprobaciones: pestaña \"Environments\" > \"demo\" de este repositorio."
+            echo "Historial de aprobaciones: pestaña \"Environments\" > \"prd\" de este repositorio."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verificar resultado de las etapas
         run: |
           if [ "${{ needs.verificar-prerequisitos.result }}" != "success" ] || \
-             [ "${{ needs.build-lambdas-demo.result }}" != "success" ] || \
-             [ "${{ needs.terraform-plan-demo.result }}" != "success" ] || \
-             [ "${{ needs.terraform-apply-demo.result }}" != "success" ] || \
-             [ "${{ needs.deploy-frontend-demo.result }}" != "success" ]; then
-            echo "::error::El despliegue a demo no completó todas sus etapas correctamente."
+             [ "${{ needs.build-lambdas-prd.result }}" != "success" ] || \
+             [ "${{ needs.terraform-plan-prd.result }}" != "success" ] || \
+             [ "${{ needs.terraform-apply-prd.result }}" != "success" ] || \
+             [ "${{ needs.deploy-frontend-prd.result }}" != "success" ]; then
+            echo "::error::El despliegue a prd no completó todas sus etapas correctamente."
             exit 1
           fi
-          echo "Despliegue a demo completado correctamente."
+          echo "Despliegue a prd completado correctamente."
 
 # ---------------------------------------------------------------------------
 # RECORDATORIO — paso manual pendiente en GitHub (no automatizable con
 # Terraform ni con los permisos actuales de este pipeline):
 #
-# Crear el GitHub Environment "demo" en Settings > Environments del
+# Crear el GitHub Environment "prd" en Settings > Environments del
 # repositorio, con al menos un "required reviewer" (idealmente el dueño del
 # proyecto). Mientras ese Environment no exista con esa regla de protección,
-# el job terraform-apply-demo se ejecutaría SIN pausar a esperar aprobación
+# el job terraform-apply-prd se ejecutaría SIN pausar a esperar aprobación
 # (GitHub crea el Environment "al vuelo" sin reglas si no existe todavía).
 # Configurar también, en ese mismo Environment, el secreto
-# AWS_DEPLOY_DEMO_ROLE_ARN (una vez exista el rol de escritura de demo en
+# AWS_DEPLOY_PRD_ROLE_ARN (una vez exista el rol de escritura de prd en
 # infrastructure/terraform/bootstrap — historia posterior) y, opcionalmente,
-# la variable DEMO_SES_SENDER_EMAIL.
+# la variable PRD_SES_SENDER_EMAIL.
 # ---------------------------------------------------------------------------
