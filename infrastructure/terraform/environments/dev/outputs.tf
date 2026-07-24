@@ -26,6 +26,11 @@ output "cloudfront_domain_name" {
   value = module.frontend_hosting.cloudfront_domain_name
 }
 
+output "cloudfront_distribution_id" {
+  description = "ID de la distribución CloudFront, usado por el pipeline de despliegue a dev (deploy-dev.yml) para invalidar caché tras sincronizar el build del frontend."
+  value       = module.frontend_hosting.cloudfront_distribution_id
+}
+
 output "ses_sender_identity_arn" {
   value = module.ses.identity_arn
 }
