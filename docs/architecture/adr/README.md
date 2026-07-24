@@ -8,7 +8,7 @@ arquitectónica no se cambia sin crear o actualizar el ADR correspondiente.
 
 | ADR                                                            | Título                                                 | Estado   |
 | -------------------------------------------------------------- | ------------------------------------------------------ | -------- |
-| [ADR-0001](./ADR-0001-estrategia-entornos.md)                  | Estrategia de entornos (dev/demo)                      | Aceptado |
+| [ADR-0001](./ADR-0001-estrategia-entornos.md)                  | Estrategia de entornos (dev/prd)                       | Aceptado |
 | [ADR-0002](./ADR-0002-autenticacion-cognito-roles.md)          | Autenticación con Cognito y roles member/admin         | Aceptado |
 | [ADR-0003](./ADR-0003-dynamodb-single-table.md)                | DynamoDB single-table design                           | Aceptado |
 | [ADR-0004](./ADR-0004-api-gateway-rest-lambda-por-endpoint.md) | API Gateway REST + Lambda por endpoint                 | Aceptado |
