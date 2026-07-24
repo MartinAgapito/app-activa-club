@@ -4,6 +4,12 @@ name: CI - Calidad de Pull Request
 # principal antes de permitir el merge. Ver docs/deployment/ci-pull-request.md
 # para el detalle de esta configuración.
 #
+# Jobs separados (lint / typecheck / test / build / terraform / security) en
+# vez de un único job "quality": cada uno se ve como una etapa independiente
+# en la pestaña Actions de GitHub, para poder identificar de un vistazo en
+# qué paso va (o falló) el pipeline, sin tener que abrir el log completo de
+# un job monolítico.
+#
 # NOTA sobre la rama principal: el gobierno Git definitivo (US-007) todavía no
 # se ha ejecutado. Este workflow se dispara sobre `main` y `master` para no
 # depender de esa decisión; ajustar aquí si US-007 fija un nombre distinto.
@@ -30,10 +36,10 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------
-  # Calidad de código: install, lint, format, typecheck, test, build.
+  # Lint (ESLint) + formato (Prettier --check).
   # ---------------------------------------------------------------------
-  quality:
-    name: Lint, typecheck, tests y build
+  lint:
+    name: Lint y formato
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,11 +62,74 @@ jobs:
       - name: Formato (Prettier --check)
         run: npm run format:check
 
+  # ---------------------------------------------------------------------
+  # Typecheck (TypeScript estricto) por workspace.
+  # ---------------------------------------------------------------------
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ env.NODE_VERSION_FILE }}
+          cache: npm
+
+      - name: Instalar dependencias del monorepo (npm workspaces)
+        run: npm ci
+
       - name: Typecheck (TypeScript estricto)
         run: npm run typecheck
 
-      - name: Pruebas (Vitest/Jest por workspace, si existen)
+  # ---------------------------------------------------------------------
+  # Pruebas (Vitest/Jest por workspace, si existen).
+  # ---------------------------------------------------------------------
+  test:
+    name: Pruebas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ env.NODE_VERSION_FILE }}
+          cache: npm
+
+      - name: Instalar dependencias del monorepo (npm workspaces)
+        run: npm ci
+
+      - name: Pruebas por workspace
         run: npm run test
+
+  # ---------------------------------------------------------------------
+  # Build de frontend y backend (por workspace, vía --if-present).
+  # ---------------------------------------------------------------------
+  build:
+    name: Build (frontend + backend)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ env.NODE_VERSION_FILE }}
+          cache: npm
+
+      - name: Instalar dependencias del monorepo (npm workspaces)
+        run: npm ci
 
       - name: Build (por workspace, si existe)
         run: npm run build
@@ -138,7 +207,7 @@ jobs:
         working-directory: infrastructure/terraform/environments/dev
         run: terraform init -backend=false -input=false
 
-      - name: Configurar credenciales AWS via OIDC
+      - name: Configurar credenciales AWS via OIDC (solo lectura, rol de plan)
         if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -161,6 +230,13 @@ jobs:
       # ses_sender_email no tiene default (ver variables.tf): es un dato no
       # sensible (solo un remitente de dev), pero requerido para que el plan
       # pueda ejecutarse en CI sin un terraform.tfvars versionado.
+      #
+      # lambda_artifacts_dir se deja sin definir a propósito: este job es de
+      # solo lectura (rol github_actions_plan), nunca corre
+      # scripts/package-lambdas.mjs, así que el plan se calcula igual que
+      # siempre contra los stubs de modules/endpoint. El plan con los
+      # artefactos reales solo se ejecuta dentro de deploy-dev.yml (rol de
+      # escritura, apply real).
       - name: Terraform plan
         if: steps.detect-tf.outputs.has_tf == 'true' && steps.detect-plan.outputs.can_plan == 'true'
         working-directory: infrastructure/terraform/environments/dev
@@ -236,12 +312,15 @@ jobs:
   ci-gate:
     name: CI OK (gate)
     runs-on: ubuntu-latest
-    needs: [quality, terraform, security]
+    needs: [lint, typecheck, test, build, terraform, security]
     if: always()
     steps:
       - name: Verificar resultado de los jobs
         run: |
-          if [ "${{ needs.quality.result }}" != "success" ] || \
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.build.result }}" != "success" ] || \
              [ "${{ needs.terraform.result }}" != "success" ] || \
              [ "${{ needs.security.result }}" != "success" ]; then
             echo "::error::Uno o mas jobs de CI fallaron."
