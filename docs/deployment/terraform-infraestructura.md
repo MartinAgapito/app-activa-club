@@ -145,16 +145,37 @@ en ningún punto (OIDC exclusivamente, ver sección 6).
 ## 6. Autenticación OIDC de GitHub Actions
 
 - `bootstrap` crea el proveedor OIDC (`token.actions.githubusercontent.com`)
-  y un único rol, `activa-club-github-actions-plan`, de **solo lectura**
+  y el rol `activa-club-github-actions-plan`, de **solo lectura**
   (equivalente a `terraform plan`; sin permisos de escritura/`apply`).
-- El trust policy del rol restringe el `sub` del token a este repositorio
+- El trust policy de ese rol restringe el `sub` del token a este repositorio
   exacto, para `pull_request` y `push` a `main`/`master` (alineado con los
   disparadores de `pr-quality.yml`).
-- Los roles de **escritura** (aplicar cambios reales en `dev`, y en `prd`
-  con aprobación manual) son trabajo de historias posteriores de
-  despliegue (dev deploy / prd deploy), cuando esos pipelines existan; no
-  se crean en US-004 para no habilitar un `apply` automatizado antes de
-  tener funcionalidad real que desplegar.
+- `bootstrap` además declara `activa-club-github-actions-deploy-dev`: rol de
+  **escritura** para el pipeline de despliegue real a dev
+  (`deploy-dev.yml`, ver [`despliegue-dev.md`](./despliegue-dev.md)). A
+  diferencia del rol de plan:
+  - Su trust policy **solo** acepta el claim `sub` de un push directo a
+    `main` (nunca `pull_request`): ningún PR puede obtener credenciales de
+    escritura de este rol.
+  - Su alcance está acotado a los recursos de `dev` que ese pipeline
+    necesita tocar: funciones Lambda y sus roles de ejecución (con
+    `iam:PassRole` condicionado a `iam:PassedToService = lambda.amazonaws.com`),
+    API Gateway, la tabla DynamoDB de dev, los log groups/alarmas de cada
+    función, más `s3:PutObject`/`DeleteObject`/`ListBucket` sobre el bucket
+    del frontend y `cloudfront:CreateInvalidation` (condicionado por tags
+    `Project`/`Environment`) sobre la distribución de dev — nunca sobre los
+    recursos de `prd`.
+  - **No se aplica automáticamente**: como el resto de `bootstrap`, el
+    `terraform apply` que crea este rol en AWS sigue siendo manual, nunca
+    desde CI. Hasta que se aplique y se copie su ARN al secreto
+    `AWS_DEPLOY_DEV_ROLE_ARN`, `deploy-dev.yml` no puede ejecutarse con
+    éxito.
+- El rol de escritura de **prd** (con aprobación manual del GitHub
+  Environment `prd`) es trabajo de una historia posterior: `deploy-prd.yml`
+  ya existe (ver [`despliegue-prd.md`](./despliegue-prd.md)) pero su
+  primer job falla explícitamente mientras ese rol y el secreto
+  correspondiente no existan, precisamente para no dejar un `apply`
+  automatizable contra un entorno (`prd`) que todavía no fue aprovisionado.
 
 ## 7. Aplicación manual controlada (procedimiento, cuando exista cuenta AWS)
 
