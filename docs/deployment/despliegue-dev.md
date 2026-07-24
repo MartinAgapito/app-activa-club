@@ -126,7 +126,7 @@ Este workflow **no puede ejecutarse con éxito todavía**: el rol
 - **Seguridad**: el rol de escritura solo es asumible por push a `main`
   (nunca `pull_request`) y está acotado por prefijo de nombre a los recursos
   de `dev` (ver comentarios de `bootstrap/main.tf`); no tiene permisos sobre
-  `demo`.
+  `prd`.
 - **Un despliegue a la vez**: `concurrency: { group: deploy-dev,
 cancel-in-progress: false }` encola despliegues en vez de cancelarlos, para
   no interrumpir un `terraform apply`/lock de estado a medio camino.
