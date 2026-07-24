@@ -2,7 +2,7 @@
 # Gateway + permisos IAM de mínimo privilegio + log group + alarma por
 # función (ADR-0004, ADR-0008). El árbol de recursos de API Gateway (rutas,
 # API REST, Cognito Authorizer, deployment/stage) se administra una sola vez
-# en el entorno que instancia este módulo (environments/dev, environments/demo)
+# en el entorno que instancia este módulo (environments/dev, environments/prd)
 # para evitar declarar el mismo `aws_api_gateway_resource` más de una vez
 # cuando varios endpoints comparten un segmento de ruta (p. ej. "members").
 
@@ -13,12 +13,12 @@ variable "project" {
 }
 
 variable "environment" {
-  description = "Entorno (dev | demo). Ver ADR-0001."
+  description = "Entorno (dev | prd). Ver ADR-0001."
   type        = string
 
   validation {
-    condition     = contains(["dev", "demo"], var.environment)
-    error_message = "environment debe ser \"dev\" o \"demo\" (ADR-0001)."
+    condition     = contains(["dev", "prd"], var.environment)
+    error_message = "environment debe ser \"dev\" o \"prd\" (ADR-0001)."
   }
 }
 

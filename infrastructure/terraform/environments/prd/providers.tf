@@ -13,7 +13,7 @@ terraform {
   # "Backend de estado"). Bucket compartido con dev; se separan por "key".
   backend "s3" {
     bucket         = "activa-club-terraform-state" # output.state_bucket_name de bootstrap
-    key            = "demo/terraform.tfstate"
+    key            = "prd/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "activa-club-terraform-locks" # output.state_lock_table_name de bootstrap
     encrypt        = true

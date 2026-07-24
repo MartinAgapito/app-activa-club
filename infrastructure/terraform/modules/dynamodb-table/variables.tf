@@ -5,12 +5,12 @@ variable "project" {
 }
 
 variable "environment" {
-  description = "Entorno (dev | demo). Ver ADR-0001."
+  description = "Entorno (dev | prd). Ver ADR-0001."
   type        = string
 
   validation {
-    condition     = contains(["dev", "demo"], var.environment)
-    error_message = "environment debe ser \"dev\" o \"demo\" (ADR-0001)."
+    condition     = contains(["dev", "prd"], var.environment)
+    error_message = "environment debe ser \"dev\" o \"prd\" (ADR-0001)."
   }
 }
 
