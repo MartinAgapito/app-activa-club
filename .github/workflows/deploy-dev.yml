@@ -4,21 +4,23 @@ name: CD - Despliegue a dev
 # Automatiza lo que hasta ahora se hacía a mano: `terraform apply` +
 # build/sync del frontend a S3 + invalidación de CloudFront.
 #
-# Se dispara solo después de que "CI - Calidad de Pull Request" haya
-# terminado en verde sobre `main` (workflow_run), o manualmente
-# (workflow_dispatch) para reintentar un despliegue sin necesidad de un
-# nuevo push. Nunca se dispara directamente por `pull_request`: solo un push
-# ya mergeado a `main` (o un disparo manual) puede llegar a pedir
-# credenciales de escritura.
+# Se dispara directamente por `push` a `main` (es decir, en cuanto se
+# mergea un PR), o manualmente (workflow_dispatch) para reintentar un
+# despliegue sin necesidad de un nuevo push. Es seguro que el `push` a
+# `main` dispare el despliegue sin re-chequear el resultado de CI en este
+# mismo workflow porque la regla de protección de la rama `main` ya exige
+# que el check "CI OK (gate)" de "CI - Calidad de Pull Request" haya
+# pasado antes de permitir el merge: para cuando este `push` ocurre, el
+# código ya fue validado. Nunca se dispara directamente por
+# `pull_request`: solo un push ya mergeado a `main` (o un disparo manual)
+# puede llegar a pedir credenciales de escritura.
 #
 # Jobs separados y nombrados por etapa (empaquetar backend -> aplicar
 # Terraform -> build frontend -> desplegar frontend -> smoke tests ->
 # resumen), para que la pestaña Actions muestre con claridad en qué paso va
 # el despliegue.
 on:
-  workflow_run:
-    workflows: ['CI - Calidad de Pull Request']
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch: {}
 
@@ -35,21 +37,22 @@ permissions:
 env:
   NODE_VERSION_FILE: .nvmrc
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  # Commit a desplegar: el SHA que activó "CI - Calidad de Pull Request"
-  # cuando el disparador es workflow_run, o el SHA actual del workflow_dispatch
-  # manual (siempre sobre main en ese caso).
-  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  # Commit a desplegar: el SHA del push a main que disparó este workflow, o
+  # el SHA actual del workflow_dispatch manual (siempre sobre main en ese
+  # caso). En ambos casos github.sha ya apunta al commit correcto.
+  DEPLOY_SHA: ${{ github.sha }}
 
 jobs:
   # ---------------------------------------------------------------------
   # Empaquetar backend: bundlea cada handler real de apps/api con esbuild y
-  # genera un .zip por función (scripts/package-lambdas.mjs). Sirve también
-  # de puerta de calidad: solo continúa si el pipeline de PR terminó en
-  # éxito sobre main (o si el disparo fue manual).
+  # genera un .zip por función (scripts/package-lambdas.mjs). La puerta de
+  # calidad ya la aplicó GitHub antes de permitir el merge (regla de
+  # protección de `main` que exige el check "CI OK (gate)"), así que este
+  # job arranca directo, tanto si el disparo fue el `push` a main como si
+  # fue manual.
   # ---------------------------------------------------------------------
   build-lambdas:
     name: 'Etapa 1/5 - Empaquetar backend (Lambdas)'
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (commit desplegado)

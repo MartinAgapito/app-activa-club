@@ -112,18 +112,20 @@ OIDC; no tiene efecto mientras no se use).
 ### 7. `ci-gate` — check agregador
 
 Job final que depende de `lint`, `typecheck`, `test`, `build`, `terraform` y
-`security`, y falla si alguno de ellos no fue exitoso. Pensado para usarse
-como único "status check" requerido en la protección de la rama principal
-que definirá US-007, sin perder la visibilidad individual de cada job en la
-UI de GitHub.
+`security`, y falla si alguno de ellos no fue exitoso. Es el único "status
+check" requerido en la protección de la rama `main` (Settings > Branches),
+sin perder la visibilidad individual de cada job en la UI de GitHub.
 
 ## Qué dispara después de este pipeline
 
-Un `push` exitoso a `main` (típicamente un merge de PR) además dispara, por
-separado, [`deploy-dev.yml`](../../.github/workflows/deploy-dev.yml) — ver
-[`despliegue-dev.md`](./despliegue-dev.md) — vía el evento `workflow_run`
-una vez que este workflow termina. `pr-quality.yml` no aplica nada en AWS
-por sí mismo; solo valida.
+Un `push` a `main` (típicamente un merge de PR) además dispara, por
+separado y en paralelo, [`deploy-dev.yml`](../../.github/workflows/deploy-dev.yml)
+— ver [`despliegue-dev.md`](./despliegue-dev.md) — reaccionando directamente
+al mismo evento `push`. Esto es seguro (aunque `deploy-dev.yml` no espera a
+que `pr-quality.yml` termine) porque la protección de la rama `main` ya
+exigió, antes de permitir el merge, que el check `CI OK (gate)` de este
+workflow pasara: para cuando el `push` a `main` existe, el código ya fue
+validado. `pr-quality.yml` no aplica nada en AWS por sí mismo; solo valida.
 
 ## Secrets y variables (todas opcionales hoy)
 
