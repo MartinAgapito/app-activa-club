@@ -152,7 +152,8 @@ flowchart TB
 
 ## 6. Entornos
 
-Dos entornos para el MVP: `dev` (desarrollo) y `demo` (presentación al jurado).
+Dos entornos para el MVP: `dev` (desarrollo) y `prd` (entorno estable para la
+presentación al jurado).
 Aislados por prefijo de nombre de recurso y cuenta/variables. Ver
 [ADR-0001](./adr/ADR-0001-estrategia-entornos.md).
 

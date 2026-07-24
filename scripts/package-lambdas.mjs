@@ -41,7 +41,7 @@ const API_SRC_DIR = join(REPO_ROOT, 'apps', 'api', 'src');
 // function_name -> entry point (relativo a apps/api/src), en el mismo orden
 // en que se declaran los módulos "endpoint_*" en
 // infrastructure/terraform/environments/dev/main.tf (y, cuando exista,
-// environments/demo/main.tf). Mantener esta tabla sincronizada con esos
+// environments/prd/main.tf). Mantener esta tabla sincronizada con esos
 // archivos: es la única fuente de verdad de qué handler compila a qué
 // artefacto.
 const HANDLERS = {
