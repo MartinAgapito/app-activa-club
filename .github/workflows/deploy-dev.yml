@@ -78,6 +78,9 @@ jobs:
           name: lambda-artifacts
           path: .lambda-artifacts
           retention-days: 7
+          # .lambda-artifacts empieza con punto (oculto): upload-artifact
+          # ignora archivos/carpetas ocultas por defecto y no subiría nada.
+          include-hidden-files: true
 
   # ---------------------------------------------------------------------
   # Terraform apply real sobre environments/dev, con los .zip reales de la
