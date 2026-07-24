@@ -1,4 +1,4 @@
-# ADR-0001 — Estrategia de entornos (dev/demo)
+# ADR-0001 — Estrategia de entornos (dev/prd)
 
 - **Estado**: Aceptado
 - **Fecha**: 2026-07-09
@@ -14,7 +14,14 @@ infraestructura debe ser reproducible con Terraform (sin cambios manuales).
 
 ## Decisión
 
-Se adoptan **dos entornos**: `dev` y `demo`.
+Se adoptan **dos entornos**: `dev` y `prd`.
+
+> `prd` es el **identificador** del entorno estable (alineado con el nombre ya
+> usado en la cuenta AWS real). Conceptualmente sigue siendo el entorno estable
+> para la demostración ante el jurado, no un entorno de producción tradicional:
+> no implica SLA, on-call ni la carga operativa de un sistema con usuarios reales
+> a gran escala. El alcance y el razonamiento de este ADR no cambian por el
+> nombre; ver la _Nota de actualización_ al final.
 
 - Cada entorno es un conjunto de recursos AWS aislado por **prefijo de nombre**
   (`activa-club-<env>-...`) y por workspace/variables de Terraform.
@@ -25,7 +32,7 @@ Se adoptan **dos entornos**: `dev` y `demo`.
   Cognito, claves públicas de Culqi sandbox) se inyecta por **variables de
   entorno** y parámetros de Terraform; los secretos viven en SSM Parameter Store
   / Secrets Manager, nunca en el repositorio.
-- `demo` se despliega desde la rama principal ya validada; `dev` puede recibir
+- `prd` se despliega desde la rama principal ya validada; `dev` puede recibir
   despliegues frecuentes.
 
 ## Alternativas consideradas
@@ -37,8 +44,8 @@ Se adoptan **dos entornos**: `dev` y `demo`.
 
 ## Consecuencias
 
-- **Positivas**: aislamiento entre trabajo diario y demo; despliegues seguros;
-  costo marginal casi nulo.
+- **Positivas**: aislamiento entre el trabajo diario (`dev`) y el entorno estable
+  (`prd`); despliegues seguros; costo marginal casi nulo.
 - **Negativas**: se duplican algunos recursos y la parametrización de Terraform
   debe soportar el prefijo por entorno desde el inicio.
 - **Impacto**:
@@ -47,4 +54,16 @@ Se adoptan **dos entornos**: `dev` y `demo`.
   - _CI/CD (US-005)_: dos jobs/targets de despliegue; OIDC con roles por entorno.
   - _Backend/Frontend_: leen configuración por entorno desde variables; no
     hardcodear IDs.
-  - _QA_: pruebas E2E se ejecutan contra `dev`; smoke test contra `demo`.
+  - _QA_: pruebas E2E se ejecutan contra `dev`; smoke test contra `prd`.
+
+## Nota de actualización — 2026-07-24
+
+Por decisión del propietario del proyecto, el **identificador** del entorno
+estable pasa de `demo` a `prd`, para alinearse con el nombre que ya se usa en la
+cuenta AWS real. Este cambio es únicamente de **nombre**: no modifica el alcance,
+los dos entornos, la parametrización por prefijo ni el razonamiento original de
+la decisión. El entorno `prd` sigue siendo el entorno estable para la
+demostración ante el jurado y **no** adopta la carga operativa de un producción
+tradicional (SLA, on-call, alta disponibilidad para usuarios reales a gran
+escala). Cualquier referencia previa a `demo` como nombre de entorno debe leerse
+como `prd`.

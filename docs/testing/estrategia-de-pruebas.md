@@ -54,13 +54,13 @@ dependencias instaladas ni scripts (`apps/web/package.json` y
 
 ## 3. Niveles de prueba y herramientas
 
-| Nivel                     | Herramienta                                                                                                                                                       | Objeto de prueba                                                                                                                                                                                                                           | Ubicación prevista                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| Unitaria                  | **Vitest**                                                                                                                                                        | Funciones puras, esquemas Zod (`packages/validation`), utilidades de dominio (cálculo de aforo, solapamiento de horarios, cálculo de cancelación 24h, mapeo de migración), reducers/hooks aislados del frontend                            | `packages/*/src/**/*.test.ts`, `apps/api/src/**/*.test.ts`, `apps/web/src/**/*.test.ts` |
-| Integración (componentes) | **Vitest + React Testing Library (RTL)**                                                                                                                          | Componentes y formularios de `apps/web` con estado, validación cliente-servidor simulada (MSW o mocks de fetch), estados de carga/error/vacío, restricciones de permisos en UI                                                             | `apps/web/src/**/*.test.tsx`                                                            |
-| Integración (API/backend) | **Vitest + pruebas de API** (invocación directa de handlers Lambda o `supertest`/`fetch` contra emulación local: `serverless-offline`/SAM local + DynamoDB Local) | Reglas de negocio server-side: aforo, cruces, deuda, idempotencia de pago, aprobación/rechazo, unicidad de DNI/email, auditoría                                                                                                            | `apps/api/test/integration/**`                                                          |
-| E2E                       | **Playwright**                                                                                                                                                    | Flujos completos de usuario contra un entorno desplegado (`dev`/`demo`) o local: activación → login → reserva; registro → aprobación → pago → reserva; pago exitoso/fallido en Culqi sandbox; cancelación; notificaciones; dashboard admin | `apps/web/e2e/**` (o paquete E2E dedicado, a confirmar en Sprint 1)                     |
-| Manual documentada        | Casos exploratorios en `docs/testing/` (plantilla en §8)                                                                                                          | Exploración de usabilidad, accesibilidad básica, responsive en dispositivos reales, casos que aún no se automatizan                                                                                                                        | `docs/testing/casos-manuales/**`                                                        |
+| Nivel                     | Herramienta                                                                                                                                                       | Objeto de prueba                                                                                                                                                                                                                          | Ubicación prevista                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Unitaria                  | **Vitest**                                                                                                                                                        | Funciones puras, esquemas Zod (`packages/validation`), utilidades de dominio (cálculo de aforo, solapamiento de horarios, cálculo de cancelación 24h, mapeo de migración), reducers/hooks aislados del frontend                           | `packages/*/src/**/*.test.ts`, `apps/api/src/**/*.test.ts`, `apps/web/src/**/*.test.ts` |
+| Integración (componentes) | **Vitest + React Testing Library (RTL)**                                                                                                                          | Componentes y formularios de `apps/web` con estado, validación cliente-servidor simulada (MSW o mocks de fetch), estados de carga/error/vacío, restricciones de permisos en UI                                                            | `apps/web/src/**/*.test.tsx`                                                            |
+| Integración (API/backend) | **Vitest + pruebas de API** (invocación directa de handlers Lambda o `supertest`/`fetch` contra emulación local: `serverless-offline`/SAM local + DynamoDB Local) | Reglas de negocio server-side: aforo, cruces, deuda, idempotencia de pago, aprobación/rechazo, unicidad de DNI/email, auditoría                                                                                                           | `apps/api/test/integration/**`                                                          |
+| E2E                       | **Playwright**                                                                                                                                                    | Flujos completos de usuario contra un entorno desplegado (`dev`/`prd`) o local: activación → login → reserva; registro → aprobación → pago → reserva; pago exitoso/fallido en Culqi sandbox; cancelación; notificaciones; dashboard admin | `apps/web/e2e/**` (o paquete E2E dedicado, a confirmar en Sprint 1)                     |
+| Manual documentada        | Casos exploratorios en `docs/testing/` (plantilla en §8)                                                                                                          | Exploración de usabilidad, accesibilidad básica, responsive en dispositivos reales, casos que aún no se automatizan                                                                                                                       | `docs/testing/casos-manuales/**`                                                        |
 
 ### 3.1 Qué NO se prueba en cada nivel
 
@@ -98,7 +98,7 @@ trazabilidad (§ siguiente documento) asigna el nivel mínimo por caso.
    fixtures de test.
 5. **Migración (RN-MIG-01)**: los datos de origen para pruebas de migración
    son un JSON mock ficticio (ver `mock-data/README.md`), nunca un export real
-   del sistema on-premise. El propio dataset de migración de producción/demo,
+   del sistema on-premise. El propio dataset de migración de producción/prd,
    si existe, no se usa en pruebas automatizadas.
 6. **Pagos**: exclusivamente **Culqi sandbox** con tokens de prueba
    (`tkn_test_...`) y tarjetas de prueba publicadas por Culqi para sandbox.
@@ -107,7 +107,7 @@ trazabilidad (§ siguiente documento) asigna el nivel mínimo por caso.
    (`.env` no commiteado; ver `.env.example`), nunca hardcodeadas en el
    código de prueba.
 7. **Aislamiento de entorno**: las pruebas de integración/E2E corren contra
-   `dev`/`demo` o emulación local, nunca contra un entorno con datos de
+   `dev`/`prd` o emulación local, nunca contra un entorno con datos de
    socios reales. Los IDs generados en pruebas se limpian o se aíslan por
    prefijo/TTL para no contaminar analíticas (RN-ANL-*).
 8. **Secretos**: ninguna prueba ni fixture contiene secretos de AWS,
@@ -121,7 +121,7 @@ trazabilidad (§ siguiente documento) asigna el nivel mínimo por caso.
 | **Frontend**              | Pruebas unitarias de utilidades propias; pruebas de integración con RTL de formularios, estados de carga/error/vacío y restricciones de UI por rol; participa en E2E de flujos de pantalla.                                                                                                                                                                      |
 | **Backend**               | Pruebas unitarias de lógica de dominio (aforo, solapamiento, idempotencia, expiración de membresía); pruebas de integración de cada handler Lambda contra DynamoDB Local, incluyendo variantes de error de cada código (`error.code`) del contrato.                                                                                                              |
 | **QA**                    | Define y mantiene esta estrategia y la matriz de trazabilidad; diseña casos de prueba desde criterios de aceptación; ejecuta/orquesta E2E; valida permisos, seguridad básica y no filtración de datos sensibles; ejecuta regresión; reporta defectos con severidad y evidencia; es quien aprueba, aprueba con observaciones o rechaza el cierre de una historia. |
-| **DevOps**                | Mantiene el pipeline de CI (US-005) ejecutando lint, typecheck y pruebas en cada Pull Request; provee la infraestructura de emulación/entorno `dev`/`demo` para integración y E2E.                                                                                                                                                                               |
+| **DevOps**                | Mantiene el pipeline de CI (US-005) ejecutando lint, typecheck y pruebas en cada Pull Request; provee la infraestructura de emulación/entorno `dev`/`prd` para integración y E2E.                                                                                                                                                                                |
 | **Arquitecto/Integrador** | Garantiza que contratos y modelo de datos (fuente de verdad de las pruebas de contrato) se mantengan consistentes con la implementación (relacionado con US-010).                                                                                                                                                                                                |
 
 Ninguna historia funcional se considera terminada solo porque el frontend "se
@@ -167,7 +167,7 @@ ve bien"; requiere la validación de backend descrita en este documento
 Título: <resumen corto>
 Historia/Módulo: US-xxx / RN-xxx
 Severidad: bloqueante | alta | media | baja
-Entorno: local | dev | demo
+Entorno: local | dev | prd
 Pasos para reproducir:
 1. ...
 2. ...
@@ -226,7 +226,7 @@ export default defineConfig({
 
 ```ts
 // Borrador de referencia — activar en Sprint 1 cuando exista un entorno
-// dev/demo desplegado o un servidor local de apps/web.
+// dev/prd desplegado o un servidor local de apps/web.
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({

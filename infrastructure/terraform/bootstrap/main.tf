@@ -4,7 +4,7 @@
 # módulo que se aplica de forma manual y puntual por una persona con
 # permisos elevados, usando estado LOCAL (nunca remoto). Es la solución
 # clásica al problema del huevo y la gallina: el backend S3+DynamoDB que
-# usarán environments/dev y environments/demo para su propio estado remoto
+# usarán environments/dev y environments/prd para su propio estado remoto
 # no puede vivir en el estado que aún no existe. Una vez aplicado aquí, sus
 # outputs se copian a los bloques `backend "s3"` (comentados) de cada
 # entorno y al secreto `AWS_OIDC_ROLE_ARN` de GitHub Actions.
@@ -150,8 +150,8 @@ locals {
 # Rol IAM asumible por GitHub Actions vía OIDC, para el job "terraform" del
 # workflow de PR (.github/workflows/pr-quality.yml → secreto AWS_OIDC_ROLE_ARN).
 # Alcance: SOLO LECTURA (equivalente a `terraform plan`), nunca `apply`. Los
-# roles de escritura para los pipelines de despliegue a dev/demo (con
-# aprobación manual para demo) se agregan en historias posteriores, cuando
+# roles de escritura para los pipelines de despliegue a dev/prd (con
+# aprobación manual para prd) se agregan en historias posteriores, cuando
 # esos pipelines existan (ver docs/deployment/terraform-infraestructura.md).
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "github_actions_trust" {
@@ -326,8 +326,8 @@ resource "aws_iam_role_policy" "github_actions_plan" {
 #   (`dev`): funciones Lambda, sus roles de ejecución, API Gateway, la tabla
 #   DynamoDB y los log groups/alarmas de `dev`, más el bucket del frontend y
 #   la distribución CloudFront de `dev` (para el paso de sync + invalidación
-#   del pipeline). Nunca toca recursos de `demo` (ver
-#   github_actions_deploy_demo más abajo, historia posterior).
+#   del pipeline). Nunca toca recursos de `prd` (ver
+#   github_actions_deploy_prd más abajo, historia posterior).
 # - Los recursos base de dev ya existentes (tabla DynamoDB, Cognito, buckets,
 #   CloudFront, SES) fueron aplicados manualmente antes de que existiera este
 #   rol (ver docs/deployment/terraform-infraestructura.md); este rol solo
@@ -390,7 +390,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     ]
     # Acotado al prefijo "dev/" del bucket de estado compartido (la key del
     # backend de environments/dev es "dev/terraform.tfstate"): este rol no
-    # puede leer ni escribir el estado de "demo/terraform.tfstate".
+    # puede leer ni escribir el estado de "prd/terraform.tfstate".
     resources = [
       aws_s3_bucket.terraform_state.arn,
       "${aws_s3_bucket.terraform_state.arn}/dev/*",
@@ -405,7 +405,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
       "dynamodb:PutItem",
       "dynamodb:DeleteItem",
     ]
-    # La tabla de locks es compartida entre dev y demo (igual que en
+    # La tabla de locks es compartida entre dev y prd (igual que en
     # github_actions_plan); DynamoDB no admite acotar por LockID de forma
     # segura en este statement sin arriesgar romper el locking real si el
     # formato interno de LockID cambiara entre versiones de Terraform, así
@@ -462,7 +462,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
 
   # Roles de ejecución de Lambda (uno por función, modules/endpoint:
   # "${function_full_name}-role"). Sin iam:DeleteRole ni permisos sobre
-  # ningún otro rol de la cuenta (p. ej. los de bootstrap o los de demo).
+  # ningún otro rol de la cuenta (p. ej. los de bootstrap o los de prd).
   statement {
     sid    = "ManageDevLambdaExecutionRoles"
     effect = "Allow"
