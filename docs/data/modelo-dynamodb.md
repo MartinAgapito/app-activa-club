@@ -10,7 +10,7 @@
 ## 1. Tabla
 
 - **Nombre lógico**: `AppTable`.
-- **Nombre físico**: `activa-club-<env>` (env = `dev` | `demo`).
+- **Nombre físico**: `activa-club-<env>` (env = `dev` | `prd`).
 - **Modo de capacidad**: On-demand (pay-per-request).
 - **Clave primaria**: `PK` (partition, String) + `SK` (sort, String).
 - **TTL**: atributo `expiresAt` (epoch segundos) para ítems efímeros (idempotencia).

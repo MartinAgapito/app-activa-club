@@ -1,9 +1,9 @@
-# Entorno demo — Activa Club (presentación al jurado).
+# Entorno prd — Activa Club (presentación al jurado).
 #
 # Solo recursos base (US-004): tabla DynamoDB, Cognito, buckets S3, hosting
 # del SPA, identidad SES. Lambdas/API Gateway (módulo modules/endpoint) se
 # agregan en Sprint 1 cuando exista el código real del backend (apps/api).
-# El despliegue a demo requerirá además aprobación manual en el pipeline
+# El despliegue a prd requerirá además aprobación manual en el pipeline
 # de despliegue final (ver docs/deployment/terraform-infraestructura.md).
 
 module "dynamodb_table" {

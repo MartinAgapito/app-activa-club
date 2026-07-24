@@ -27,7 +27,7 @@ infrastructure/terraform/
 │   └── endpoint/            # placeholder Lambda+ruta+authorizer (Sprint 1, sin recursos aún)
 └── environments/
     ├── dev/                # raíz de Terraform del entorno dev
-    └── demo/               # raíz de Terraform del entorno demo
+    └── prd/                # raíz de Terraform del entorno prd
 ```
 
 ### Por qué carpetas por entorno en vez de workspaces
@@ -43,12 +43,12 @@ Se eligió el patrón `environments/<env>` con módulos compartidos en
   `terraform workspace select`.
 - **Aislamiento a prueba de error humano**: al ser directorios distintos, un
   `terraform apply` ejecutado en `environments/dev` físicamente no puede
-  tocar el estado de `demo` (evita el escenario de romper la demo del jurado
+  tocar el estado de `prd` (evita el escenario de romper la demo del jurado
   por un error de contexto).
 - **Variables por entorno explícitas y auditable en PR** (`terraform.tfvars`
   por carpeta) en vez de variables condicionadas por el nombre del workspace
   activo.
-- Costo de mantenimiento aceptable: solo dos entornos (`dev`, `demo`, ver
+- Costo de mantenimiento aceptable: solo dos entornos (`dev`, `prd`, ver
   ADR-0001), la duplicación de los `main.tf`/`providers.tf` de cada raíz es
   mínima y los recursos reales viven en `modules/` (sin duplicación de
   lógica).
@@ -90,7 +90,7 @@ una raíz de Terraform aparte que:
 4. Copiar los outputs (`state_bucket_name`, `state_lock_table_name`,
    `github_actions_plan_role_arn`) a:
    - Los bloques `backend "s3"` comentados en
-     `environments/dev/providers.tf` y `environments/demo/providers.tf`
+     `environments/dev/providers.tf` y `environments/prd/providers.tf`
      (descomentar y completar).
    - El secreto de repositorio `AWS_OIDC_ROLE_ARN` (ya referenciado por
      `.github/workflows/pr-quality.yml`, ver US-005).
@@ -101,10 +101,10 @@ una raíz de Terraform aparte que:
 
 Dos entornos, según [ADR-0001](../architecture/adr/ADR-0001-estrategia-entornos.md):
 
-| Entorno | Carpeta              | Propósito                                                        |
-| ------- | -------------------- | ---------------------------------------------------------------- |
-| `dev`   | `environments/dev/`  | Trabajo diario, despliegues frecuentes                           |
-| `demo`  | `environments/demo/` | Presentación al jurado, desplegado desde rama principal validada |
+| Entorno | Carpeta             | Propósito                                                        |
+| ------- | ------------------- | ---------------------------------------------------------------- |
+| `dev`   | `environments/dev/` | Trabajo diario, despliegues frecuentes                           |
+| `prd`   | `environments/prd/` | Presentación al jurado, desplegado desde rama principal validada |
 
 Ambos comparten los mismos módulos; solo cambian variables (`environment`,
 `ses_sender_email`, y potencialmente `aws_region`/cuenta si en el futuro se
@@ -150,17 +150,17 @@ en ningún punto (OIDC exclusivamente, ver sección 6).
 - El trust policy del rol restringe el `sub` del token a este repositorio
   exacto, para `pull_request` y `push` a `main`/`master` (alineado con los
   disparadores de `pr-quality.yml`).
-- Los roles de **escritura** (aplicar cambios reales en `dev`, y en `demo`
+- Los roles de **escritura** (aplicar cambios reales en `dev`, y en `prd`
   con aprobación manual) son trabajo de historias posteriores de
-  despliegue (dev deploy / demo deploy), cuando esos pipelines existan; no
+  despliegue (dev deploy / prd deploy), cuando esos pipelines existan; no
   se crean en US-004 para no habilitar un `apply` automatizado antes de
   tener funcionalidad real que desplegar.
 
 ## 7. Aplicación manual controlada (procedimiento, cuando exista cuenta AWS)
 
 1. **Nunca** desde el equipo local con credenciales personales para cambios
-   que afecten `demo`: usar siempre el pipeline de CI con revisión humana
-   una vez exista (dev deploy / demo deploy).
+   que afecten `prd`: usar siempre el pipeline de CI con revisión humana
+   una vez exista (dev deploy / prd deploy).
 2. Para `dev` en esta etapa (Sprint 0, sin pipeline de despliegue aún):
    ```bash
    cd infrastructure/terraform/environments/dev
@@ -169,7 +169,7 @@ en ningún punto (OIDC exclusivamente, ver sección 6).
    # Revisar el plan línea por línea antes de aplicar.
    terraform apply tfplan
    ```
-3. Para `demo`: mismo procedimiento, pero solo tras validar en `dev` y con
+3. Para `prd`: mismo procedimiento, pero solo tras validar en `dev` y con
    doble revisión (Arquitecto/DevOps), dado que es el entorno de la
    presentación al jurado.
 4. `prevent_destroy = true` protege la tabla DynamoDB y los buckets S3 de
@@ -188,7 +188,7 @@ terraform fmt -recursive -diff        # sin diferencias tras corregir formato
 
 cd bootstrap && terraform init -backend=false && terraform validate
 cd ../environments/dev && terraform init -backend=false && terraform validate
-cd ../demo && terraform init -backend=false && terraform validate
+cd ../prd && terraform init -backend=false && terraform validate
 cd ../../modules/endpoint && terraform init -backend=false && terraform validate
 cd ../log-group && terraform init -backend=false && terraform validate
 ```
@@ -208,7 +208,7 @@ el rol OIDC de `bootstrap`.
 ## 9. Tags/etiquetas
 
 Todos los recursos aplican, como mínimo: `Project = "activa-club"`,
-`Environment = "dev"|"demo"` y `ManagedBy = "terraform"` (vía `default_tags`
+`Environment = "dev"|"prd"` y `ManagedBy = "terraform"` (vía `default_tags`
 del provider `aws` en cada raíz, más `tags`/`Name` explícitos en cada
 recurso de los módulos). `bootstrap` usa `Component = "bootstrap"` en vez de
 `Environment`, ya que es un módulo compartido de aplicación manual única

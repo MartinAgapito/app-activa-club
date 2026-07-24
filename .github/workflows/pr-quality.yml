@@ -197,7 +197,7 @@ jobs:
       # tiene codigo Terraform propio -- solo subcarpetas -- por lo que
       # ejecutar init/validate/plan ahi falla con "No configuration files".
       # bootstrap/ queda fuera a proposito (US-004: se aplica manual, estado
-      # local, nunca desde CI). demo/ se incorpora cuando exista su propio
+      # local, nunca desde CI). prd/ se incorpora cuando exista su propio
       # pipeline de despliegue.
       #
       # Init sin backend: suficiente para 'terraform validate' cuando aun no
