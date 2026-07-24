@@ -114,6 +114,9 @@ jobs:
           name: lambda-artifacts-prd
           path: .lambda-artifacts
           retention-days: 7
+          # .lambda-artifacts empieza con punto (oculto): upload-artifact
+          # ignora archivos/carpetas ocultas por defecto y no subiría nada.
+          include-hidden-files: true
 
   # ---------------------------------------------------------------------
   # Terraform plan (sin aprobación todavía): deja el plan como artefacto y
