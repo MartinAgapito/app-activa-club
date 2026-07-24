@@ -9,7 +9,7 @@ errores (ADR-0008) y el método/integración de API Gateway que la expone.
 
 - **No crea la API REST** (`aws_api_gateway_rest_api`) ni el **Cognito
   Authorizer** (`aws_api_gateway_authorizer`): se crean una única vez en el
-  entorno llamante (`environments/dev`, `environments/demo`) y se pasan por
+  entorno llamante (`environments/dev`, `environments/prd`) y se pasan por
   variable (`rest_api_id`, `rest_api_execution_arn`, `cognito_authorizer_id`).
 - **No crea el `aws_api_gateway_resource`** (el nodo de la ruta, p. ej.
   `members/{memberId}`): varios endpoints comparten segmentos de ruta (p. ej.
@@ -85,5 +85,5 @@ Cada instancia crea, por defecto, una alarma de CloudWatch sobre `Errors`
 (`enable_error_alarm = true`), sin acciones asociadas (sin SNS) para no
 incurrir en costo por notificación. Con 10 endpoints de EP-02 esto usa 10 de
 las 10 alarmas incluidas en la capa gratuita de CloudWatch; si un futuro
-entorno (p. ej. `demo`) necesita desactivarlas para no exceder ese límite,
+entorno (p. ej. `prd`) necesita desactivarlas para no exceder ese límite,
 pasar `enable_error_alarm = false` en las instancias menos críticas.
