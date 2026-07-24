@@ -10,11 +10,7 @@ de CloudFront). Complementa, sin reemplazar, la validación de
 
 ## Disparadores
 
-- `workflow_run`: automáticamente, cuando el workflow **"CI - Calidad de
-  Pull Request"** termina (`types: [completed]`) sobre la rama `main`. El job
-  `build-lambdas` solo continúa si `github.event.workflow_run.conclusion ==
-'success'` — si el pipeline de calidad falló, el despliegue ni siquiera
-  arranca.
+- `push` sobre la rama `main`: automáticamente, en cuanto un PR se mergea.
 - `workflow_dispatch`: para volver a desplegar el mismo commit de `main`
   manualmente (por ejemplo, tras arreglar un problema de infraestructura sin
   cambios de código).
@@ -22,15 +18,18 @@ de CloudFront). Complementa, sin reemplazar, la validación de
 Nunca se dispara por `pull_request`: un PR, sin importar cuántos commits
 tenga, no puede llegar a pedir credenciales de escritura de este workflow.
 
-## Por qué `workflow_run` y no `push` directo
+## Por qué es seguro disparar por `push` directo a `main`
 
-`pr-quality.yml` ya corre en `push` a `main`. Encadenar `deploy-dev.yml` con
-`workflow_run` (en vez de duplicar el mismo disparador `push`) evita:
-
-- Desplegar código que todavía no pasó lint/typecheck/test/build/terraform
-  plan/seguridad (si ambos workflows corrieran en paralelo sobre el mismo
-  push, el despliegue podría adelantarse a un fallo de calidad).
-- Repetir esas mismas validaciones dentro de `deploy-dev.yml`.
+`deploy-dev.yml` reacciona directamente al `push` a `main` (el propio
+merge), sin encadenarse al resultado de `pr-quality.yml` mediante
+`workflow_run`. Esto es seguro porque la protección de la rama `main`
+(Settings > Branches, "Require status checks to pass") exige que el check
+`CI OK (gate)` de [`pr-quality.yml`](../../.github/workflows/pr-quality.yml)
+(ver [`ci-pull-request.md`](./ci-pull-request.md)) haya pasado **antes** de
+permitir el merge. En otras palabras: para cuando el `push` a `main` existe,
+el código que trae ya fue validado por lint/typecheck/test/build/terraform
+plan/seguridad — no hace falta re-chequear ese resultado dentro de
+`deploy-dev.yml`.
 
 ## Jobs (por etapa, ver nombres en la pestaña Actions)
 
