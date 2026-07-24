@@ -12,10 +12,22 @@ despliegues sensibles y procedimientos de rollback.
   variables/secretos requeridos y procedimiento de aplicación manual
   controlada. Código: [`infrastructure/terraform/`](../../infrastructure/terraform/).
 - [`ci-pull-request.md`](./ci-pull-request.md) — Pipeline de calidad de
-  Pull Request (US-005): lint, formato, typecheck, pruebas, build,
+  Pull Request (US-005): lint, typecheck, pruebas, build (jobs separados),
   validación de Terraform condicional y controles básicos de seguridad.
   Workflow: [`.github/workflows/pr-quality.yml`](../../.github/workflows/pr-quality.yml).
-- Despliegue a desarrollo y despliegue final/prd: pendientes de historias
-  posteriores (aún no ejecutadas). Requieren, como prerequisito, aplicar
-  `infrastructure/terraform/bootstrap` (ver `terraform-infraestructura.md`)
-  sobre una cuenta AWS designada para el proyecto.
+- [`despliegue-dev.md`](./despliegue-dev.md) — Despliegue real y automático
+  al entorno `dev`: empaqueta los handlers reales de `apps/api`
+  ([`scripts/package-lambdas.mjs`](../../scripts/package-lambdas.mjs)),
+  aplica Terraform, despliega el frontend a S3/CloudFront y corre smoke
+  tests. Workflow: [`.github/workflows/deploy-dev.yml`](../../.github/workflows/deploy-dev.yml).
+  Requiere aplicar manualmente, una única vez, el rol de escritura
+  `activa-club-github-actions-deploy-dev` declarado en
+  `infrastructure/terraform/bootstrap/main.tf` (ver ese documento).
+- [`despliegue-prd.md`](./despliegue-prd.md) — Despliegue final/prd
+  (cumple el rol de "producción" del proyecto — no hay un entorno `prod`
+  separado, ver ADR-0001): disparo manual, aprobación humana obligatoria vía
+  GitHub Environment `prd`, apply del plan ya revisado. Workflow:
+  [`.github/workflows/deploy-prd.yml`](../../.github/workflows/deploy-prd.yml).
+  **No ejecutable todavía**: `environments/prd` nunca tuvo un `apply` real
+  ni tiene rol de escritura propio; ver la sección "Prerequisitos
+  pendientes" de ese documento.

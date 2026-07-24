@@ -19,31 +19,40 @@ DevOps/Infraestructura.
 
 ## Jobs
 
-### 1. `quality` — Lint, typecheck, tests y build
+Los cuatro primeros jobs (`lint`, `typecheck`, `test`, `build`) reemplazan lo
+que hasta antes de este pipeline de despliegue era un único job `quality`:
+se separaron para que la pestaña Actions de GitHub muestre con claridad en
+qué etapa va (o falló) un Pull Request, sin cambiar ningún comando ni
+condición respecto de la versión anterior. Los cuatro corren en paralelo
+sobre `ubuntu-latest` con Node.js fijado en [`.nvmrc`](../../.nvmrc) (LTS
+activa, actualmente Node 24) y repiten, cada uno, `actions/checkout@v4` +
+`actions/setup-node@v4` (cache de npm) + `npm ci`.
 
-Ejecuta sobre `ubuntu-latest` con Node.js fijado en [`.nvmrc`](../../.nvmrc)
-(LTS activa, actualmente Node 24):
+### 1. `lint` — Lint y formato
 
-1. `actions/checkout@v4`
-2. `actions/setup-node@v4` con `node-version-file: .nvmrc` y cache de npm.
-3. `npm ci` — instala todo el monorepo (workspaces `apps/*`, `packages/*`).
-4. `npm run lint` — ESLint (flat config raíz).
-5. `npm run format:check` — Prettier `--check`.
-6. `npm run typecheck` — `tsc --noEmit` en cada workspace que lo define
-   (hoy: `packages/shared-types`, `packages/validation`, `packages/ui`).
-7. `npm run test` — corre pruebas por workspace vía `--if-present`; como
-   ningún workspace define aún `test`, el paso pasa en verde sin falsos
-   positivos, tal como exige el criterio de aceptación de US-005. En cuanto
-   un workspace agregue su propio script `test` (Vitest/Playwright, ver
-   US-006), este paso lo ejecutará automáticamente sin cambios en el
-   workflow.
-8. `npm run build` — igual que `test`, no-op hasta que algún workspace
-   defina `build`.
+- `npm run lint` — ESLint (flat config raíz).
+- `npm run format:check` — Prettier `--check`.
 
-Cualquier fallo en estos pasos hace fallar el job y bloquea el merge (una
-vez configurada la protección de rama en US-007).
+### 2. `typecheck` — Typecheck
 
-### 2. `terraform` — fmt / validate / plan condicionales
+- `npm run typecheck` — `tsc --noEmit` en cada workspace que lo define
+  (`apps/api`, `apps/web`, `packages/shared-types`, `packages/validation`,
+  `packages/ui`).
+
+### 3. `test` — Pruebas
+
+- `npm run test` — Vitest por workspace (`apps/api`, `apps/web`, y los
+  paquetes que definan pruebas), vía `--if-present`.
+
+### 4. `build` — Build (frontend + backend)
+
+- `npm run build` — `tsc -p tsconfig.json` en `apps/api`, `vite build` en
+  `apps/web`, y el build de cada paquete que lo defina.
+
+Cualquier fallo en estos jobs bloquea el merge (una vez configurada la
+protección de rama en US-007).
+
+### 5. `terraform` — fmt / validate / plan condicionales
 
 `infrastructure/terraform/` hoy solo contiene un `README.md` (US-004 todavía
 no se ejecuta). Este job está diseñado para **no romper el pipeline** por esa
@@ -78,7 +87,7 @@ Permisos del job: `contents: read`, `id-token: write` (este último es
 imprescindible para que `configure-aws-credentials` pueda solicitar el token
 OIDC; no tiene efecto mientras no se use).
 
-### 3. `security` — Controles básicos de seguridad
+### 6. `security` — Controles básicos de seguridad
 
 1. **Escaneo de patrones de secretos conocidos**: `git grep` sobre los
    archivos versionados buscando patrones como AWS Access Key ID
@@ -100,12 +109,21 @@ OIDC; no tiene efecto mientras no se use).
    `critical`) cuando existan dependencias de producción reales en
    `apps/web` y `apps/api`.
 
-### 4. `ci-gate` — check agregador
+### 7. `ci-gate` — check agregador
 
-Job final que depende de `quality`, `terraform` y `security` y falla si
-alguno de ellos no fue exitoso. Pensado para usarse como único "status
-check" requerido en la protección de la rama principal que definirá US-007,
-sin perder la visibilidad individual de cada job en la UI de GitHub.
+Job final que depende de `lint`, `typecheck`, `test`, `build`, `terraform` y
+`security`, y falla si alguno de ellos no fue exitoso. Pensado para usarse
+como único "status check" requerido en la protección de la rama principal
+que definirá US-007, sin perder la visibilidad individual de cada job en la
+UI de GitHub.
+
+## Qué dispara después de este pipeline
+
+Un `push` exitoso a `main` (típicamente un merge de PR) además dispara, por
+separado, [`deploy-dev.yml`](../../.github/workflows/deploy-dev.yml) — ver
+[`despliegue-dev.md`](./despliegue-dev.md) — vía el evento `workflow_run`
+una vez que este workflow termina. `pr-quality.yml` no aplica nada en AWS
+por sí mismo; solo valida.
 
 ## Secrets y variables (todas opcionales hoy)
 
