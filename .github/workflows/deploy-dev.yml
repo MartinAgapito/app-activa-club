@@ -1,0 +1,310 @@
+name: CD - Despliegue a dev
+
+# Pipeline de despliegue real al entorno `dev` (docs/deployment/despliegue-dev.md).
+# Automatiza lo que hasta ahora se hacía a mano: `terraform apply` +
+# build/sync del frontend a S3 + invalidación de CloudFront.
+#
+# Se dispara solo después de que "CI - Calidad de Pull Request" haya
+# terminado en verde sobre `main` (workflow_run), o manualmente
+# (workflow_dispatch) para reintentar un despliegue sin necesidad de un
+# nuevo push. Nunca se dispara directamente por `pull_request`: solo un push
+# ya mergeado a `main` (o un disparo manual) puede llegar a pedir
+# credenciales de escritura.
+#
+# Jobs separados y nombrados por etapa (empaquetar backend -> aplicar
+# Terraform -> build frontend -> desplegar frontend -> smoke tests ->
+# resumen), para que la pestaña Actions muestre con claridad en qué paso va
+# el despliegue.
+on:
+  workflow_run:
+    workflows: ['CI - Calidad de Pull Request']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+# Un solo despliegue a dev a la vez; los siguientes se encolan (no se
+# cancelan) para no interrumpir un `terraform apply`/lock de estado a medio
+# camino.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION_FILE: .nvmrc
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  # Commit a desplegar: el SHA que activó "CI - Calidad de Pull Request"
+  # cuando el disparador es workflow_run, o el SHA actual del workflow_dispatch
+  # manual (siempre sobre main en ese caso).
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Empaquetar backend: bundlea cada handler real de apps/api con esbuild y
+  # genera un .zip por función (scripts/package-lambdas.mjs). Sirve también
+  # de puerta de calidad: solo continúa si el pipeline de PR terminó en
+  # éxito sobre main (o si el disparo fue manual).
+  # ---------------------------------------------------------------------
+  build-lambdas:
+    name: 'Etapa 1/5 - Empaquetar backend (Lambdas)'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (commit desplegado)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ env.NODE_VERSION_FILE }}
+          cache: npm
+
+      - name: Instalar dependencias del monorepo (npm workspaces)
+        run: npm ci
+
+      - name: Empaquetar handlers de apps/api (un .zip por endpoint)
+        run: npm run package:lambdas
+
+      - name: Publicar artefactos de Lambda
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda-artifacts
+          path: .lambda-artifacts
+          retention-days: 7
+
+  # ---------------------------------------------------------------------
+  # Terraform apply real sobre environments/dev, con los .zip reales de la
+  # etapa anterior. Usa el rol de escritura activa-club-github-actions-deploy-dev
+  # (bootstrap/main.tf), asumible solo por push a main.
+  # ---------------------------------------------------------------------
+  terraform-apply-dev:
+    name: 'Etapa 2/5 - Terraform apply (dev)'
+    needs: build-lambdas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      api_base_url: ${{ steps.outputs.outputs.api_base_url }}
+      web_bucket_name: ${{ steps.outputs.outputs.web_bucket_name }}
+      cloudfront_distribution_id: ${{ steps.outputs.outputs.cloudfront_distribution_id }}
+      cloudfront_domain_name: ${{ steps.outputs.outputs.cloudfront_domain_name }}
+      cognito_user_pool_id: ${{ steps.outputs.outputs.cognito_user_pool_id }}
+      cognito_web_client_id: ${{ steps.outputs.outputs.cognito_web_client_id }}
+    defaults:
+      run:
+        working-directory: infrastructure/terraform/environments/dev
+    steps:
+      - name: Checkout (commit desplegado)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Descargar artefactos de Lambda
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda-artifacts
+          path: .lambda-artifacts
+
+      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-dev)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        env:
+          TF_VAR_ses_sender_email: ${{ vars.DEV_SES_SENDER_EMAIL || 'no-reply-dev@example.com' }}
+          TF_VAR_lambda_artifacts_dir: ${{ github.workspace }}/.lambda-artifacts
+        run: terraform plan -input=false -no-color -out=tfplan-dev
+
+      - name: Terraform apply
+        env:
+          TF_VAR_ses_sender_email: ${{ vars.DEV_SES_SENDER_EMAIL || 'no-reply-dev@example.com' }}
+          TF_VAR_lambda_artifacts_dir: ${{ github.workspace }}/.lambda-artifacts
+        run: terraform apply -input=false -auto-approve tfplan-dev
+
+      - name: Leer outputs de Terraform
+        id: outputs
+        run: |
+          set -euo pipefail
+          {
+            echo "api_base_url=$(terraform output -raw api_base_url)"
+            echo "web_bucket_name=$(terraform output -raw web_bucket_name)"
+            echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id)"
+            echo "cloudfront_domain_name=$(terraform output -raw cloudfront_domain_name)"
+            echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)"
+            echo "cognito_web_client_id=$(terraform output -raw cognito_web_client_id)"
+          } >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------
+  # Build del frontend (apps/web) apuntando a la API/Cognito reales que
+  # acaba de confirmar/crear el apply anterior.
+  # ---------------------------------------------------------------------
+  build-frontend:
+    name: 'Etapa 3/5 - Build frontend'
+    needs: terraform-apply-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (commit desplegado)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ env.NODE_VERSION_FILE }}
+          cache: npm
+
+      - name: Instalar dependencias del monorepo (npm workspaces)
+        run: npm ci
+
+      - name: Build de apps/web
+        env:
+          VITE_API_BASE_URL: ${{ needs.terraform-apply-dev.outputs.api_base_url }}
+          VITE_COGNITO_USER_POOL_ID: ${{ needs.terraform-apply-dev.outputs.cognito_user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ needs.terraform-apply-dev.outputs.cognito_web_client_id }}
+        run: npm run build --workspace apps/web
+
+      - name: Publicar build de apps/web
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/web/dist
+          retention-days: 7
+
+  # ---------------------------------------------------------------------
+  # Sincroniza el build del frontend al bucket privado de dev e invalida la
+  # caché de CloudFront (rol de escritura deploy-dev, acotado a este bucket
+  # y esta distribución — ver bootstrap/main.tf).
+  # ---------------------------------------------------------------------
+  deploy-frontend-dev:
+    name: 'Etapa 4/5 - Deploy frontend (S3 + CloudFront)'
+    needs: [terraform-apply-dev, build-frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Descargar build de apps/web
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist
+
+      - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-dev)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sincronizar build a S3 (bucket privado, servido vía CloudFront)
+        run: |
+          aws s3 sync ./frontend-dist "s3://${{ needs.terraform-apply-dev.outputs.web_bucket_name }}" --delete
+
+      - name: Invalidar caché de CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ needs.terraform-apply-dev.outputs.cloudfront_distribution_id }}" \
+            --paths "/*"
+
+  # ---------------------------------------------------------------------
+  # Smoke tests: comprobaciones mínimas de disponibilidad, sin credenciales
+  # AWS (endpoints públicos). No sustituyen pruebas E2E completas; solo
+  # confirman que el despliegue sirvió código real (no el stub 501) y que
+  # el frontend responde.
+  # ---------------------------------------------------------------------
+  smoke-tests-dev:
+    name: 'Etapa 5/5 - Smoke tests'
+    needs: [terraform-apply-dev, deploy-frontend-dev]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Frontend responde (CloudFront)
+        run: |
+          set -euo pipefail
+          url="https://${{ needs.terraform-apply-dev.outputs.cloudfront_domain_name }}/"
+          echo "Verificando $url (con reintentos: la propagación de CloudFront puede tardar)"
+          for attempt in 1 2 3 4 5; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$url" || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "OK: $url respondió 200"
+              exit 0
+            fi
+            echo "Intento $attempt: $url respondió $status, reintentando en 15s..."
+            sleep 15
+          done
+          echo "::error::$url no respondió 200 tras varios intentos."
+          exit 1
+
+      - name: API sirve el handler real (no el stub 501)
+        run: |
+          set -euo pipefail
+          url="${{ needs.terraform-apply-dev.outputs.api_base_url }}/activation/verify"
+          echo "Verificando POST $url con body vacío (se espera 400 de validación, no 501/5xx)"
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "$url")
+          if [ "$status" = "501" ]; then
+            echo "::error::$url respondió 501: todavía sirve el stub temporal, no el handler real."
+            exit 1
+          fi
+          if [ "$status" != "400" ]; then
+            echo "::error::$url respondió $status (se esperaba 400 de validación)."
+            exit 1
+          fi
+          echo "OK: $url respondió 400 (handler real ejecutando validación)."
+
+  # ---------------------------------------------------------------------
+  # Resumen del despliegue: qué commit quedó desplegado y con qué resultado
+  # por etapa, visible en el resumen del run (Job Summary de GitHub Actions).
+  # ---------------------------------------------------------------------
+  resumen-despliegue:
+    name: Resumen del despliegue a dev
+    needs:
+      [build-lambdas, terraform-apply-dev, build-frontend, deploy-frontend-dev, smoke-tests-dev]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publicar resumen
+        run: |
+          {
+            echo "### Despliegue a dev"
+            echo ""
+            echo "| Dato | Valor |"
+            echo "| --- | --- |"
+            echo "| Commit desplegado | \`${{ env.DEPLOY_SHA }}\` |"
+            echo "| Frontend | https://${{ needs.terraform-apply-dev.outputs.cloudfront_domain_name }}/ |"
+            echo "| API base URL | ${{ needs.terraform-apply-dev.outputs.api_base_url }} |"
+            echo "| build-lambdas | ${{ needs.build-lambdas.result }} |"
+            echo "| terraform-apply-dev | ${{ needs.terraform-apply-dev.result }} |"
+            echo "| build-frontend | ${{ needs.build-frontend.result }} |"
+            echo "| deploy-frontend-dev | ${{ needs.deploy-frontend-dev.result }} |"
+            echo "| smoke-tests-dev | ${{ needs.smoke-tests-dev.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verificar resultado de las etapas
+        run: |
+          if [ "${{ needs.build-lambdas.result }}" != "success" ] || \
+             [ "${{ needs.terraform-apply-dev.result }}" != "success" ] || \
+             [ "${{ needs.build-frontend.result }}" != "success" ] || \
+             [ "${{ needs.deploy-frontend-dev.result }}" != "success" ] || \
+             [ "${{ needs.smoke-tests-dev.result }}" != "success" ]; then
+            echo "::error::El despliegue a dev no completó todas sus etapas correctamente."
+            exit 1
+          fi
+          echo "Despliegue a dev completado correctamente."
