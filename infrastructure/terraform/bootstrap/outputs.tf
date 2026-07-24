@@ -17,3 +17,8 @@ output "github_actions_plan_role_arn" {
   description = "ARN del rol IAM de solo lectura para el job \"terraform\" de pr-quality.yml. Copiar al secreto de repositorio AWS_OIDC_ROLE_ARN."
   value       = aws_iam_role.github_actions_plan.arn
 }
+
+output "github_actions_deploy_dev_role_arn" {
+  description = "ARN del rol IAM de escritura (apply real) para el job de despliegue a dev (deploy-dev.yml), asumible solo por push a la rama main. Copiar al secreto de repositorio AWS_DEPLOY_DEV_ROLE_ARN."
+  value       = aws_iam_role.github_actions_deploy_dev.arn
+}

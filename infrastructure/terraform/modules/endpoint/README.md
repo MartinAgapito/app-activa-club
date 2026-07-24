@@ -18,9 +18,13 @@ errores (ADR-0008) y el método/integración de API Gateway que la expone.
   vía `parent_resource_id`, para evitar declarar el mismo recurso dos veces.
 - **No implementa lógica de negocio**: si no se pasa `source_zip_path`, la
   Lambda despliega un stub temporal que responde `501` con el formato de
-  error estándar del contrato. Las historias de backend (US-012, US-013,
-  US-016, US-017, US-018) reemplazan el stub apuntando `source_zip_path` al
-  artefacto real de `apps/api`.
+  error estándar del contrato. `environments/dev/main.tf` pasa
+  `source_zip_path = local.lambda_zip_path["<function_name>"]` en cada
+  `module "endpoint_*"`, que resuelve al artefacto real generado por
+  `node scripts/package-lambdas.mjs` cuando el pipeline de despliegue a dev
+  define `var.lambda_artifacts_dir` (ver
+  `docs/deployment/despliegue-dev.md`); en PRs y ejecuciones locales sin ese
+  artefacto, sigue cayendo al stub, sin romper `terraform plan`/`validate`.
 
 ## Uso (ver `environments/dev/main.tf`)
 

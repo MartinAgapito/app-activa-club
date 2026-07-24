@@ -29,3 +29,17 @@ variable "ses_sender_email" {
   EOT
   type        = string
 }
+
+variable "lambda_artifacts_dir" {
+  description = <<-EOT
+    Ruta absoluta al directorio con los .zip reales de cada Lambda, generados
+    por `node scripts/package-lambdas.mjs` (function_name.zip por endpoint).
+    Si es null (valor por defecto), cada endpoint despliega el stub temporal
+    de modules/endpoint (HTTP 501): es el comportamiento de siempre para
+    `terraform plan`/`validate` en CI/local sin haber corrido el
+    empaquetado. El job de despliegue a dev (deploy-dev.yml) sí lo define,
+    apuntando al directorio que generó ese mismo job.
+  EOT
+  type        = string
+  default     = null
+}
