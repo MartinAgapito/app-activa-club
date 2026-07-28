@@ -443,6 +443,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     actions = [
       "lambda:GetFunction",
       "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionCodeSigningConfig",
       "lambda:GetPolicy",
       "lambda:ListVersionsByFunction",
       "lambda:ListTags",
@@ -533,13 +534,22 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
       "logs:DeleteLogGroup",
       "logs:PutRetentionPolicy",
       "logs:TagResource",
-      "logs:DescribeLogGroups",
       "logs:ListTagsForResource",
     ]
     resources = [
       "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.dev_name_prefix}-*",
       "arn:aws:logs:*:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.dev_name_prefix}-*:*",
     ]
+  }
+
+  # logs:DescribeLogGroups no admite permisos a nivel de recurso (la API de
+  # CloudWatch Logs solo lo permite sobre "*"): es una acción de solo lectura
+  # que Terraform necesita para comprobar si el log group ya existe.
+  statement {
+    sid       = "ListDevLogGroups"
+    effect    = "Allow"
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
   }
 
   # Alarma de errores por función (modules/endpoint, "<function>-errors").
@@ -551,6 +561,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
       "cloudwatch:DeleteAlarms",
       "cloudwatch:DescribeAlarms",
       "cloudwatch:TagResource",
+      "cloudwatch:ListTagsForResource",
     ]
     resources = [
       "arn:aws:cloudwatch:*:${data.aws_caller_identity.current.account_id}:alarm:${local.dev_name_prefix}-*",
