@@ -5,6 +5,7 @@
 
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { RequireRole } from './guards/RequireRole';
+import { RequireActiveMember } from './guards/RequireActiveMember';
 
 import { PublicLayout } from '../layouts/PublicLayout';
 import { MemberLayout } from '../layouts/MemberLayout';
@@ -57,17 +58,25 @@ const routes: RouteObject[] = [
     children: [{ path: '/cuenta/pendiente-aprobacion', element: <PendingApprovalPage /> }],
   },
   {
+    // Sesión de socio válida (rol `member`), pero además con memberStatus
+    // ACTIVE (RN-ACT-06/07): RequireActiveMember redirige a
+    // /cuenta/pendiente-aprobacion en cualquier otro caso (P1-5).
     element: <RequireRole allow={['member']} />,
     children: [
       {
-        element: <MemberLayout />,
+        element: <RequireActiveMember />,
         children: [
-          { path: '/socio', element: <MemberDashboardPage /> },
-          { path: '/socio/membresia', element: <MembershipPage /> },
-          { path: '/socio/pagos', element: <PaymentsPage /> },
-          { path: '/socio/reservas', element: <ReservationsPage /> },
-          { path: '/socio/notificaciones', element: <NotificationsPage /> },
-          { path: '/socio/perfil', element: <ProfilePage /> },
+          {
+            element: <MemberLayout />,
+            children: [
+              { path: '/socio', element: <MemberDashboardPage /> },
+              { path: '/socio/membresia', element: <MembershipPage /> },
+              { path: '/socio/pagos', element: <PaymentsPage /> },
+              { path: '/socio/reservas', element: <ReservationsPage /> },
+              { path: '/socio/notificaciones', element: <NotificationsPage /> },
+              { path: '/socio/perfil', element: <ProfilePage /> },
+            ],
+          },
         ],
       },
     ],
