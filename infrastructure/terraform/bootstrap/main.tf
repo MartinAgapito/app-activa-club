@@ -650,6 +650,36 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     }
   }
 
+  # Actualizar la distribución CloudFront de dev (fix P0-1, PR de proxy
+  # /api/* hacia API Gateway): hasta ahora este rol solo tenía lectura
+  # (cloudfront:Get*/List* en ReadOnlyDevAccountWideServices) porque ningún
+  # `terraform apply` de este rol había necesitado tocar el recurso
+  # aws_cloudfront_distribution (aplicado a mano junto con el resto de
+  # recursos base, ver cabecera de esta sección). A partir de ese PR sí
+  # cambia (agrega origin + ordered_cache_behavior de API Gateway), así que
+  # se agrega el único permiso de escritura que falta, acotado por tag igual
+  # que InvalidateDevFrontendCache (el ARN de la distribución tampoco se
+  # conoce de antemano aquí). El resto de recursos base (Cognito, S3, SES)
+  # sigue siendo de solo lectura para este rol.
+  statement {
+    sid       = "UpdateDevFrontendDistribution"
+    effect    = "Allow"
+    actions   = ["cloudfront:UpdateDistribution"]
+    resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = [var.project]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Environment"
+      values   = ["dev"]
+    }
+  }
+
   statement {
     sid       = "CallerIdentityDeployDev"
     effect    = "Allow"

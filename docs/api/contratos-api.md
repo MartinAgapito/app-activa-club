@@ -9,7 +9,12 @@
 
 ## 1. Convenciones generales
 
-- **Base URL**: `https://<api>/api` (prefijo `/api`). Versionado futuro por path.
+- **Base URL**: `https://<dominio-cloudfront>/api` (prefijo `/api`). Es el
+  mismo dominio que sirve el SPA (`apps/web`), no el dominio
+  `execute-api.amazonaws.com` directo: CloudFront rutea `/api/*` al API
+  Gateway del entorno como un `cache_behavior` adicional sobre el mismo
+  origen, así el navegador nunca hace preflight `OPTIONS` de CORS (fix
+  P0-1). Versionado futuro por path.
 - **Formato**: JSON (`Content-Type: application/json`). Fechas ISO-8601 UTC.
   Montos en **céntimos** (enteros).
 - **Autenticación**: JWT de Cognito en `Authorization: Bearer <token>`. API
