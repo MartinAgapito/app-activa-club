@@ -175,6 +175,13 @@ export interface TransitionMemberStatusInput {
  * está en `PENDING` — devuelve `'NOT_PENDING'`; el llamante decide 404 vs 409
  * apoyándose en una lectura previa (`getMemberById`) solo para diagnosticar el
  * caso, nunca para decidir el propio `UpdateItem`.
+ *
+ * Además de `memberStatus`, actualiza `GSI2PK` a `MEMBER#STATUS#<memberStatus>`
+ * (modelo-dynamodb.md §3.1, patrón #14): sin este `SET` el socio queda mal
+ * indexado y `GET /members?status=` deja de encontrarlo bajo su nuevo estado
+ * (sigue apareciendo bajo `PENDING`). `GSI2SK` no se toca: conserva
+ * `<createdAt>#<memberId>` fijado en el alta (registro/migración), que no
+ * depende del estado.
  */
 export async function transitionMemberStatus(
   client: DynamoDBDocumentClient,
@@ -183,6 +190,7 @@ export async function transitionMemberStatus(
   now: string = new Date().toISOString(),
 ): Promise<Member | MemberTransitionOutcome> {
   const isRejection = input.to === 'REJECTED';
+  const gsi2pk = keys.membersByStatus(input.to).GSI2PK;
   try {
     const result = await client.send(
       new UpdateCommand({
@@ -190,11 +198,12 @@ export async function transitionMemberStatus(
         Key: keys.member(memberId),
         ConditionExpression: 'attribute_exists(PK) AND memberStatus = :pending',
         UpdateExpression: isRejection
-          ? 'SET memberStatus = :status, rejectionReason = :reason, updatedAt = :now'
-          : 'SET memberStatus = :status, updatedAt = :now',
+          ? 'SET memberStatus = :status, GSI2PK = :gsi2pk, rejectionReason = :reason, updatedAt = :now'
+          : 'SET memberStatus = :status, GSI2PK = :gsi2pk, updatedAt = :now',
         ExpressionAttributeValues: {
           ':pending': 'PENDING',
           ':status': input.to,
+          ':gsi2pk': gsi2pk,
           ':now': now,
           ...(isRejection ? { ':reason': input.rejectionReason } : {}),
         },
