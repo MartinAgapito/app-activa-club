@@ -139,6 +139,22 @@ locals {
     )
   }
 
+  # Topología completa del árbol de recursos (id + padre + nombre de cada
+  # nodo): aws_api_gateway_resource permite reasignar el "parent_id" de un
+  # recurso sin cambiarle su id (Terraform lo actualiza en el lugar, no lo
+  # reemplaza), así que un cambio de jerarquía de rutas (p. ej. mover todo
+  # bajo "api/") no altera ningún method_id/integration_id existente. Sin
+  # esto en el trigger de abajo, ese tipo de cambio no fuerza un nuevo
+  # despliegue del stage y la API queda sirviendo rutas viejas en silencio
+  # (bug real detectado tras el fix de CORS de PR #31: el stage siguió
+  # apuntando a un deployment de antes de que "/api/*" existiera).
+  api_resource_topology = concat(
+    ["${aws_api_gateway_resource.api_root.id}:${aws_api_gateway_resource.api_root.parent_id}:${aws_api_gateway_resource.api_root.path_part}"],
+    [for r in aws_api_gateway_resource.level1 : "${r.id}:${r.parent_id}:${r.path_part}"],
+    [for r in aws_api_gateway_resource.level2 : "${r.id}:${r.parent_id}:${r.path_part}"],
+    [for r in aws_api_gateway_resource.level3 : "${r.id}:${r.parent_id}:${r.path_part}"],
+  )
+
   # IDs de método/integración de todos los endpoints, usados como trigger de
   # redeploy del stage (cualquier cambio en un endpoint fuerza un nuevo
   # despliegue de la API).
@@ -570,7 +586,10 @@ resource "aws_api_gateway_deployment" "this" {
   rest_api_id = aws_api_gateway_rest_api.this.id
 
   triggers = {
-    redeployment = sha1(jsonencode(local.api_method_trigger_ids))
+    redeployment = sha1(jsonencode(concat(
+      local.api_method_trigger_ids,
+      local.api_resource_topology,
+    )))
   }
 
   lifecycle {
