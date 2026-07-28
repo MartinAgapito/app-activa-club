@@ -148,7 +148,10 @@ describe('completeActivation', () => {
   it('traduce el conflicto de unicidad detectado en la transacción (carrera concurrente)', async () => {
     const conditionalError = Object.assign(new Error('cancelled'), {
       name: 'TransactionCanceledException',
-      CancellationReasons: [{ Code: 'None' }, { Code: 'ConditionalCheckFailed' }],
+      // 3 ítems porque el correo de la solicitud difiere del migrado (Delete +
+      // Put UniqueEmail + Update Member): la condición que falla es la del
+      // Member (índice 2).
+      CancellationReasons: [{ Code: 'None' }, { Code: 'None' }, { Code: 'ConditionalCheckFailed' }],
     });
     const client = fakeClient(async (command) => {
       if (ctorName(command) === 'TransactWriteCommand') throw conditionalError;
@@ -162,5 +165,86 @@ describe('completeActivation', () => {
     await expect(
       completeActivation({ request: validRequest, client, createCognitoUser }),
     ).rejects.toMatchObject({ code: 'ALREADY_ACTIVATED' });
+  });
+
+  it('activa con el correo migrado propio sin lanzar EMAIL_ALREADY_USED, aunque el UniqueEmail ya exista (bug P0-2)', async () => {
+    const ownEmailRequest: CompleteActivationRequest = {
+      dni: '45678912',
+      email: 'Maria@Example.com',
+      password: 'Sup3rSecreta!',
+    };
+    const memberWithOwnEmail = { ...migratedMember, email: 'maria@example.com' };
+
+    const client = fakeClient(async (command) => {
+      if (ctorName(command) === 'TransactWriteCommand') return {};
+      const pk = pkOf(command);
+      if (pk === 'UNIQ#DNI#45678912') return { Items: [{ memberId: 'member-1' }] };
+      if (pk === 'MEMBER#member-1') return { Items: [memberWithOwnEmail] };
+      // El UniqueEmail del correo migrado ya existe (lo escribió la migración)
+      // y apunta al mismo memberId: no debe tratarse como conflicto.
+      if (pk === 'UNIQ#EMAIL#maria@example.com') return { Items: [{ memberId: 'member-1' }] };
+      return { Items: [] };
+    });
+    const createCognitoUser = vi.fn().mockResolvedValue('cognito-sub-1');
+
+    const result = await completeActivation({
+      request: ownEmailRequest,
+      client,
+      createCognitoUser,
+      now: new Date('2026-07-21T00:00:00Z'),
+    });
+
+    expect(result.memberId).toBe('member-1');
+    expect(result.memberStatus).toBe('ACTIVE');
+  });
+
+  it('al activar con un correo distinto al migrado, la transacción actualiza Member.email y borra el UniqueEmail anterior (perfil consistente)', async () => {
+    let transactInput:
+      | {
+          TransactItems: [
+            { Delete: { Key: { PK: string; SK: string } } },
+            { Put: { Item: { PK: string; memberId: string } } },
+            {
+              Update: {
+                UpdateExpression: string;
+                ExpressionAttributeValues: Record<string, unknown>;
+              };
+            },
+          ];
+        }
+      | undefined;
+
+    const client = fakeClient(async (command) => {
+      if (ctorName(command) === 'TransactWriteCommand') {
+        transactInput = (command as { input: typeof transactInput }).input;
+        return {};
+      }
+      const pk = pkOf(command);
+      if (pk === 'UNIQ#DNI#45678912') return { Items: [{ memberId: 'member-1' }] };
+      if (pk === 'MEMBER#member-1') return { Items: [migratedMember] };
+      if (pk?.startsWith('UNIQ#EMAIL#')) return { Items: [] };
+      return { Items: [] };
+    });
+    const createCognitoUser = vi.fn().mockResolvedValue('cognito-sub-1');
+
+    await completeActivation({
+      request: validRequest,
+      client,
+      createCognitoUser,
+      now: new Date('2026-07-21T00:00:00Z'),
+    });
+
+    expect(transactInput?.TransactItems).toHaveLength(3);
+    const [deleteItem, putItem, updateItem] = transactInput!.TransactItems;
+    expect(deleteItem.Delete.Key).toEqual({
+      PK: 'UNIQ#EMAIL#antigua@example.com',
+      SK: 'UNIQ#EMAIL#antigua@example.com',
+    });
+    expect(putItem.Put.Item).toMatchObject({
+      PK: 'UNIQ#EMAIL#maria@example.com',
+      memberId: 'member-1',
+    });
+    expect(updateItem.Update.UpdateExpression).toContain('email = :email');
+    expect(updateItem.Update.ExpressionAttributeValues[':email']).toBe('maria@example.com');
   });
 });

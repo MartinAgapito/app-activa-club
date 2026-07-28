@@ -19,8 +19,8 @@ import { createActivationCognitoUser, type CreateActivationCognitoUser } from '.
 import {
   completeActivationWrite,
   findMemberIdByDni,
+  findUniqueEmailOwner,
   getMemberById,
-  isEmailRegistered,
   type CompleteActivationOutcome,
 } from './repository';
 import { buildActivationUpdate, isEligibleMigratedMember } from './transform';
@@ -83,8 +83,19 @@ export async function completeActivation(
     throw new AppError('ALREADY_ACTIVATED', 'Este socio ya activó su cuenta digital.');
   }
 
-  if (await isEmailRegistered(client, emailLower)) {
-    throw new AppError('EMAIL_ALREADY_USED', 'Ya existe una cuenta con este correo.');
+  const previousEmailLower = member.email.trim().toLowerCase();
+  // El flujo esperado (`ActivationPage`, docs/scrum/historias/US-013) invita
+  // al socio a usar su propio correo migrado, mostrado enmascarado en
+  // `POST /activation/verify`: ese correo ya tiene un ítem `UniqueEmail`
+  // escrito por la migración apuntando a este mismo `memberId` (RN-MIG,
+  // ../migration/transform.ts), así que no es un conflicto real. Solo se
+  // valida unicidad contra otro socio cuando el correo es distinto al
+  // migrado (RN-ACT-01).
+  if (emailLower !== previousEmailLower) {
+    const ownerId = await findUniqueEmailOwner(client, emailLower);
+    if (ownerId && ownerId !== member.memberId) {
+      throw new AppError('EMAIL_ALREADY_USED', 'Ya existe una cuenta con este correo.');
+    }
   }
 
   const cognitoSub = await createCognitoUser({
@@ -104,6 +115,7 @@ export async function completeActivation(
   const outcome = await completeActivationWrite(client, {
     memberId: member.memberId,
     emailLower,
+    previousEmailLower,
     values,
   });
 
