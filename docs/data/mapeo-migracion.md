@@ -74,6 +74,10 @@ Por cada socio del JSON se escriben, en una **transacción** por socio
    `attribute_not_exists` → garantiza no duplicar socios al reejecutar (RT-10) y
    RN-ACT-03.
 3. **UniqueEmail** (`PK=UNIQ#EMAIL#<emailLower>`) con `memberId`, condicional.
+   `POST /activation/complete` (RN-ACT-01) reutiliza este mismo ítem sin
+   tocarlo cuando el socio activa con su propio correo migrado; si activa con
+   uno distinto, ese `UniqueEmail` se borra y se crea uno nuevo para el correo
+   elegido (no queda huérfano).
 4. **MembershipPeriod** (`SK=MEMBERSHIP#<startedAt>#<membershipId>`) con el
    período migrado; `GSI2PK=MEMBERSHIP#ACTIVE`, `GSI2SK=<endsAt>` si sigue vigente.
 
