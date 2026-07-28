@@ -94,10 +94,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: ${{ env.NODE_VERSION_FILE }}
           cache: npm
@@ -109,7 +109,7 @@ jobs:
         run: npm run package:lambdas
 
       - name: Publicar artefactos de Lambda
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lambda-artifacts-prd
           path: .lambda-artifacts
@@ -135,22 +135,22 @@ jobs:
         working-directory: infrastructure/terraform/environments/prd
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Descargar artefactos de Lambda
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: lambda-artifacts-prd
           path: .lambda-artifacts
 
       - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-prd)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_PRD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: '1.9.8'
           terraform_wrapper: false
@@ -182,7 +182,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publicar plan como artefacto (para el job de apply)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan-prd
           path: infrastructure/terraform/environments/prd/tfplan-prd
@@ -212,22 +212,22 @@ jobs:
         working-directory: infrastructure/terraform/environments/prd
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Descargar plan aprobado
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: tfplan-prd
           path: infrastructure/terraform/environments/prd
 
       - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-prd)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_PRD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: '1.9.8'
           terraform_wrapper: false
@@ -260,10 +260,10 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: ${{ env.NODE_VERSION_FILE }}
           cache: npm
@@ -275,7 +275,7 @@ jobs:
         run: npm run build --workspace apps/web
 
       - name: Configurar credenciales AWS via OIDC (rol de escritura, deploy-prd)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_PRD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
