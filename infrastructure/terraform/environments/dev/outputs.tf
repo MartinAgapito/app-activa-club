@@ -36,8 +36,16 @@ output "ses_sender_identity_arn" {
 }
 
 output "api_base_url" {
-  description = "URL base de invocación de la API REST de identidad/acceso (EP-02, US-011); las rutas del contrato cuelgan de aquí, p. ej. \"<api_base_url>/activation/verify\"."
-  value       = aws_api_gateway_stage.this.invoke_url
+  description = <<-EOT
+    URL base de invocación de la API REST de identidad/acceso (EP-02,
+    US-011); las rutas del contrato cuelgan de aquí, p. ej.
+    "<api_base_url>/activation/verify". Apunta al dominio de CloudFront (no
+    al dominio execute-api directo): el frontend y la API cuelgan del mismo
+    origen para que el navegador nunca necesite CORS/preflight (fix P0-1,
+    ver module "frontend_hosting" y aws_api_gateway_resource "api_root" más
+    arriba).
+  EOT
+  value       = "https://${module.frontend_hosting.cloudfront_domain_name}/api"
 }
 
 output "api_rest_api_id" {

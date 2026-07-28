@@ -15,6 +15,12 @@ locals {
     },
     var.tags,
   )
+
+  # Proxy /api/* -> API Gateway (fix P0-1, ver variables.tf). Ambas variables
+  # se exigen juntas: si falta alguna, no se agrega el origen (evita un
+  # behavior sin origen_path/domain válido).
+  has_api_origin = var.api_origin_domain_name != null && var.api_origin_path != null
+  api_origin_id  = "api-gateway"
 }
 
 resource "aws_s3_bucket" "web" {
@@ -60,6 +66,18 @@ data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
 
+# Policies administradas por AWS para el behavior /api/* (sin caché de
+# respuestas de la API, reenviando headers/cookies/query strings salvo Host).
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  count = local.has_api_origin ? 1 : 0
+  name  = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host_header" {
+  count = local.has_api_origin ? 1 : 0
+  name  = "Managed-AllViewerExceptHostHeader"
+}
+
 resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   default_root_object = "index.html"
@@ -72,6 +90,24 @@ resource "aws_cloudfront_distribution" "web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
   }
 
+  # Origen del API Gateway de este entorno (fix P0-1): solo se agrega cuando
+  # el llamante pasa var.api_origin_domain_name/var.api_origin_path.
+  dynamic "origin" {
+    for_each = local.has_api_origin ? [1] : []
+    content {
+      domain_name = var.api_origin_domain_name
+      origin_id   = local.api_origin_id
+      origin_path = var.api_origin_path
+
+      custom_origin_config {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "https-only"
+        origin_ssl_protocols   = ["TLSv1.2"]
+      }
+    }
+  }
+
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
@@ -79,6 +115,23 @@ resource "aws_cloudfront_distribution" "web" {
     viewer_protocol_policy = "redirect-to-https"
     cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
     compress               = true
+  }
+
+  # /api/* -> API Gateway, sin caché (TTL 0 vía Managed-CachingDisabled) y
+  # reenviando headers/cookies/query strings (Authorization incluido) salvo
+  # Host, para no romper la firma de la request en el origen.
+  dynamic "ordered_cache_behavior" {
+    for_each = local.has_api_origin ? [1] : []
+    content {
+      path_pattern             = "/api/*"
+      target_origin_id         = local.api_origin_id
+      viewer_protocol_policy   = "redirect-to-https"
+      allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+      cached_methods           = ["GET", "HEAD"]
+      cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled[0].id
+      origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header[0].id
+      compress                 = true
+    }
   }
 
   # El SPA maneja rutas en el cliente (React Router); ante 403/404 de S3 se

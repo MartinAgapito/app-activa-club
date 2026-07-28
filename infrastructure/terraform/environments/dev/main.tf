@@ -30,6 +30,14 @@ module "frontend_hosting" {
 
   project     = var.project
   environment = var.environment
+
+  # CloudFront rutea /api/* al API Gateway de este entorno bajo el mismo
+  # dominio que sirve el SPA (fix P0-1: sin esto no hay CORS en ninguna
+  # capa). aws_api_gateway_rest_api.this y el stage_name (= var.environment)
+  # se declaran más abajo en este mismo archivo; Terraform arma el grafo de
+  # dependencias igual, sin importar el orden de aparición.
+  api_origin_domain_name = "${aws_api_gateway_rest_api.this.id}.execute-api.${var.aws_region}.amazonaws.com"
+  api_origin_path        = "/${var.environment}"
 }
 
 module "ses" {
@@ -54,6 +62,14 @@ module "ses" {
 # porque varios endpoints comparten segmentos (p. ej. "members"); cada
 # module "endpoint_*" solo agrega su método + integración + Lambda sobre el
 # nodo ya creado (ver modules/endpoint/README.md).
+#
+# Todo el árbol cuelga de un único recurso raíz "api" (aws_api_gateway_resource
+# "api_root" más abajo), no de la raíz de la API REST: docs/api/contratos-api.md
+# §1 documenta el prefijo /api en la base URL, y CloudFront (module
+# "frontend_hosting" más arriba) reenvía "/api/..." tal cual al origen de API
+# Gateway anteponiendo solo el stage ("/dev" + "/api/..."). Si este árbol
+# colgara de la raíz en vez de "api", la ruta que arma CloudFront no
+# encontraría el recurso real (duplicaría o le faltaría el segmento "api").
 # ---------------------------------------------------------------------------
 
 locals {
@@ -169,11 +185,20 @@ resource "aws_api_gateway_authorizer" "cognito" {
   identity_source = "method.request.header.Authorization"
 }
 
+# Segmento "api" (docs/api/contratos-api.md §1: base URL con prefijo /api),
+# único hijo directo de la raíz de la API REST. Todo el resto del árbol
+# (level1/level2/level3) cuelga de este nodo, no de root_resource_id.
+resource "aws_api_gateway_resource" "api_root" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_rest_api.this.root_resource_id
+  path_part   = "api"
+}
+
 resource "aws_api_gateway_resource" "level1" {
   for_each = toset(local.api_resource_level1)
 
   rest_api_id = aws_api_gateway_rest_api.this.id
-  parent_id   = aws_api_gateway_rest_api.this.root_resource_id
+  parent_id   = aws_api_gateway_resource.api_root.id
   path_part   = each.value
 }
 
@@ -204,7 +229,7 @@ module "endpoint_activation_verify" {
   function_name   = "activation-verify"
   source_zip_path = local.lambda_zip_path["activation-verify"]
   http_method     = "POST"
-  resource_path   = "activation/verify"
+  resource_path   = "api/activation/verify"
   requires_auth   = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
@@ -232,7 +257,7 @@ module "endpoint_activation_complete" {
   function_name   = "activation-complete"
   source_zip_path = local.lambda_zip_path["activation-complete"]
   http_method     = "POST"
-  resource_path   = "activation/complete"
+  resource_path   = "api/activation/complete"
   requires_auth   = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
@@ -272,7 +297,7 @@ module "endpoint_registration" {
   function_name   = "registration"
   source_zip_path = local.lambda_zip_path["registration"]
   http_method     = "POST"
-  resource_path   = "registration"
+  resource_path   = "api/registration"
   requires_auth   = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
@@ -315,7 +340,7 @@ module "endpoint_members_get_me" {
   function_name   = "members-get-me"
   source_zip_path = local.lambda_zip_path["members-get-me"]
   http_method     = "GET"
-  resource_path   = "members/me"
+  resource_path   = "api/members/me"
   requires_auth   = true
   allowed_groups  = ["member"]
 
@@ -345,7 +370,7 @@ module "endpoint_members_update_me" {
   function_name   = "members-update-me"
   source_zip_path = local.lambda_zip_path["members-update-me"]
   http_method     = "PATCH"
-  resource_path   = "members/me"
+  resource_path   = "api/members/me"
   requires_auth   = true
   allowed_groups  = ["member"]
 
@@ -375,7 +400,7 @@ module "endpoint_members_list" {
   function_name   = "members-list"
   source_zip_path = local.lambda_zip_path["members-list"]
   http_method     = "GET"
-  resource_path   = "members"
+  resource_path   = "api/members"
   requires_auth   = true
   allowed_groups  = ["admin"]
 
@@ -405,7 +430,7 @@ module "endpoint_members_get_by_id" {
   function_name   = "members-get-by-id"
   source_zip_path = local.lambda_zip_path["members-get-by-id"]
   http_method     = "GET"
-  resource_path   = "members/{memberId}"
+  resource_path   = "api/members/{memberId}"
   requires_auth   = true
   allowed_groups  = ["admin"]
 
@@ -435,7 +460,7 @@ module "endpoint_members_approve" {
   function_name   = "members-approve"
   source_zip_path = local.lambda_zip_path["members-approve"]
   http_method     = "POST"
-  resource_path   = "members/{memberId}/approve"
+  resource_path   = "api/members/{memberId}/approve"
   requires_auth   = true
   allowed_groups  = ["admin"]
 
@@ -471,7 +496,7 @@ module "endpoint_members_reject" {
   function_name   = "members-reject"
   source_zip_path = local.lambda_zip_path["members-reject"]
   http_method     = "POST"
-  resource_path   = "members/{memberId}/reject"
+  resource_path   = "api/members/{memberId}/reject"
   requires_auth   = true
   allowed_groups  = ["admin"]
 
@@ -509,7 +534,7 @@ module "endpoint_admin_migration_run" {
   function_name   = "admin-migration-run"
   source_zip_path = local.lambda_zip_path["admin-migration-run"]
   http_method     = "POST"
-  resource_path   = "admin/migration/run"
+  resource_path   = "api/admin/migration/run"
   requires_auth   = true
   allowed_groups  = ["admin"]
 
