@@ -94,10 +94,17 @@ Sprint 1 esto se resuelve como una sub-vista dentro del flujo de creación de
 | ------------------------------ | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/cuenta/pendiente-aprobacion` | Solicitud en revisión | RN-ACT-06/07. Un socio nuevo (`origin=NEW`) puede autenticarse (Cognito lo crea en el grupo `member` desde el registro) pero su `memberStatus` es `PENDING`/`APPROVED` sin pagar. Debe ver esta pantalla en vez del dashboard, sin poder reservar. |
 
-En Sprint 0 esta ruta ya existe con el guard de rol `member`, pero la
-**redirección automática** desde `/socio` cuando `memberStatus !== 'ACTIVE'`
-no está implementada (requiere `GET /members/me`); queda documentada como
-dependencia de Sprint 1.
+La ruta existe con el guard de rol `member` (`RequireRole`) y, dentro de él,
+un segundo guard `RequireActiveMember`
+(`apps/web/src/routes/guards/RequireActiveMember.tsx`) envuelve `/socio/*`:
+consulta `GET /members/me` y redirige aquí a cualquier socio cuyo
+`memberStatus` no sea `ACTIVE` (`MIGRATED`/`PENDING`/`APPROVED`/`REJECTED`).
+Mientras se resuelve la consulta se muestra un spinner de pantalla completa
+(nunca el contenido protegido). `PendingApprovalPage` reutiliza la misma
+query (`members/profile-query.ts`, cacheada por TanStack Query) para mostrar
+el mensaje correcto según el estado real: en revisión (`PENDING`), aprobado
+y pendiente de pago (`APPROVED`, RN-ACT-07) o rechazado (`REJECTED`, con el
+motivo si está disponible).
 
 ## 5. Rutas de administración (`admin`)
 
