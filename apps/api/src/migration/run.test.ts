@@ -65,6 +65,51 @@ describe('runMigration', () => {
     expect(result.rejected).toBe(0);
   });
 
+  it('omite (no duplica) un segundo socio con el mismo DNI dentro del mismo lote (caso alternativo de US-012)', async () => {
+    let transactWriteCalls = 0;
+    const client = fakeClient(async (command) => {
+      const ctorName = (command as { constructor: { name: string } }).constructor.name;
+      if (ctorName === 'TransactWriteCommand') {
+        transactWriteCalls += 1;
+        // El primer socio del lote escribe sin problema; el segundo, con el
+        // mismo DNI, choca contra la condición de unicidad UNIQ#DNI ya
+        // escrita por el primero (simulado aquí porque el cliente fake no
+        // mantiene estado real de DynamoDB entre invocaciones).
+        if (transactWriteCalls === 2) {
+          throw Object.assign(new Error('cancelled'), {
+            name: 'TransactionCanceledException',
+          });
+        }
+      }
+      return {};
+    });
+
+    const [primerSocio] = sampleLegacyExportWithInvalidItem.socios;
+    if (!primerSocio) throw new Error('fixture inválido');
+
+    const socioDuplicado = {
+      ...primerSocio,
+      legacyId: 'SOC-TEST-001-DUPLICADO',
+      email: 'otro.correo.fixture@example.com',
+    };
+
+    const result = await runMigration({
+      readSource: async () => ({
+        version: '1',
+        exportedAt: '2026-07-01T00:00:00Z',
+        socios: [primerSocio, socioDuplicado],
+      }),
+      actor: { actorId: 'admin-1', actorRole: 'admin' },
+      client,
+      now: new Date('2026-07-09T12:00:00Z'),
+    });
+
+    expect(result.total).toBe(2);
+    expect(result.migrated).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.rejected).toBe(0);
+  });
+
   it('rechaza con VALIDATION_ERROR si la envoltura del JSON no es válida', async () => {
     const client = fakeClient(async () => ({}));
 
