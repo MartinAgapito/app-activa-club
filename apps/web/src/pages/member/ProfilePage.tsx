@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Badge,
   Button,
@@ -26,7 +26,8 @@ import {
 } from '@activa-club/ui';
 import type { Member } from '@activa-club/shared-types';
 import { ApiRequestError } from '../../lib/api/http-client';
-import { fetchMemberProfile, updateMemberProfile } from '../../members/profile-client';
+import { updateMemberProfile } from '../../members/profile-client';
+import { MEMBER_PROFILE_QUERY_KEY, useMemberProfileQuery } from '../../members/profile-query';
 import {
   profileContactFormSchema,
   type ProfileContactFormValues,
@@ -38,10 +39,8 @@ import {
   MEMBERSHIP_STATUS_LABELS,
 } from '../../lib/format/member-status';
 
-const PROFILE_QUERY_KEY: QueryKey = ['members', 'me'];
-
 export function ProfilePage() {
-  const profileQuery = useQuery({ queryKey: PROFILE_QUERY_KEY, queryFn: fetchMemberProfile });
+  const profileQuery = useMemberProfileQuery();
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,7 +101,7 @@ function ProfileContent({ member }: ProfileContentProps) {
   const mutation = useMutation({
     mutationFn: updateMemberProfile,
     onSuccess: (updated) => {
-      queryClient.setQueryData(PROFILE_QUERY_KEY, updated);
+      queryClient.setQueryData(MEMBER_PROFILE_QUERY_KEY, updated);
       setFormError(null);
       setSuccessMessage('Tu teléfono se actualizó correctamente.');
     },
