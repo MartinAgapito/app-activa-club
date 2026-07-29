@@ -60,6 +60,17 @@ resource "aws_cloudfront_origin_access_control" "web" {
   signing_protocol                  = "sigv4"
 }
 
+# Fallback de SPA (React Router) sin depender de custom_error_response: ver
+# spa-fallback.js. Asociada solo al default_cache_behavior (S3), nunca a
+# "/api/*", para no enmascarar los 403/404 legítimos de la API.
+resource "aws_cloudfront_function" "spa_fallback" {
+  name    = "${local.name_prefix}-spa-fallback"
+  runtime = "cloudfront-js-2.0"
+  comment = "Reescribe rutas sin extension a /index.html para el SPA (${var.environment})"
+  publish = true
+  code    = file("${path.module}/spa-fallback.js")
+}
+
 # Cache policy administrada por AWS (evita el atributo forwarded_values,
 # obsoleto en el provider AWS actual).
 data "aws_cloudfront_cache_policy" "caching_optimized" {
@@ -115,6 +126,11 @@ resource "aws_cloudfront_distribution" "web" {
     viewer_protocol_policy = "redirect-to-https"
     cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
     compress               = true
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_fallback.arn
+    }
   }
 
   # /api/* -> API Gateway, sin caché (TTL 0 vía Managed-CachingDisabled) y
@@ -132,20 +148,6 @@ resource "aws_cloudfront_distribution" "web" {
       origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header[0].id
       compress                 = true
     }
-  }
-
-  # El SPA maneja rutas en el cliente (React Router); ante 403/404 de S3 se
-  # sirve index.html con 200 para que el router del frontend resuelva la ruta.
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
   }
 
   restrictions {
