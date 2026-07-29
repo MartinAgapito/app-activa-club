@@ -680,6 +680,25 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     }
   }
 
+  # Función de CloudFront para el fallback de SPA (fix del enmascaramiento de
+  # errores reales de la API, ver PR de "mover el fallback de SPA a una
+  # CloudFront Function"): CloudFront Functions no soporta tags, así que se
+  # acota por el patrón de nombre real (local.name_prefix = "<project>-dev")
+  # en vez de por aws:ResourceTag como en UpdateDevFrontendDistribution.
+  statement {
+    sid    = "ManageDevSpaFallbackFunction"
+    effect = "Allow"
+    actions = [
+      "cloudfront:CreateFunction",
+      "cloudfront:DescribeFunction",
+      "cloudfront:UpdateFunction",
+      "cloudfront:PublishFunction",
+      "cloudfront:DeleteFunction",
+      "cloudfront:GetFunction",
+    ]
+    resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:function/${var.project}-dev-*"]
+  }
+
   statement {
     sid       = "CallerIdentityDeployDev"
     effect    = "Allow"
