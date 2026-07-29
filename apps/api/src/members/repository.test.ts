@@ -200,9 +200,14 @@ describe('transitionMemberStatus', () => {
         }
       ).input;
       expect(input.ConditionExpression).toBe('attribute_exists(PK) AND memberStatus = :pending');
-      expect(input.UpdateExpression).toBe('SET memberStatus = :status, updatedAt = :now');
+      expect(input.UpdateExpression).toBe(
+        'SET memberStatus = :status, GSI2PK = :gsi2pk, updatedAt = :now',
+      );
       expect(input.ExpressionAttributeValues[':status']).toBe('APPROVED');
-      return { Attributes: { ...sampleMember, memberStatus: 'APPROVED' } };
+      expect(input.ExpressionAttributeValues[':gsi2pk']).toBe('MEMBER#STATUS#APPROVED');
+      return {
+        Attributes: { ...sampleMember, memberStatus: 'APPROVED', GSI2PK: 'MEMBER#STATUS#APPROVED' },
+      };
     });
 
     const result = await transitionMemberStatus(
@@ -216,6 +221,32 @@ describe('transitionMemberStatus', () => {
     expect((result as typeof sampleMember).memberStatus).toBe('APPROVED');
   });
 
+  it('actualiza GSI2PK a MEMBER#STATUS#REJECTED al rechazar (queda indexado para GET /members?status=REJECTED)', async () => {
+    const client = fakeClient(async (command) => {
+      const input = (
+        command as {
+          input: { ExpressionAttributeValues: Record<string, unknown> };
+        }
+      ).input;
+      expect(input.ExpressionAttributeValues[':gsi2pk']).toBe('MEMBER#STATUS#REJECTED');
+      return {
+        Attributes: {
+          ...sampleMember,
+          memberStatus: 'REJECTED',
+          rejectionReason: 'Datos no verificables',
+          GSI2PK: 'MEMBER#STATUS#REJECTED',
+        },
+      };
+    });
+
+    await transitionMemberStatus(
+      client,
+      sampleMember.memberId,
+      { to: 'REJECTED', rejectionReason: 'Datos no verificables' },
+      '2026-07-21T00:00:00.000Z',
+    );
+  });
+
   it('rechaza incluyendo rejectionReason en el UpdateExpression', async () => {
     const client = fakeClient(async (command) => {
       const input = (
@@ -224,7 +255,7 @@ describe('transitionMemberStatus', () => {
         }
       ).input;
       expect(input.UpdateExpression).toBe(
-        'SET memberStatus = :status, rejectionReason = :reason, updatedAt = :now',
+        'SET memberStatus = :status, GSI2PK = :gsi2pk, rejectionReason = :reason, updatedAt = :now',
       );
       expect(input.ExpressionAttributeValues[':reason']).toBe('Datos no verificables');
       return {
