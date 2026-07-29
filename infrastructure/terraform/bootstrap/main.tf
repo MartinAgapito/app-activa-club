@@ -266,6 +266,7 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       "ses:List*",
       "sesv2:Get*",
       "sesv2:List*",
+      "cloudfront:Describe*",
       "cloudfront:Get*",
       "cloudfront:List*",
       "logs:Describe*",
