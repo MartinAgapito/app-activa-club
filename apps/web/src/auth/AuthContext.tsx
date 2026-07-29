@@ -95,6 +95,11 @@ function resolveRole(idToken: string): Role | null {
 }
 
 interface StoredTokens {
+  /** Enviado a nuestra API (el autorizador Cognito de API Gateway solo
+   * acepta el ID token, no el access token). */
+  idToken: string;
+  /** Solo para llamadas directas a Cognito (p. ej. GlobalSignOut, que exige
+   * específicamente un access token). */
   accessToken: string;
   refreshToken?: string;
   expiresIn: number;
@@ -109,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const tokensRef = useRef<StoredTokens | null>(null);
 
   useEffect(() => {
-    setAccessTokenProvider(() => tokensRef.current?.accessToken ?? null);
+    setAccessTokenProvider(() => tokensRef.current?.idToken ?? null);
   }, []);
 
   const applyTokens = useCallback((tokens: CognitoTokens): AuthSession => {
@@ -123,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     tokensRef.current = {
+      idToken: tokens.idToken,
       accessToken: tokens.accessToken,
       expiresIn: tokens.expiresIn,
       ...(tokens.refreshToken !== undefined ? { refreshToken: tokens.refreshToken } : {}),

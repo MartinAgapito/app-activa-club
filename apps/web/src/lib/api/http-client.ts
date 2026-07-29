@@ -16,7 +16,9 @@ import type { ApiErrorResponse, ErrorCode } from '@activa-club/shared-types';
  * fallan explícitamente en vez de apuntar a un backend inventado. */
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
-/** Punto de extensión para inyectar el JWT de Cognito (Sprint 1). */
+/** Punto de extensión para inyectar el JWT de Cognito (Sprint 1). El
+ * autorizador Cognito de API Gateway solo acepta el ID token (no el access
+ * token) — quien registra el provider (AuthContext) debe entregar ese. */
 let accessTokenProvider: () => string | null = () => null;
 
 export function setAccessTokenProvider(provider: () => string | null): void {
