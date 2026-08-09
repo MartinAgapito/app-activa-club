@@ -23,6 +23,26 @@ export interface Payment {
   confirmedAt: ISODateString | null;
 }
 
+/**
+ * Vista pública de un pago, expuesta por `GET /payments` y
+ * `GET /payments/{paymentId}` (docs/api/contratos-api.md §5, US-025). Nunca
+ * incluye `idempotencyKey` ni `failureReason` (campos internos de
+ * orquestación, fuera del contrato público); el único identificador externo
+ * es `culqiChargeId` (criterio 7, RN-PAG-08).
+ */
+export interface PaymentSummary {
+  paymentId: string;
+  memberId: string;
+  membershipType: MembershipType;
+  /** Monto en céntimos. */
+  amount: number;
+  currency: Currency;
+  paymentStatus: PaymentStatus;
+  culqiChargeId: string | null;
+  createdAt: ISODateString;
+  confirmedAt: ISODateString | null;
+}
+
 /** Plan de membresía ofrecido (valores mock parametrizables). */
 export interface MembershipPlan {
   type: MembershipType;

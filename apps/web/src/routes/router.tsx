@@ -20,6 +20,7 @@ import { VerifyEmailPage } from '../pages/public/VerifyEmailPage';
 
 import { MemberDashboardPage } from '../pages/member/MemberDashboardPage';
 import { MembershipPage } from '../pages/member/MembershipPage';
+import { CheckoutPage } from '../pages/member/CheckoutPage';
 import { PaymentsPage } from '../pages/member/PaymentsPage';
 import { ReservationsPage } from '../pages/member/ReservationsPage';
 import { NotificationsPage } from '../pages/member/NotificationsPage';
@@ -53,9 +54,15 @@ const routes: RouteObject[] = [
   },
   {
     // Estado transicional: sesión de socio válida pero memberStatus distinto
-    // de ACTIVE (RN-ACT-06/07). Ver docs/mapa-de-rutas.md.
+    // de ACTIVE (RN-ACT-06/07). Ver docs/mapa-de-rutas.md. El checkout
+    // (US-022) vive en este mismo grupo — fuera de RequireActiveMember — para
+    // que un socio APPROVED (que todavía no puede entrar a /socio/*) pueda
+    // pagar su primera membresía sin quedar bloqueado por ese guard.
     element: <RequireRole allow={['member']} />,
-    children: [{ path: '/cuenta/pendiente-aprobacion', element: <PendingApprovalPage /> }],
+    children: [
+      { path: '/cuenta/pendiente-aprobacion', element: <PendingApprovalPage /> },
+      { path: '/socio/membresia/pagar', element: <CheckoutPage /> },
+    ],
   },
   {
     // Sesión de socio válida (rol `member`), pero además con memberStatus

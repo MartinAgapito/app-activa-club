@@ -1,5 +1,5 @@
-import { Navigate } from 'react-router-dom';
-import { Badge, Button, Card, ErrorState, Spinner } from '@activa-club/ui';
+import { Link, Navigate } from 'react-router-dom';
+import { Badge, Button, buttonVariants, Card, ErrorState, Spinner } from '@activa-club/ui';
 import type { MemberStatus } from '@activa-club/shared-types';
 import { useAuth } from '../../auth/AuthContext';
 import { ApiRequestError } from '../../lib/api/http-client';
@@ -65,10 +65,18 @@ export function PendingApprovalPage() {
           {MEMBER_STATUS_LABELS[memberStatus]}
         </Badge>
         <StatusMessage status={memberStatus} rejectionReason={profileQuery.data.rejectionReason} />
+        {memberStatus === 'APPROVED' ? (
+          <Link
+            to="/socio/membresia/pagar"
+            className={buttonVariants({ fullWidth: true, className: 'mt-6' })}
+          >
+            Pagar mi primera membresía
+          </Link>
+        ) : null}
         <button
           type="button"
           onClick={signOut}
-          className="mt-6 text-sm font-medium text-brand-700 hover:text-brand-900"
+          className="mt-4 text-sm font-medium text-brand-700 hover:text-brand-900"
         >
           Cerrar sesión
         </button>
@@ -104,8 +112,7 @@ function StatusMessage({ status, rejectionReason }: StatusMessageProps) {
         <h1 className="mt-4 text-xl font-semibold text-slate-900">Tu solicitud fue aprobada</h1>
         <p className="mt-2 text-sm text-slate-600">
           Ya puedes continuar: solo falta pagar tu primera membresía para activar tu cuenta y poder
-          reservar (RN-ACT-07). Te avisaremos por correo y notificación en cuanto el pago esté
-          disponible.
+          reservar (RN-ACT-07).
         </p>
       </>
     );

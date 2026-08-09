@@ -23,8 +23,16 @@ import {
   UpdateCommand,
   type DynamoDBDocumentClient,
 } from '@aws-sdk/lib-dynamodb';
-import type { Currency, MembershipType, PaymentStatus } from '@activa-club/shared-types';
+import type {
+  Currency,
+  MembershipType,
+  Paginated,
+  Payment,
+  PaymentStatus,
+  PaymentSummary,
+} from '@activa-club/shared-types';
 
+import { decodeCursor, encodeCursor } from '../lib/cursor';
 import { keys, tableName } from '../lib/dynamo';
 
 export interface CreatePendingPaymentInput {
@@ -202,71 +210,152 @@ export async function confirmPaymentSuccess(
   );
 }
 
-// --- Localización por `paymentId` (US-024, webhook de Culqi) --------------
+// --- Lectura: historial de pagos (US-025, docs/api/contratos-api.md §5) ---
 //
-// El modelo documentado (docs/data/modelo-dynamodb.md §3.5) solo permite
-// leer un `Payment` por `memberId` (PK) o listarlos por `paymentStatus`
-// (GSI2): no existe un índice directo por `paymentId`. El webhook de Culqi
-// (`POST /payments/webhook`) solo conoce el `paymentId` que este backend le
-// envió como referencia al crear el cargo (ADR-0007, `./culqi-client.ts`,
-// campo `reference`), no el `memberId` ni el `createdAt` que arma la clave
-// real del ítem. `findPaymentByPaymentId` resuelve esto recorriendo, como
-// mucho, las tres particiones de estado de GSI2 (nunca un `Scan` de toda la
-// tabla): para el volumen de pagos de un único club (alcance de este
-// MVP/tesis) es aceptable; si el volumen creciera de forma significativa,
-// se recomienda a Arquitectura evaluar un índice dedicado por `paymentId`
-// (p. ej. un futuro GSI4) en vez de mantener este recorrido acotado.
+// Reutiliza exactamente los dos patrones de acceso ya documentados para
+// `Payment` (docs/data/modelo-dynamodb.md §3.5/§4, patrones #3 y #16): nunca
+// se agrega un índice nuevo para el listado. `toPaymentSummary` recorta el
+// ítem crudo a la vista pública del contrato (criterio 7, RN-PAG-08): nunca
+// expone `idempotencyKey` ni `failureReason` (campos internos de
+// orquestación, fuera del contrato documentado).
 
-export interface PaymentRecord {
-  memberId: string;
-  paymentId: string;
-  createdAt: string;
-  paymentStatus: PaymentStatus;
-  membershipType: MembershipType;
-  amount: number;
-  currency: Currency;
-  culqiChargeId: string | null;
-  idempotencyKey: string;
-  autoRenewRequested: boolean;
-  failureReason: string | null;
-  confirmedAt: string | null;
+/** Tamaño de página por defecto para el historial de pagos (US-025). */
+const DEFAULT_PAGE_SIZE = 20;
+
+/**
+ * Salvaguarda defensiva para las búsquedas por `paymentId` (`getPaymentByMemberAndId`,
+ * `findPaymentById`): como el modelo no tiene un patrón de acceso directo por
+ * `paymentId` (ver nota de `findPaymentById`), esas búsquedas recorren
+ * páginas de una `Query` con `FilterExpression` hasta encontrar el ítem o
+ * agotar la partición. Este límite evita un bucle indefinido si algo
+ * inesperado ocurriera (p. ej. `paymentId` corrupto); en la escala real de un
+ * club privado, nunca debería alcanzarse.
+ */
+const MAX_LOOKUP_PAGES = 50;
+
+export function toPaymentSummary(item: Payment | Record<string, unknown>): PaymentSummary {
+  // TODO(Sprint 2): mismo riesgo señalado en `members/repository.ts`
+  // (`toMemberSummary`) — validar la forma del ítem leído contra un esquema
+  // propio de acceso a datos antes de confiar en el cast.
+  const payment = item as unknown as Payment;
+  return {
+    paymentId: payment.paymentId,
+    memberId: payment.memberId,
+    membershipType: payment.membershipType,
+    amount: payment.amount,
+    currency: payment.currency,
+    paymentStatus: payment.paymentStatus,
+    culqiChargeId: payment.culqiChargeId,
+    createdAt: payment.createdAt,
+    confirmedAt: payment.confirmedAt,
+  };
 }
 
-/** Orden de búsqueda: primero el caso más común (pago aún no confirmado esperando el webhook). */
-const PAYMENT_STATUS_LOOKUP_ORDER: readonly PaymentStatus[] = [
-  'PENDING_CONFIRMATION',
-  'SUCCEEDED',
-  'FAILED',
-];
+export interface ListPaymentsByMemberOptions {
+  /** Filtro adicional por estado (criterio 3/4); se aplica dentro de la misma partición del socio. */
+  status?: PaymentStatus;
+  cursor?: string;
+  limit?: number;
+}
 
-/** Cota defensiva de páginas por partición de estado, para no arriesgar un recorrido sin fin ante un volumen de datos inesperado (protección de tiempo de ejecución de la Lambda). */
-const MAX_LOOKUP_PAGES_PER_STATUS = 25;
-
-async function findPaymentInStatusPartition(
+/**
+ * Historial de pagos de un socio (patrón de acceso #3), más reciente primero
+ * (criterio 1): `Query` PK=`MEMBER#<id>`, `begins_with(SK,"PAYMENT#")`,
+ * `ScanIndexForward: false` (el `SK` ordena cronológicamente por `createdAt`).
+ * Usado tanto para `member` (siempre su propio `memberId`, resuelto por el
+ * llamante desde la identidad autenticada — nunca desde la query del
+ * cliente, criterio 4) como para `admin` filtrando por `memberId`.
+ */
+export async function listPaymentsByMember(
   client: DynamoDBDocumentClient,
-  paymentStatus: PaymentStatus,
+  memberId: string,
+  options: ListPaymentsByMemberOptions = {},
+): Promise<Paginated<PaymentSummary>> {
+  const memberKey = keys.member(memberId);
+  const result = await client.send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ...(options.status ? { FilterExpression: 'paymentStatus = :status' } : {}),
+      ExpressionAttributeValues: {
+        ':pk': memberKey.PK,
+        ':prefix': 'PAYMENT#',
+        ...(options.status ? { ':status': options.status } : {}),
+      },
+      ScanIndexForward: false,
+      Limit: options.limit ?? DEFAULT_PAGE_SIZE,
+      ExclusiveStartKey: decodeCursor(options.cursor),
+    }),
+  );
+
+  return {
+    items: (result.Items ?? []).map(toPaymentSummary),
+    nextCursor: encodeCursor(result.LastEvaluatedKey),
+  };
+}
+
+export interface ListPaymentsByStatusOptions {
+  cursor?: string;
+  limit?: number;
+}
+
+/**
+ * Pagos por estado (patrón de acceso #16, GSI2), más reciente primero: `Query`
+ * GSI2PK=`PAYMENT#STATUS#<status>`, `ScanIndexForward: false` (`GSI2SK` es
+ * `<createdAt>#<paymentId>`). Usado por `admin` cuando filtra por `status`
+ * sin `memberId` (criterio 3).
+ */
+export async function listPaymentsByStatus(
+  client: DynamoDBDocumentClient,
+  status: PaymentStatus,
+  options: ListPaymentsByStatusOptions = {},
+): Promise<Paginated<PaymentSummary>> {
+  const gsi2Key = keys.paymentsByStatus(status);
+  const result = await client.send(
+    new QueryCommand({
+      TableName: tableName(),
+      IndexName: 'GSI2',
+      KeyConditionExpression: 'GSI2PK = :pk',
+      ExpressionAttributeValues: { ':pk': gsi2Key.GSI2PK },
+      ScanIndexForward: false,
+      Limit: options.limit ?? DEFAULT_PAGE_SIZE,
+      ExclusiveStartKey: decodeCursor(options.cursor),
+    }),
+  );
+
+  return {
+    items: (result.Items ?? []).map(toPaymentSummary),
+    nextCursor: encodeCursor(result.LastEvaluatedKey),
+  };
+}
+
+/**
+ * Detalle de un pago propio (`GET /payments/{paymentId}`, `member`): recorre
+ * la partición del socio (patrón #3) filtrando por `paymentId` hasta
+ * encontrarlo. Acotado por diseño: es la partición de un único socio (su
+ * propio historial de pagos), no la tabla completa — nunca un `Scan`.
+ */
+export async function getPaymentByMemberAndId(
+  client: DynamoDBDocumentClient,
+  memberId: string,
   paymentId: string,
-): Promise<PaymentRecord | undefined> {
+): Promise<Payment | undefined> {
+  const memberKey = keys.member(memberId);
   let exclusiveStartKey: Record<string, unknown> | undefined;
 
-  for (let page = 0; page < MAX_LOOKUP_PAGES_PER_STATUS; page += 1) {
+  for (let page = 0; page < MAX_LOOKUP_PAGES; page += 1) {
     const result = await client.send(
       new QueryCommand({
         TableName: tableName(),
-        IndexName: 'GSI2',
-        KeyConditionExpression: 'GSI2PK = :pk',
-        FilterExpression: 'paymentId = :paymentId',
-        ExpressionAttributeValues: {
-          ':pk': keys.paymentsByStatus(paymentStatus).GSI2PK,
-          ':paymentId': paymentId,
-        },
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+        FilterExpression: 'paymentId = :id',
+        ExpressionAttributeValues: { ':pk': memberKey.PK, ':prefix': 'PAYMENT#', ':id': paymentId },
         ExclusiveStartKey: exclusiveStartKey,
       }),
     );
 
-    const match = (result.Items ?? []).find((item) => item['paymentId'] === paymentId);
-    if (match) return match as unknown as PaymentRecord;
-
+    const match = result.Items?.find((item) => item['paymentId'] === paymentId);
+    if (match) return match as unknown as Payment;
     if (!result.LastEvaluatedKey) return undefined;
     exclusiveStartKey = result.LastEvaluatedKey;
   }
@@ -274,19 +363,62 @@ async function findPaymentInStatusPartition(
   return undefined;
 }
 
+const PAYMENT_STATUSES: readonly PaymentStatus[] = ['PENDING_CONFIRMATION', 'SUCCEEDED', 'FAILED'];
+
 /**
- * Localiza un `Payment` por `paymentId` sin conocer su `memberId`/`createdAt`
- * (ver nota de cabecera de esta sección). Devuelve `undefined` si no existe
- * ningún `Payment` con ese `paymentId` en ninguno de los tres estados
- * posibles (criterios 6/7: pago inexistente/no reconocible).
+ * Resuelve un `Payment` por `paymentId` sin conocer su `memberId`
+ * (`GET /payments/{paymentId}`, `admin`, criterio 5/6).
+ *
+ * El modelo de datos (docs/data/modelo-dynamodb.md §3.5/§4) no define un
+ * patrón de acceso directo "por `paymentId`" — solo por socio (patrón #3,
+ * requiere `memberId`) o por estado (patrón #16, GSI2). Como el rol `admin`
+ * puede pedir el detalle de cualquier pago sin conocer su `memberId`, esta
+ * función recorre cada partición de estado del GSI2 (a lo sumo 3: hoy
+ * `PENDING_CONFIRMATION`/`SUCCEEDED`/`FAILED`) filtrando por `paymentId`.
+ * Sigue evitando un `Scan` completo de la tabla (cada `Query` está acotada a
+ * una partición de GSI2, un índice ya existente), pero no es O(1): si el
+ * volumen de pagos por estado creciera lo suficiente para que el costo
+ * importe, la solución de fondo es un GSI dedicado (`PAYMENT#<paymentId>`
+ * como PK directa), que requiere una migración de `infrastructure/terraform`
+ * fuera del alcance de este agente — documentado como pendiente en el
+ * reporte de US-025.
  */
-export async function findPaymentByPaymentId(
+export async function findPaymentById(
   client: DynamoDBDocumentClient,
   paymentId: string,
-): Promise<PaymentRecord | undefined> {
-  for (const paymentStatus of PAYMENT_STATUS_LOOKUP_ORDER) {
-    const found = await findPaymentInStatusPartition(client, paymentStatus, paymentId);
+): Promise<Payment | undefined> {
+  for (const status of PAYMENT_STATUSES) {
+    const found = await findPaymentByIdInStatus(client, status, paymentId);
     if (found) return found;
   }
+  return undefined;
+}
+
+async function findPaymentByIdInStatus(
+  client: DynamoDBDocumentClient,
+  status: PaymentStatus,
+  paymentId: string,
+): Promise<Payment | undefined> {
+  const gsi2Key = keys.paymentsByStatus(status);
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+
+  for (let page = 0; page < MAX_LOOKUP_PAGES; page += 1) {
+    const result = await client.send(
+      new QueryCommand({
+        TableName: tableName(),
+        IndexName: 'GSI2',
+        KeyConditionExpression: 'GSI2PK = :pk',
+        FilterExpression: 'paymentId = :id',
+        ExpressionAttributeValues: { ':pk': gsi2Key.GSI2PK, ':id': paymentId },
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    );
+
+    const match = result.Items?.find((item) => item['paymentId'] === paymentId);
+    if (match) return match as unknown as Payment;
+    if (!result.LastEvaluatedKey) return undefined;
+    exclusiveStartKey = result.LastEvaluatedKey;
+  }
+
   return undefined;
 }

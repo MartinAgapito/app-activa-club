@@ -61,8 +61,8 @@ const HANDLERS = {
   // reemplaza por su handler real al implementarse, una funcion a la vez.
   'memberships-plans': 'handlers/memberships/get-plans.ts', // US-020 (implementado)
   'payments-create': 'handlers/payments/post.ts', // US-021 (implementado)
-  'payments-list': 'handlers/not-implemented.ts', // US-025
-  'payments-get-by-id': 'handlers/not-implemented.ts', // US-025
+  'payments-list': 'handlers/payments/list.ts', // US-025 (implementado)
+  'payments-get-by-id': 'handlers/payments/get-by-id.ts', // US-025 (implementado)
   'payments-webhook': 'handlers/payments/webhook.ts', // US-024 (implementado)
   'members-update-auto-renew': 'handlers/not-implemented.ts', // US-023
 };

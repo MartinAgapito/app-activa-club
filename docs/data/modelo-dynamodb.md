@@ -113,6 +113,18 @@ Atributos: `paymentId`, `memberId`, `membershipType`, `amount`, `currency`
 CVV ni secretos (RN-PAG-08). Historial por socio: `Query` PK=`MEMBER#<id>`,
 `begins_with(SK,"PAYMENT#")`. Analytics de pagos exitosos/fallidos: `GSI2`.
 
+> **Nota (US-025, `GET /payments/{paymentId}`, rol `admin`)**: el modelo no
+> tiene un patrón de acceso directo "por `paymentId`" sin conocer `memberId`
+> (solo los dos de arriba). La implementación actual
+> (`apps/api/src/payments/repository.ts`, `findPaymentById`) recorre las 3
+> particiones de `GSI2` (una por `paymentStatus`) filtrando por `paymentId`:
+> evita un `Scan` completo de la tabla, pero no es O(1). Si el volumen de
+> pagos por estado creciera lo suficiente para que el costo importe, la
+> solución de fondo es un GSI dedicado (`PAYMENT#<paymentId>` como PK
+> directa), pendiente de evaluación por el Arquitecto (requiere una
+> migración de `infrastructure/terraform`, fuera del alcance del Ingeniero
+> Backend).
+
 ### 3.6 Idempotencia de pago — **PaymentIdempotency**
 
 | Campo | Valor                    |

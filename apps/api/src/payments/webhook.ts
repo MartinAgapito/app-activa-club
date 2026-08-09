@@ -16,7 +16,7 @@ import { logger } from '../lib/logger';
 import { getMemberById } from '../members/repository';
 import type { CulqiWebhookEvent } from './webhook-event-schema';
 import { resolveMembershipCycle } from './membership-cycle';
-import { confirmPaymentSuccess, findPaymentByPaymentId, markPaymentFailed } from './repository';
+import { confirmPaymentSuccess, findPaymentById, markPaymentFailed } from './repository';
 
 export interface ProcessCulqiWebhookEventInput {
   event: CulqiWebhookEvent;
@@ -62,7 +62,7 @@ export async function processCulqiWebhookEvent(
   const { event } = input;
   const paymentId = event.data.object.metadata.reference;
 
-  const payment = await findPaymentByPaymentId(client, paymentId);
+  const payment = await findPaymentById(client, paymentId);
   if (!payment) {
     // Criterios 6/7: sin efectos, registrado para diagnóstico, sin exponer
     // información interna al emisor (el handler responde 202 igual que un

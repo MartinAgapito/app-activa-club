@@ -59,6 +59,7 @@ function renderPage() {
     [
       { path: '/cuenta/pendiente-aprobacion', element: <PendingApprovalPage /> },
       { path: '/socio', element: <p>Dashboard de socio</p> },
+      { path: '/socio/membresia/pagar', element: <p>Checkout</p> },
     ],
     { initialEntries: ['/cuenta/pendiente-aprobacion'] },
   );
@@ -103,6 +104,24 @@ describe('PendingApprovalPage', () => {
       await screen.findByRole('heading', { name: /tu solicitud fue aprobada/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/pagar tu primera membresía/i)).toBeInTheDocument();
+  });
+
+  it('ofrece la acción principal de pagar la primera membresía para memberStatus APPROVED (criterio 2, US-022)', async () => {
+    fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, memberStatus: 'APPROVED' });
+    renderPage();
+
+    const payLink = await screen.findByRole('link', { name: /pagar mi primera membresía/i });
+    expect(payLink).toHaveAttribute('href', '/socio/membresia/pagar');
+  });
+
+  it('no ofrece la acción de pago para memberStatus PENDING/REJECTED', async () => {
+    fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, memberStatus: 'PENDING' });
+    renderPage();
+
+    await screen.findByRole('heading', { name: /tu solicitud está siendo evaluada/i });
+    expect(
+      screen.queryByRole('link', { name: /pagar mi primera membresía/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('muestra el motivo del rechazo para memberStatus REJECTED', async () => {

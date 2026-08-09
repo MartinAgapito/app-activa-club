@@ -6,8 +6,15 @@ vi.mock('../lib/dynamo', async () => {
   return { ...actual, tableName: () => 'activa-club-test' };
 });
 
-const { createPendingPayment, markPaymentFailed, confirmPaymentSuccess, findPaymentByPaymentId } =
-  await import('./repository');
+const {
+  createPendingPayment,
+  markPaymentFailed,
+  confirmPaymentSuccess,
+  listPaymentsByMember,
+  listPaymentsByStatus,
+  getPaymentByMemberAndId,
+  findPaymentById,
+} = await import('./repository');
 
 function fakeClient(
   send: (command: unknown) => Promise<unknown>,
@@ -223,82 +230,210 @@ describe('confirmPaymentSuccess', () => {
   });
 });
 
-describe('findPaymentByPaymentId (US-024)', () => {
-  const pendingPayment = {
-    PK: 'MEMBER#member-1',
-    SK: 'PAYMENT#2026-08-09T00:00:00.000Z#payment-1',
-    GSI2PK: 'PAYMENT#STATUS#PENDING_CONFIRMATION',
-    memberId: 'member-1',
-    paymentId: 'payment-1',
-    createdAt: '2026-08-09T00:00:00.000Z',
-    paymentStatus: 'PENDING_CONFIRMATION',
-  };
+// --- Lectura: historial de pagos (US-025) ---
 
-  it('encuentra el Payment en la primera partición consultada (PENDING_CONFIRMATION, caso más común)', async () => {
+function buildPaymentItem(
+  overrides: Partial<Record<string, unknown>> = {},
+): Record<string, unknown> {
+  return {
+    PK: 'MEMBER#member-1',
+    SK: 'PAYMENT#2026-08-01T00:00:00.000Z#payment-1',
+    GSI2PK: 'PAYMENT#STATUS#SUCCEEDED',
+    GSI2SK: '2026-08-01T00:00:00.000Z#payment-1',
+    entityType: 'Payment',
+    paymentId: 'payment-1',
+    memberId: 'member-1',
+    membershipType: 'MONTHLY',
+    amount: 12_000,
+    currency: 'PEN',
+    paymentStatus: 'SUCCEEDED',
+    culqiChargeId: 'chr_test_1',
+    idempotencyKey: 'clave-secreta-interna',
+    autoRenewRequested: false,
+    failureReason: null,
+    createdAt: '2026-08-01T00:00:00.000Z',
+    confirmedAt: '2026-08-01T00:05:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('listPaymentsByMember', () => {
+  it('consulta PK=MEMBER#<id> con begins_with(SK,"PAYMENT#"), más reciente primero (criterio 1)', async () => {
     const client = fakeClient(async (command) => {
-      const cmd = command as {
-        constructor: { name: string };
-        input: { ExpressionAttributeValues: Record<string, unknown> };
-      };
-      expect(cmd.constructor.name).toBe('QueryCommand');
-      expect(cmd.input.ExpressionAttributeValues[':pk']).toBe(
-        'PAYMENT#STATUS#PENDING_CONFIRMATION',
-      );
-      return { Items: [pendingPayment] };
+      const ctor = (command as { constructor: { name: string } }).constructor.name;
+      expect(ctor).toBe('QueryCommand');
+      const input = (
+        command as {
+          input: {
+            TableName: string;
+            IndexName?: string;
+            KeyConditionExpression: string;
+            FilterExpression?: string;
+            ExpressionAttributeValues: Record<string, unknown>;
+            ScanIndexForward?: boolean;
+            Limit?: number;
+          };
+        }
+      ).input;
+      expect(input.IndexName).toBeUndefined();
+      expect(input.KeyConditionExpression).toBe('PK = :pk AND begins_with(SK, :prefix)');
+      expect(input.ExpressionAttributeValues[':pk']).toBe('MEMBER#member-1');
+      expect(input.ExpressionAttributeValues[':prefix']).toBe('PAYMENT#');
+      expect(input.FilterExpression).toBeUndefined();
+      expect(input.ScanIndexForward).toBe(false);
+      return { Items: [buildPaymentItem()] };
     });
 
-    const result = await findPaymentByPaymentId(client, 'payment-1');
+    const result = await listPaymentsByMember(client, 'member-1');
 
-    expect(result).toMatchObject({ memberId: 'member-1', paymentId: 'payment-1' });
-    expect(client.send).toHaveBeenCalledTimes(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual({
+      paymentId: 'payment-1',
+      memberId: 'member-1',
+      membershipType: 'MONTHLY',
+      amount: 12_000,
+      currency: 'PEN',
+      paymentStatus: 'SUCCEEDED',
+      culqiChargeId: 'chr_test_1',
+      createdAt: '2026-08-01T00:00:00.000Z',
+      confirmedAt: '2026-08-01T00:05:00.000Z',
+    });
+    // Nunca expone idempotencyKey ni failureReason (criterio 7, RN-PAG-08).
+    expect(result.items[0]).not.toHaveProperty('idempotencyKey');
+    expect(result.items[0]).not.toHaveProperty('failureReason');
+    expect(result.nextCursor).toBeNull();
   });
 
-  it('sigue buscando en SUCCEEDED y luego FAILED si no aparece en PENDING_CONFIRMATION (convergencia, criterio 4/5/10)', async () => {
-    const queriedStatuses: string[] = [];
+  it('aplica FilterExpression por paymentStatus cuando se filtra por status (criterio 3/4)', async () => {
     const client = fakeClient(async (command) => {
-      const cmd = command as { input: { ExpressionAttributeValues: Record<string, unknown> } };
-      const pk = cmd.input.ExpressionAttributeValues[':pk'] as string;
-      queriedStatuses.push(pk);
-      if (pk === 'PAYMENT#STATUS#SUCCEEDED') {
-        return { Items: [{ ...pendingPayment, paymentStatus: 'SUCCEEDED' }] };
+      const input = (
+        command as {
+          input: { FilterExpression?: string; ExpressionAttributeValues: Record<string, unknown> };
+        }
+      ).input;
+      expect(input.FilterExpression).toBe('paymentStatus = :status');
+      expect(input.ExpressionAttributeValues[':status']).toBe('FAILED');
+      return { Items: [] };
+    });
+
+    await listPaymentsByMember(client, 'member-1', { status: 'FAILED' });
+  });
+
+  it('devuelve una lista vacía si el socio no tiene pagos (caso alternativo)', async () => {
+    const client = fakeClient(async () => ({ Items: [] }));
+
+    const result = await listPaymentsByMember(client, 'member-sin-pagos');
+
+    expect(result.items).toEqual([]);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('propaga LastEvaluatedKey como nextCursor opaco (paginación)', async () => {
+    const client = fakeClient(async () => ({
+      Items: [buildPaymentItem()],
+      LastEvaluatedKey: { PK: 'MEMBER#member-1', SK: 'PAYMENT#2026-08-01T00:00:00.000Z#payment-1' },
+    }));
+
+    const result = await listPaymentsByMember(client, 'member-1');
+
+    expect(typeof result.nextCursor).toBe('string');
+    expect(result.nextCursor).not.toBeNull();
+  });
+});
+
+describe('listPaymentsByStatus', () => {
+  it('consulta GSI2PK=PAYMENT#STATUS#<status>, más reciente primero (criterio 3, admin sin memberId)', async () => {
+    const client = fakeClient(async (command) => {
+      const input = (
+        command as {
+          input: {
+            IndexName?: string;
+            KeyConditionExpression: string;
+            ExpressionAttributeValues: Record<string, unknown>;
+            ScanIndexForward?: boolean;
+          };
+        }
+      ).input;
+      expect(input.IndexName).toBe('GSI2');
+      expect(input.KeyConditionExpression).toBe('GSI2PK = :pk');
+      expect(input.ExpressionAttributeValues[':pk']).toBe('PAYMENT#STATUS#FAILED');
+      expect(input.ScanIndexForward).toBe(false);
+      return {
+        Items: [buildPaymentItem({ paymentStatus: 'FAILED', GSI2PK: 'PAYMENT#STATUS#FAILED' })],
+      };
+    });
+
+    const result = await listPaymentsByStatus(client, 'FAILED');
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.paymentStatus).toBe('FAILED');
+  });
+});
+
+describe('getPaymentByMemberAndId', () => {
+  it('devuelve el pago propio si existe en la partición del socio', async () => {
+    const client = fakeClient(async () => ({ Items: [buildPaymentItem()] }));
+
+    const payment = await getPaymentByMemberAndId(client, 'member-1', 'payment-1');
+
+    expect(payment?.paymentId).toBe('payment-1');
+  });
+
+  it('devuelve undefined si el pago no existe en la partición del socio (ajeno o inexistente)', async () => {
+    const client = fakeClient(async () => ({ Items: [] }));
+
+    const payment = await getPaymentByMemberAndId(client, 'member-1', 'payment-ajeno');
+
+    expect(payment).toBeUndefined();
+  });
+
+  it('recorre páginas siguiendo LastEvaluatedKey hasta encontrar el paymentId', async () => {
+    let call = 0;
+    const client = fakeClient(async () => {
+      call += 1;
+      if (call === 1) {
+        return {
+          Items: [],
+          LastEvaluatedKey: { PK: 'MEMBER#member-1', SK: 'PAYMENT#2026-08-01T00:00:00.000Z#otro' },
+        };
+      }
+      return { Items: [buildPaymentItem()] };
+    });
+
+    const payment = await getPaymentByMemberAndId(client, 'member-1', 'payment-1');
+
+    expect(payment?.paymentId).toBe('payment-1');
+    expect(call).toBe(2);
+  });
+});
+
+describe('findPaymentById', () => {
+  it('recorre las particiones de GSI2 por estado hasta encontrar el pago (admin, sin memberId)', async () => {
+    const calls: string[] = [];
+    const client = fakeClient(async (command) => {
+      const input = (command as { input: { ExpressionAttributeValues: Record<string, unknown> } })
+        .input;
+      const status = input.ExpressionAttributeValues[':pk'] as string;
+      calls.push(status);
+      if (status === 'PAYMENT#STATUS#SUCCEEDED') {
+        return { Items: [buildPaymentItem()] };
       }
       return { Items: [] };
     });
 
-    const result = await findPaymentByPaymentId(client, 'payment-1');
+    const payment = await findPaymentById(client, 'payment-1');
 
-    expect(queriedStatuses).toEqual([
-      'PAYMENT#STATUS#PENDING_CONFIRMATION',
-      'PAYMENT#STATUS#SUCCEEDED',
-    ]);
-    expect(result).toMatchObject({ paymentStatus: 'SUCCEEDED' });
+    expect(payment?.paymentId).toBe('payment-1');
+    // PENDING_CONFIRMATION se prueba antes que SUCCEEDED (orden de PAYMENT_STATUSES).
+    expect(calls[0]).toBe('PAYMENT#STATUS#PENDING_CONFIRMATION');
+    expect(calls).toContain('PAYMENT#STATUS#SUCCEEDED');
   });
 
-  it('pagina dentro de una misma partición hasta encontrar la coincidencia', async () => {
-    let calls = 0;
-    const client = fakeClient(async () => {
-      calls += 1;
-      if (calls === 1) {
-        return {
-          Items: [{ ...pendingPayment, paymentId: 'otro-pago' }],
-          LastEvaluatedKey: { PK: 'x' },
-        };
-      }
-      return { Items: [pendingPayment] };
-    });
-
-    const result = await findPaymentByPaymentId(client, 'payment-1');
-
-    expect(calls).toBe(2);
-    expect(result).toMatchObject({ paymentId: 'payment-1' });
-  });
-
-  it('devuelve undefined si el paymentId no existe en ninguno de los tres estados (criterio 6/7)', async () => {
+  it('devuelve undefined si el paymentId no existe en ninguna partición de estado (criterio 6)', async () => {
     const client = fakeClient(async () => ({ Items: [] }));
 
-    const result = await findPaymentByPaymentId(client, 'payment-inexistente');
+    const payment = await findPaymentById(client, 'payment-inexistente');
 
-    expect(result).toBeUndefined();
-    expect(client.send).toHaveBeenCalledTimes(3);
+    expect(payment).toBeUndefined();
   });
 });

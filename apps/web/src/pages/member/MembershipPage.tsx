@@ -9,12 +9,22 @@
 //
 // Solo llegan aquí socios con `memberStatus === 'ACTIVE'` (guard
 // `RequireActiveMember`); esta pantalla no decide esa regla, solo la asume.
-// El pago (Culqi.js, formulario de tarjeta) es responsabilidad de US-022:
-// el botón de pago se deja deshabilitado a propósito (RN-PAG-08 — ningún
-// dato de tarjeta interviene en este flujo, criterio de aceptación 8).
+// El pago (Culqi.js, formulario de tarjeta) es responsabilidad de US-022
+// (`CheckoutPage`, ruta `/socio/membresia/pagar?plan=<tipo>`): esta pantalla
+// solo enlaza al plan elegido, sin tocar ningún dato de tarjeta (RN-PAG-08).
 
 import type { UseQueryResult } from '@tanstack/react-query';
-import { Badge, Button, Card, CardHeader, ErrorState, PageHeader, Spinner } from '@activa-club/ui';
+import { Link } from 'react-router-dom';
+import {
+  Badge,
+  buttonVariants,
+  Button,
+  Card,
+  CardHeader,
+  ErrorState,
+  PageHeader,
+  Spinner,
+} from '@activa-club/ui';
 import type { Member, MembershipPlan } from '@activa-club/shared-types';
 import { ApiRequestError } from '../../lib/api/http-client';
 import { useMemberProfileQuery } from '../../members/profile-query';
@@ -175,11 +185,12 @@ function PlanCard({ plan }: PlanCardProps) {
         )
       ) : null}
 
-      {/* TODO(US-022): habilitar el pago del plan con Culqi.js. Ningún dato de
-          tarjeta interviene en esta pantalla (criterio de aceptación 8). */}
-      <Button type="button" fullWidth disabled title="Disponible próximamente">
+      <Link
+        to={`/socio/membresia/pagar?plan=${plan.type}`}
+        className={buttonVariants({ fullWidth: true })}
+      >
         Pagar este plan
-      </Button>
+      </Link>
     </Card>
   );
 }

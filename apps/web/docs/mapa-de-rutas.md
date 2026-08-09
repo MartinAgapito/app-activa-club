@@ -90,9 +90,10 @@ Sprint 1 esto se resuelve como una sub-vista dentro del flujo de creación de
 
 ### 4.1 Estado transicional: solicitud pendiente
 
-| Ruta                           | Página                | Notas                                                                                                                                                                                                                                              |
-| ------------------------------ | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/cuenta/pendiente-aprobacion` | Solicitud en revisión | RN-ACT-06/07. Un socio nuevo (`origin=NEW`) puede autenticarse (Cognito lo crea en el grupo `member` desde el registro) pero su `memberStatus` es `PENDING`/`APPROVED` sin pagar. Debe ver esta pantalla en vez del dashboard, sin poder reservar. |
+| Ruta                           | Página                    | Notas                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/cuenta/pendiente-aprobacion` | Solicitud en revisión     | RN-ACT-06/07. Un socio nuevo (`origin=NEW`) puede autenticarse (Cognito lo crea en el grupo `member` desde el registro) pero su `memberStatus` es `PENDING`/`APPROVED` sin pagar. Debe ver esta pantalla en vez del dashboard, sin poder reservar.                                                                                                                                                                                                          |
+| `/socio/membresia/pagar`       | Checkout de pago (US-022) | `GET /memberships/plans`, `POST /payments`. Vive en este mismo grupo (guard `RequireRole allow={['member']}`, fuera de `RequireActiveMember`) para que un socio `APPROVED` pueda pagar su primera membresía sin poder entrar todavía a `/socio/*`. Acepta `?plan=<MembershipType>` opcional (llega preseleccionado desde `/socio/membresia`); sin ese parámetro, primero lista los planes para elegir uno (igual que desde `/cuenta/pendiente-aprobacion`). |
 
 La ruta existe con el guard de rol `member` (`RequireRole`) y, dentro de él,
 un segundo guard `RequireActiveMember`
@@ -158,6 +159,7 @@ vía `canReserve` en `GET /dashboard/member`.
 /verificar-correo              público   Verificación de correo
 
 /cuenta/pendiente-aprobacion   member    Estado de espera (RN-ACT-06/07)
+/socio/membresia/pagar         member    Checkout de pago (US-022)
 
 /socio                         member    Home / dashboard
 /socio/membresia               member    Estado de membresía
