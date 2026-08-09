@@ -20,7 +20,7 @@ Como **socio**, quiero **elegir instalación, día, horario y acompañantes en u
 
 ## Contrato de API
 
-Consume `GET /resources`, `GET /resources/{resourceId}/availability?date=` y `POST /reservations` (`docs/api/contratos-api.md` §6 y §7). Los mensajes de error se derivan del `error.code` del contrato (§1.1 y §1.3).
+Consume `GET /resources`, `GET /resources/{resourceId}/availability?date=`, `GET /members/lookup?dni=`, `GET /guests/lookup?dni=` y `POST /reservations` (`docs/api/contratos-api.md` §4, §6 y §7). Los mensajes de error se derivan del `error.code` del contrato (§1.1 y §1.3).
 
 ## Reglas de negocio
 
@@ -43,9 +43,11 @@ Es la pantalla por la que el socio percibe el valor de todo lo construido en los
 ## Criterios de aceptación
 
 1. El socio puede ver las instalaciones del club agrupadas o identificadas por tipo (fútbol, tenis, pádel, piscina, parrillas, salón social) con su aforo y duración de reserva, tomados de `GET /resources`.
-2. Al elegir una instalación y una fecha, el socio ve las franjas del día con su estado disponible/ocupado, y puede cambiar de fecha sin perder la instalación seleccionada.
-3. Solo se pueden seleccionar franjas disponibles; las ocupadas se muestran deshabilitadas y no clicables.
-4. El socio puede agregar participantes: otros socios y/o invitados externos con su DNI y nombre, y quitarlos antes de confirmar.
+2. Al elegir una instalación y una fecha, el socio ve las franjas del día distinguiendo libre, ocupada por otra reserva y **en mantenimiento** (campo `status` de cada franja, US-029), y puede cambiar de fecha sin perder la instalación seleccionada.
+3. Solo se pueden seleccionar franjas con `available=true`; las demás se muestran deshabilitadas y no clicables, con el motivo visible (ocupada, en mantenimiento, ya pasada).
+4. El socio agrega participantes **buscando por DNI**, y puede quitarlos antes de confirmar:
+   - **Otro socio**: busca con `GET /members/lookup?dni=`, ve el nombre devuelto para confirmar a quién agrega y la interfaz usa el `memberId` recibido (el socio nunca escribe un identificador interno). Si el DNI no resuelve (404 `DNI_NOT_FOUND`), se le indica que esa persona no figura como socio y puede agregarla como invitado externo.
+   - **Invitado externo**: busca con `GET /guests/lookup?dni=`; si existe, se precarga su nombre y apellido; si devuelve 404, la interfaz pide nombre y apellido y los envía en `POST /reservations` (el alta es implícita, US-031). Si el invitado ya existía, la interfaz no permite renombrarlo: muestra el nombre registrado.
 5. La interfaz impide superar el aforo del recurso al agregar participantes y explica el límite (por ejemplo, "piscina: titular más 4 invitados").
 6. La interfaz informa antes de confirmar si la instalación elegida **requiere aprobación administrativa** (parrillas y salón social), para que el socio no espere una confirmación inmediata.
 7. Al confirmar, la interfaz muestra el resultado real del servidor: `CONFIRMED` con mensaje de reserva confirmada, o `PENDING_APPROVAL` con mensaje de solicitud enviada a revisión.
@@ -61,7 +63,8 @@ Es la pantalla por la que el socio percibe el valor de todo lo construido en los
 
 - **Socio con deuda que llega por enlace directo al flujo de reserva**: ve el aviso de bloqueo y el acceso al pago; si igualmente confirma, el servidor responde `MEMBER_HAS_DEBT` y la interfaz lo muestra sin ambigüedad.
 - **Franja tomada mientras el socio completaba participantes**: mensaje específico de franja ya ocupada más refresco de disponibilidad.
-- **Invitado que agotó sus visitas del mes**: el mensaje identifica al invitado afectado, no un error genérico.
+- **Invitado que agotó sus visitas del mes**: el mensaje identifica al invitado afectado, no un error genérico. La interfaz no puede anticiparlo: el cupo restante de un invitado no se expone por API (privacidad, US-031), así que el aviso llega del servidor al confirmar.
+- **DNI buscado que no existe ni como socio ni como invitado**: no es un error; la interfaz ofrece darlo de alta como invitado externo pidiendo nombre y apellido.
 - **Sesión expirada al confirmar**: la interfaz lleva al login y, tras autenticarse, devuelve al socio al flujo de reserva.
 - **Fallo de red sin respuesta del servidor**: la interfaz ofrece reintentar y advierte que la reserva podría haberse creado; el socio puede verificarlo en su lista de reservas (US-033).
 

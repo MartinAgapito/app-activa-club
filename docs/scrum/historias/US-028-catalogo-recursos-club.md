@@ -26,22 +26,45 @@ Como **socio**, quiero **ver las instalaciones del club con su aforo, duración 
 
 RN-RES (tabla de recursos mock y horarios mock), RN-RES-02 (parrillas y salón social requieren aprobación), RN-RES-09 (aforo), RN-RES-11 (estado de mantenimiento), RN-ADM-04 (el administrador gestiona recursos, aforo y horarios). Modelo de datos: [§3.7 `Resource`](../../data/modelo-dynamodb.md).
 
-## Catálogo mock a cargar (RN-RES)
+## Catálogo a cargar (RN-RES) — definición exacta
 
-| `resourceId`   | `type`         | `capacity` | `blockMinutes` | `opensAt` | `closesAt` | `requiresApproval` |
-| -------------- | -------------- | ---------- | -------------- | --------- | ---------- | ------------------ |
-| `futbol-1`     | `FUTBOL`       | 14         | 90             | 06:00     | 22:00      | false              |
-| `futbol-2`     | `FUTBOL`       | 14         | 90             | 06:00     | 22:00      | false              |
-| `tenis-1`      | `TENIS`        | 4          | 60             | 06:00     | 22:00      | false              |
-| `tenis-2`      | `TENIS`        | 4          | 60             | 06:00     | 22:00      | false              |
-| `padel-1`      | `PADEL`        | 4          | 90             | 06:00     | 22:00      | false              |
-| `padel-2`      | `PADEL`        | 4          | 90             | 06:00     | 22:00      | false              |
-| `piscina-1`    | `PISCINA`      | 5          | 120            | 08:00     | 20:00      | false              |
-| `parrilla-1`   | `PARRILLA`     | 12         | 300            | 10:00     | 22:00      | true               |
-| `parrilla-2`   | `PARRILLA`     | 12         | 300            | 10:00     | 22:00      | true               |
-| `salon-social` | `SALON_SOCIAL` | 30         | 240            | 10:00     | 22:00      | true               |
+Estos son los diez recursos, con los valores exactos que deben quedar cargados. `name` es el rótulo que ve el socio en la interfaz.
 
-Los horarios son **hora local del club** (`America/Lima`). El aforo de la piscina (5) corresponde a "titular + hasta 4 invitados" del Contexto Maestro. Todos los recursos se cargan con `resourceStatus=AVAILABLE`.
+| `resourceId`   | `type`         | `name`              | `capacity` | `blockMinutes` | `opensAt` | `closesAt` | `requiresApproval` | `resourceStatus` |
+| -------------- | -------------- | ------------------- | ---------- | -------------- | --------- | ---------- | ------------------ | ---------------- |
+| `futbol-1`     | `FUTBOL`       | Cancha de fútbol 1  | 14         | 90             | 06:00     | 22:00      | false              | `AVAILABLE`      |
+| `futbol-2`     | `FUTBOL`       | Cancha de fútbol 2  | 14         | 90             | 06:00     | 22:00      | false              | `AVAILABLE`      |
+| `tenis-1`      | `TENIS`        | Cancha de tenis 1   | 4          | 60             | 06:00     | 22:00      | false              | `AVAILABLE`      |
+| `tenis-2`      | `TENIS`        | Cancha de tenis 2   | 4          | 60             | 06:00     | 22:00      | false              | `AVAILABLE`      |
+| `padel-1`      | `PADEL`        | Cancha de pádel 1   | 4          | 90             | 06:00     | 22:00      | false              | `AVAILABLE`      |
+| `padel-2`      | `PADEL`        | Cancha de pádel 2   | 4          | 90             | 06:00     | 22:00      | false              | `AVAILABLE`      |
+| `piscina-1`    | `PISCINA`      | Piscina             | 5          | 120            | 08:00     | 20:00      | false              | `AVAILABLE`      |
+| `parrilla-1`   | `PARRILLA`     | Zona de parrillas 1 | 12         | 300            | 10:00     | 22:00      | true               | `AVAILABLE`      |
+| `parrilla-2`   | `PARRILLA`     | Zona de parrillas 2 | 12         | 300            | 10:00     | 22:00      | true               | `AVAILABLE`      |
+| `salon-social` | `SALON_SOCIAL` | Salón social        | 30         | 240            | 10:00     | 22:00      | true               | `AVAILABLE`      |
+
+Origen de los valores: cantidad de instalaciones, duración de bloque, capacidad y tipo de confirmación salen de la tabla de recursos mock de `docs/product/reglas-de-negocio.md` §Módulo 4 y del Contexto Maestro; los horarios, de la tabla de horarios mock del mismo documento. El aforo de la piscina (5) corresponde a "titular + hasta 4 invitados". Los `name` son los únicos valores propuestos aquí (el negocio nunca los especificó) y son cosméticos: cambiarlos no afecta ninguna regla.
+
+Los horarios son **hora local del club** (`America/Lima`). Todos los recursos se cargan con `resourceStatus=AVAILABLE`.
+
+## Mecanismo de carga: ítems estáticos de Terraform (decisión cerrada)
+
+El catálogo se gestiona como **datos de infraestructura**: un `aws_dynamodb_table_item` por recurso, definido una sola vez (módulo o `locals` compartido con `for_each`) e instanciado desde `environments/dev` y `environments/prd`, versionado y revisado en PR como el resto de la infraestructura. No hay endpoint de alta, ni Lambda de _seed_, ni script manual. Justificación y alternativas descartadas: [ADR-0010](../../architecture/adr/ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md).
+
+### Quién manda sobre cada campo
+
+| Campos                                                           | Fuente de verdad  | Cómo se cambian                          |
+| ---------------------------------------------------------------- | ----------------- | ---------------------------------------- |
+| `resourceId`, `type`, `name`, `blockMinutes`, `requiresApproval` | Terraform         | PR + `apply` (con reemplazo del ítem)    |
+| `capacity`, `opensAt`, `closesAt`, `resourceStatus`              | Runtime (`admin`) | `PATCH /resources/{resourceId}` (US-036) |
+
+Cada ítem lleva `lifecycle { ignore_changes = [item] }`: Terraform lo **crea si falta** y **nunca lo sobrescribe**, así que un `apply` posterior no revierte el aforo, el horario ni el estado que haya editado el administrador. Si alguien borra el ítem de la tabla, el siguiente `plan` lo detecta ausente y lo recrea con sus valores originales.
+
+Cambiar un campo de los que manda Terraform en un recurso ya desplegado exige forzar el reemplazo del ítem (`terraform apply -replace='...aws_dynamodb_table_item.resource["futbol-1"]'`), lo que **también restablece los campos de runtime de ese recurso**. Es deliberado: `blockMinutes` y `requiresApproval` son reglas de negocio (RN-RES-01/02), no ajustes operativos, y deben pasar por revisión.
+
+## Nota para DevOps (bloqueante, antes de mergear)
+
+El rol de despliegue de CI **hoy no puede escribir ítems** en la tabla de la aplicación: `infrastructure/terraform/bootstrap` solo le concede `GetItem`/`PutItem`/`DeleteItem` sobre la tabla de _locks_ de Terraform y operaciones de nivel tabla sobre `activa-club-dev`. Sin agregar `dynamodb:PutItem`, `dynamodb:GetItem` y `dynamodb:DeleteItem` sobre `activa-club-<env>` al rol de deploy —y `dynamodb:GetItem` al rol de solo lectura que corre el `plan`, que necesita leer el ítem para refrescar el estado— el pipeline falla con `AccessDenied`. `bootstrap` se aplica con credenciales elevadas **antes** de mergear el PR de esta historia, según el procedimiento de `docs/deployment/despliegue-dev.md` (ya pasó en los Sprints 1 y 2).
 
 ## Valor de negocio
 
@@ -59,8 +82,8 @@ Es el dato maestro sobre el que se apoyan la disponibilidad, el cálculo de afor
 
 ## Criterios de aceptación
 
-1. Existe un mecanismo **versionado y repetible** de carga inicial del catálogo que crea los diez recursos de la tabla anterior con su `type`, `name`, `capacity`, `blockMinutes`, `opensAt`, `closesAt`, `requiresApproval` y `resourceStatus=AVAILABLE`.
-2. La carga inicial es **idempotente**: ejecutarla dos veces no duplica recursos ni pisa cambios que el administrador haya hecho después sobre aforo, horario o estado (US-036).
+1. Los diez recursos de la tabla anterior existen en DynamoDB creados por **Terraform** (`aws_dynamodb_table_item`, uno por recurso), con su `type`, `name`, `capacity`, `blockMinutes`, `opensAt`, `closesAt`, `requiresApproval` y `resourceStatus=AVAILABLE`, definidos una sola vez y aplicables tanto en `dev` como en `prd`.
+2. La carga es **idempotente**: un segundo `apply` no duplica recursos ni pisa cambios que el administrador haya hecho después sobre aforo, horario o estado (US-036), gracias a `ignore_changes = [item]`.
 3. `GET /resources` con token de rol `member` devuelve el catálogo completo con todos los campos del tipo `Resource`.
 4. `GET /resources` con token de rol `admin` devuelve la misma información (el contrato lo autoriza para ambos roles).
 5. `requiresApproval` es `true` únicamente para los recursos de tipo `PARRILLA` y `SALON_SOCIAL` (RN-RES-02); para el resto es `false` (RN-RES-01).
@@ -72,16 +95,17 @@ Es el dato maestro sobre el que se apoyan la disponibilidad, el cálculo de afor
 
 ## Casos alternativos / excepciones
 
-- **Catálogo vacío** (carga inicial no ejecutada en un ambiente nuevo): `GET /resources` devuelve una lista vacía sin error, y la interfaz muestra su estado vacío. Se documenta la carga inicial como paso obligatorio del despliegue de un ambiente.
-- **Recurso editado por el administrador**: el catálogo devuelve los valores vigentes en la base, no los del seed original.
-- **Recurso agregado a futuro**: el modelo usa un slug legible fijo por recurso; agregar un recurso nuevo es una carga de datos, no un cambio de contrato.
+- **Catálogo vacío** (ambiente nuevo cuyo `apply` todavía no corrió): `GET /resources` devuelve una lista vacía sin error, y la interfaz muestra su estado vacío. El catálogo forma parte del `apply` del ambiente, no de un paso manual aparte.
+- **Recurso editado por el administrador**: el catálogo devuelve los valores vigentes en la base, no los del seed original, y el siguiente `apply` no los revierte.
+- **Ítem borrado a mano de la tabla**: el siguiente `plan` lo detecta ausente y lo recrea con los valores del catálogo (se pierden las ediciones de runtime de ese recurso, no las de los demás).
+- **Recurso agregado o retirado a futuro**: es un PR de infraestructura (agregar/quitar su `aws_dynamodb_table_item`), no un cambio de contrato ni un despliegue de código. El modelo usa un slug legible fijo por recurso.
 
 ## Sugerencia de pruebas funcionales
 
 - R-27: `GET /resources` devuelve los diez recursos mock con aforo, duración de bloque, horario y `requiresApproval` coherentes con RN-RES.
-- Ejecutar dos veces la carga inicial → sigue habiendo diez recursos (idempotencia).
+- Ejecutar `apply` dos veces → sigue habiendo diez recursos y el segundo `plan` no propone cambios (idempotencia).
+- Editar el aforo de un recurso con `PATCH /resources/{id}` (US-036), volver a correr `apply` y consultar `GET /resources` → el aforo editado **sigue vigente** (Terraform no lo revierte).
 - Llamada sin token → 401.
-- Editar el aforo de un recurso (US-036) y volver a consultar → el catálogo refleja el valor nuevo.
 
 ## Trazabilidad
 
@@ -91,6 +115,8 @@ Es el dato maestro sobre el que se apoyan la disponibilidad, el cálculo de afor
 - Depende de: US-027.
 - Habilita: US-029, US-030, US-035, US-036.
 
-## Nota para el Sprint Planning (decisión pendiente 2 de EP-04)
+## Decisión de carga del catálogo (decisión 2 de EP-04, cerrada)
 
-El contrato de API **no define un endpoint de creación de recursos** (solo `PATCH /resources/{resourceId}`) y la migración on-premise solo trae socios (RN-MIG-03), así que el mecanismo de carga inicial debe decidirse antes de implementar: script de carga versionado ejecutado en el despliegue del ambiente, o ítems gestionados como datos de infraestructura. La decisión es técnica (Arquitecto/DevOps); lo que esta historia exige funcionalmente es que el catálogo **exista, sea idempotente y no se pierda al redesplegar**. No se debe agregar un endpoint público de creación de recursos: no está en el contrato ni en la matriz de alcance.
+Resuelta antes del Sprint Planning: el catálogo se carga como **ítems estáticos de Terraform**, según [ADR-0010](../../architecture/adr/ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md) y el detalle de las secciones anteriores de esta historia. Se descartaron la Lambda de _seed_, el script manual, extender la migración de socios (RN-MIG-03 migra socios, no instalaciones) y agregar un endpoint de alta de recursos: ese endpoint no existe en el contrato ni en la matriz de alcance y no debe crearse.
+
+Sigue vigente lo que la historia exige funcionalmente: el catálogo **existe, es idempotente y no se pierde al redesplegar**, y el aforo y el horario se editan sin desplegar (RN-ADM-04).

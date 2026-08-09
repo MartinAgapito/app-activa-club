@@ -20,7 +20,7 @@ Como **socio activo y al día**, quiero **reservar una instalación en una franj
 
 ## Contrato de API
 
-`POST /reservations` (member), según `docs/api/contratos-api.md` §7. Request: `resourceId`, `startsAt`, `participants[]`, `notes` (opcional). Response 201 con `reservationId`, `resourceId`, `reservationStatus`, `startsAt`, `endsAt`, `participantCount`, `guestCount`. Esquema ya versionado: `createReservationSchema` en `packages/validation`.
+`POST /reservations` (member), según `docs/api/contratos-api.md` §7. Request: `resourceId`, `startsAt`, `participants[]`, `notes` (opcional). Response 201 con `reservationId`, `resourceId`, `reservationStatus`, `startsAt`, `endsAt`, `participantCount`, `guestCount`. Esquema versionado: `createReservationSchema` en `packages/validation`. La forma de `participants[]` y el alta implícita de invitados externos son alcance de US-031.
 
 ## Reglas de negocio
 
@@ -60,7 +60,7 @@ Es el corazón de EP-04 y el punto donde el sistema demuestra que las reglas se 
 6. Una reserva fuera del horario del recurso (antes de `opensAt` o que termina después de `closesAt`, en hora local del club) devuelve 422 `OUTSIDE_SCHEDULE`.
 7. Una reserva que se cruza con otra reserva activa del mismo recurso devuelve 409 `RESERVATION_OVERLAP` y no crea nada (RN-RES-07).
 8. Una reserva cuyo total de participantes supera el `capacity` del recurso devuelve 422 `CAPACITY_EXCEEDED` (RN-RES-09).
-9. Una reserva que se solapa con un bloqueo de mantenimiento, o sobre un recurso con `resourceStatus=MAINTENANCE`, devuelve 409 `RESOURCE_IN_MAINTENANCE` (RN-RES-11).
+9. Una reserva que se solapa con un bloqueo de mantenimiento, o sobre un recurso con `resourceStatus=MAINTENANCE`, devuelve 409 `RESOURCE_IN_MAINTENANCE` (RN-RES-11). Aplica **aunque la franja no tenga ninguna otra reserva** y aunque existan reservas anteriores en esa misma franja (que no se cancelan solas, US-035): mientras el bloqueo esté vigente no se crea ninguna reserva nueva sobre él.
 10. Un socio cuyo `memberStatus` no es `ACTIVE` (`MIGRATED`, `PENDING`, `APPROVED`, `REJECTED`) recibe 422 `MEMBERSHIP_REQUIRED` y no crea reserva (RN-RES-12; cierra A-11 y A-15).
 11. Un socio `ACTIVE` cuyo `membershipStatus` es `DEBT` o `EXPIRED`, o cuyo `outstandingBalance` es mayor que cero, recibe 422 `MEMBER_HAS_DEBT` y no crea reserva (RN-PAG-06, RN-RES-12; cierra P-10).
 12. Un `resourceId` inexistente devuelve 404 `NOT_FOUND`; un cuerpo que no cumple el esquema devuelve 400 `VALIDATION_ERROR`.
@@ -76,7 +76,7 @@ Es el corazón de EP-04 y el punto donde el sistema demuestra que las reglas se 
 - **Reserva sin participantes adicionales**: es válida; el titular solo se reserva para sí mismo y `participantCount=1`, `guestCount=0`.
 - **Reserva en el pasado o para el mismo instante**: se rechaza como 422 `OUTSIDE_SCHEDULE` (una franja ya iniciada no es reservable).
 - **Reserva que cruza el cierre del recurso** (por ejemplo, parrilla de 5 horas iniciada a las 20:00 con cierre a las 22:00): se rechaza con `OUTSIDE_SCHEDULE`.
-- **Recurso puesto en mantenimiento entre la consulta y la confirmación**: 409 `RESOURCE_IN_MAINTENANCE`.
+- **Recurso puesto en mantenimiento entre la consulta y la confirmación**: 409 `RESOURCE_IN_MAINTENANCE`; la interfaz refresca la disponibilidad, donde la franja aparece ahora con `status=MAINTENANCE` (US-029) y no como "ocupada".
 
 ## Sugerencia de pruebas funcionales
 
