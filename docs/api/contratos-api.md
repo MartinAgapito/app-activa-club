@@ -271,6 +271,52 @@ Estados posibles de `paymentStatus`: `SUCCEEDED`, `PENDING_CONFIRMATION`,
 Errores: 402/422 `PAYMENT_FAILED`; 409 `PAYMENT_DUPLICATE` (misma
 `idempotencyKey`, devuelve el resultado previo); 400 `VALIDATION_ERROR`.
 
+### GET /payments?memberId=&status=&cursor=&limit= (US-025)
+
+- `member`: siempre su propio historial, más reciente primero; el `memberId`
+  de la query se ignora por completo (el backend lo resuelve desde el JWT,
+  nunca desde el input del cliente — criterio 4). Admite `status` como filtro
+  adicional sobre su propio historial.
+- `admin`: filtra por `memberId` y/o `status`; requiere al menos uno de los
+  dos (mismo criterio ya aplicado en `GET /members`: el modelo de `Payment`
+  solo define patrones de acceso por socio o por estado, nunca "todos los
+  pagos sin filtro", para evitar un `Scan` completo de la tabla) — sin
+  ninguno de los dos, 400 `VALIDATION_ERROR`.
+
+Response 200:
+
+```json
+{
+  "items": [
+    {
+      "paymentId": "01J...",
+      "memberId": "01J...",
+      "membershipType": "ANNUAL",
+      "amount": 120000,
+      "currency": "PEN",
+      "paymentStatus": "SUCCEEDED",
+      "culqiChargeId": "chr_test_...",
+      "createdAt": "2026-07-09T05:00:00Z",
+      "confirmedAt": "2026-07-09T05:00:05Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+Nunca incluye `idempotencyKey` ni `failureReason` (campos internos de
+orquestación); el único identificador externo es `culqiChargeId`
+(criterio 7, RN-PAG-08).
+
+### GET /payments/{paymentId} (US-025)
+
+- `member`: solo el detalle de un pago propio; uno ajeno o inexistente
+  responde 404 `NOT_FOUND` (se eligió 404 antes que 403 para no confirmar a
+  un socio la existencia de un `paymentId` ajeno).
+- `admin`: el detalle de cualquier pago; inexistente → 404 `NOT_FOUND`.
+
+Response 200: mismo shape que un elemento de `items` en `GET /payments`.
+
 ### POST /payments/webhook
 
 - Ruta **pública** sin Cognito, pero con **verificación de firma** de Culqi
