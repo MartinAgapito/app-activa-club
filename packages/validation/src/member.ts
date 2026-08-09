@@ -59,6 +59,14 @@ export const rejectMemberSchema = z.object({
   reason: z.string().trim().min(3).max(280),
 });
 
+/**
+ * Query de `GET /members/lookup?dni=` (RN-RES-03, ADR-0009): coincidencia
+ * exacta de DNI, sin búsqueda parcial, sin filtros y sin paginación.
+ */
+export const memberLookupQuerySchema = z.object({
+  dni: dniSchema,
+});
+
 export const listMembersQuerySchema = z.object({
   status: memberStatusSchema.optional(),
   cursor: z.string().optional(),

@@ -45,8 +45,8 @@ El club cambia: una cancha reduce su aforo por obras, la piscina extiende su hor
 3. Un `resourceId` inexistente devuelve 404 `NOT_FOUND`.
 4. Tras cambiar el horario de un recurso, `GET /resources/{id}/availability` genera las franjas con el horario nuevo (RN-ADM-04).
 5. Tras reducir el aforo, una reserva nueva que supere el aforo nuevo se rechaza con 422 `CAPACITY_EXCEEDED`; las reservas ya creadas **no** se invalidan retroactivamente, y ese comportamiento queda documentado en la interfaz.
-6. Poner `resourceStatus=MAINTENANCE` deja el recurso no reservable por tiempo indefinido: su disponibilidad se devuelve completa en `false` y toda reserva nueva se rechaza con `RESOURCE_IN_MAINTENANCE`; volver a `AVAILABLE` lo rehabilita (RN-RES-11).
-7. `blockMinutes`, `type` y `requiresApproval` **no** son editables por este endpoint: son parte de la definición del recurso según RN-RES y modificarlos alteraría reglas de negocio acordadas.
+6. Poner `resourceStatus=MAINTENANCE` deja el recurso no reservable por tiempo indefinido: su disponibilidad devuelve `resourceStatus=MAINTENANCE` y todas las franjas con `available=false` y `status=MAINTENANCE`, y toda reserva nueva se rechaza con `RESOURCE_IN_MAINTENANCE`; volver a `AVAILABLE` lo rehabilita (RN-RES-11).
+7. `blockMinutes`, `type`, `name` y `requiresApproval` **no** son editables por este endpoint: son parte de la definición del recurso según RN-RES, su fuente de verdad es Terraform ([ADR-0010](../../architecture/adr/ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md)) y modificarlos alteraría reglas de negocio acordadas. Los cuatro campos que sí edita el administrador (`capacity`, `opensAt`, `closesAt`, `resourceStatus`) son los que Terraform solo inicializa y nunca revierte: un `apply` posterior no pisa el cambio.
 8. `GET /reservations?scope=all` devuelve las reservas de todos los socios, paginadas, con filtros combinables por `status`, `resourceId` y rango `from`/`to`, e incluye el socio titular de cada reserva.
 9. Un usuario con rol `member` que llama a `PATCH /resources/{resourceId}` o a `GET /reservations?scope=all` recibe 403 `FORBIDDEN`; si un `member` envía `scope=all`, se le responde 403 o se le restringe a sus propias reservas, nunca se le devuelven reservas ajenas.
 10. Un administrador puede cancelar cualquier reserva **sin** la restricción de 24 horas (RN-RES-10), y esa cancelación libera la franja y devuelve el cupo mensual de los invitados externos igual que la cancelación del socio (US-033).
@@ -59,6 +59,7 @@ El club cambia: una cancha reduce su aforo por obras, la piscina extiende su hor
 - **Cambio de horario que deja reservas existentes fuera del nuevo rango**: las reservas vigentes se respetan; el administrador puede cancelarlas si corresponde.
 - **Cancelación administrativa de una reserva `PENDING_APPROVAL`**: es válida y equivale a cerrarla sin decisión; para dejar constancia del motivo, lo correcto es rechazarla con motivo (US-034).
 - **Filtro `from`/`to` invertido o muy amplio**: se valida el rango y se pagina; nunca se devuelve la tabla completa sin paginación.
+- **Alta o baja de una instalación**: no se hace desde esta pantalla ni desde ningún endpoint. Agregar o quitar un recurso es un PR de infraestructura (ADR-0010, US-028); la consola administrativa solo ajusta aforo, horario y estado.
 
 ## Sugerencia de pruebas funcionales
 

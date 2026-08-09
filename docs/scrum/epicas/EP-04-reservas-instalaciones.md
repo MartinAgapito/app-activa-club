@@ -13,7 +13,9 @@
 
 Entregar el tercer bloque funcional de negocio de Activa Club: permitir que un **socio activo y al día** reserve las instalaciones del club (fútbol, tenis, pádel, piscina, parrillas y salón social), agregue a otros socios e invitados externos como participantes, consulte y cancele sus reservas, y que el administrador apruebe o rechace las reservas que lo requieren, gestione el aforo y el horario de los recursos y los bloquee temporalmente por mantenimiento.
 
-La épica implementa las doce reglas del módulo RN-RES sobre el modelo de datos ya decidido (`Resource`, `Reservation`, `ReservationParticipant`, `GuestMonthlyCounter`, `MaintenanceBlock`, ver [modelo de datos §3.7–3.11](../../data/modelo-dynamodb.md)) y sobre los contratos ya definidos en [`docs/api/contratos-api.md`](../../api/contratos-api.md) §6 y §7 desde el Sprint 0. **No se define ningún endpoint nuevo ni ninguna entidad nueva.**
+La épica implementa las doce reglas del módulo RN-RES sobre el modelo de datos ya decidido (`Resource`, `Reservation`, `ReservationParticipant`, `GuestMonthlyCounter`, `MaintenanceBlock`, ver [modelo de datos §3.7–3.11](../../data/modelo-dynamodb.md)) y sobre los contratos definidos en [`docs/api/contratos-api.md`](../../api/contratos-api.md) §6 y §7 desde el Sprint 0.
+
+Al cerrar las decisiones funcionales pendientes (ver más abajo) se agregaron **dos endpoints de lectura** para resolver participantes por DNI (`GET /members/lookup`, `GET /guests/lookup`) y **una entidad**, `GuestProfile` ([modelo §3.15](../../data/modelo-dynamodb.md)), sin la cual RN-RES-03/04 no era implementable desde la interfaz. Fuera de eso, la épica no introduce contratos ni entidades nuevas.
 
 ## Valor de negocio
 
@@ -23,12 +25,12 @@ EP-04 también es donde el sistema demuestra que **las reglas de negocio se cump
 
 ## Objetivos de la épica
 
-- Infraestructura de los once endpoints serverless de recursos y reservas provisionada en Terraform, con la autorización por rol del contrato.
-- **Catálogo de recursos** del club disponible y consultable, con el aforo, la duración de bloque, el horario y la exigencia de aprobación de cada instalación según RN-RES.
+- Infraestructura de los trece endpoints serverless de recursos, reservas y resolución de participantes provisionada en Terraform, con la autorización por rol del contrato.
+- **Catálogo de recursos** del club disponible y consultable, con el aforo, la duración de bloque, el horario y la exigencia de aprobación de cada instalación según RN-RES, cargado como dato de infraestructura versionado en Terraform ([ADR-0010](../../architecture/adr/ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md)).
 - **Disponibilidad por recurso y día**, que considera reservas activas y bloqueos de mantenimiento (RN-RES-01/07/11).
 - **Creación de reserva con validación completa en el servidor**: elegibilidad del socio (RN-RES-12 / RN-PAG-06), horario y duración de bloque, cruces por recurso (RN-RES-07), aforo (RN-RES-09) y mantenimiento (RN-RES-11).
 - **Confirmación automática** para fútbol, tenis, pádel y piscina; **aprobación administrativa** para parrillas y salón social (RN-RES-01/02).
-- **Participantes**: otros socios e invitados externos en cualquier espacio, sin superposición de un mismo sujeto (RN-RES-03/04/08) y con el tope de **dos visitas al mes por invitado externo** (RN-RES-05).
+- **Participantes**: otros socios e invitados externos en cualquier espacio, identificados **por DNI** con exposición mínima de datos ([ADR-0009](../../architecture/adr/ADR-0009-identificacion-participantes-por-dni.md)), sin superposición de un mismo sujeto (RN-RES-03/04/08) y con el tope de **dos visitas al mes por invitado externo** (RN-RES-05).
 - **Responsabilidad del titular** registrada explícitamente sobre la reserva y sus participantes (RN-RES-06).
 - **Cancelación** por el socio hasta 24 horas antes del inicio, con devolución del cupo mensual de los invitados (RN-RES-10 + RN-RES-05); el administrador puede cancelar sin esa restricción.
 - **Mantenimiento y gestión de recursos** por el administrador: bloqueo temporal de franjas, liberación del bloqueo y edición de aforo, horario y estado (RN-RES-11, RN-ADM-04).
@@ -60,7 +62,7 @@ EP-04 también es donde el sistema demuestra que **las reglas de negocio se cump
 - El socio titular queda registrado como `HOLDER` responsable de la reserva y de sus participantes (RN-RES-06).
 - Un socio puede cancelar su reserva hasta 24 horas antes del inicio; después recibe `CANCELLATION_TOO_LATE`. El administrador puede cancelar sin esa restricción (RN-RES-10).
 - La cancelación y el rechazo administrativo liberan la franja y devuelven el cupo mensual consumido por los invitados externos de esa reserva (RN-RES-05).
-- El administrador puede bloquear un recurso por mantenimiento y liberarlo; mientras el bloqueo existe, la franja no aparece disponible ni admite reservas nuevas (RN-RES-11).
+- El administrador puede bloquear un recurso por mantenimiento y liberarlo; mientras el bloqueo existe, la franja no admite reservas nuevas y se muestra explícitamente **en mantenimiento** (no como una franja ocupada cualquiera) en la disponibilidad; las reservas ya existentes en esa franja no se cancelan solas (RN-RES-11).
 - El administrador puede editar aforo, horario y estado de un recurso y el cambio se refleja en la disponibilidad (RN-ADM-04).
 - Un socio no ve ni puede operar reservas de otro socio; el administrador consulta todas con filtros por recurso, estado y rango de fechas (RN-ADM-07).
 - Los casos R-01..R-29 de `docs/testing/matriz-trazabilidad.md` §4 quedan cubiertos, salvo los que dependen explícitamente de EP-05 (ver siguiente sección).
@@ -90,14 +92,17 @@ Pertenece al MVP pero se entrega en otras épicas (no en EP-04):
 | El guard de frontend `RequireActiveMember` protege el área de socio                                                                | EP-02  | Disponible; EP-04 lo reutiliza, no lo reemplaza                                                                                  |
 | La auditoría administrativa (`AuditLog`) y el middleware `requireRole` ya existen                                                  | EP-02  | Disponible; EP-04 agrega las acciones `RESERVATION_APPROVED`, `RESERVATION_REJECTED`, `RESOURCE_UPDATED`, `RESOURCE_MAINTENANCE` |
 
-## Decisiones funcionales pendientes (a resolver en el Sprint Planning)
+## Decisiones funcionales resueltas (cerradas antes de implementar)
 
-Ninguna de estas amplía el alcance: son ambigüedades del contrato o del modelo que hay que cerrar antes de implementar, para no improvisar durante el sprint.
+Las tres decisiones que la planificación dejó abiertas están cerradas. Ninguna amplía el alcance del MVP: cierran ambigüedades del contrato y del modelo para no improvisar durante el sprint.
 
-1. **Cómo identifica el socio titular a otro socio participante.** El contrato (`POST /reservations`) y el esquema de validación ya versionado exigen `memberId` para un participante de tipo `MEMBER`, pero **ningún endpoint accesible al rol `member` permite obtener el `memberId` de otro socio** (`GET /members` es exclusivo de `admin`). Sin resolverlo, RN-RES-03 no es usable desde la interfaz. Propuesta del Product Analyst: resolver al socio participante por **DNI** reutilizando el ítem de unicidad `UNIQ#DNI#` ya existente, devolviendo únicamente el dato mínimo necesario para confirmarlo (nombre y `memberId`), y registrar la decisión en el contrato antes de implementar US-031. Requiere decisión del Arquitecto por su impacto en privacidad y en el contrato. Ver US-031.
-2. **Carga inicial del catálogo de recursos.** El modelo define la entidad `Resource` y los diez recursos mock, pero **no existe ningún endpoint de creación de recursos** en el contrato (solo `PATCH /resources/{resourceId}`) ni la migración los crea (RN-MIG-03 solo migra socios). Hay que decidir el mecanismo de carga inicial versionado y repetible. Ver US-028.
-3. **Qué ocurre con las reservas ya existentes cuando el administrador bloquea una franja por mantenimiento.** El contrato solo indica que se notifica a los socios con reserva en ese recurso. Propuesta: en el MVP el bloqueo **no cancela automáticamente** reservas existentes; el administrador decide y cancela manualmente (puede hacerlo sin la restricción de 24 h). Ver US-035.
+1. **Identificación del socio participante — resuelta** ([ADR-0009](../../architecture/adr/ADR-0009-identificacion-participantes-por-dni.md)). Se agrega `GET /members/lookup?dni=` (member, admin), de **coincidencia exacta**, que devuelve solo `memberId`, `firstName` y `lastName`; 404 `DNI_NOT_FOUND` si el DNI no existe o pertenece a un socio `PENDING`/`REJECTED`. Se descartó sobrecargar `GET /members` con un querystring `dni` y una respuesta distinta por rol: un fallo en la comprobación de rol expondría el padrón completo. Ver US-031 y contrato §4.
+2. **Carga del catálogo de recursos — resuelta** ([ADR-0010](../../architecture/adr/ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md)). El catálogo se gestiona como **ítems estáticos de Terraform** (`aws_dynamodb_table_item`, uno por recurso), versionado con el resto de la infraestructura; no hay endpoint de alta ni Lambda de _seed_. Terraform manda sobre `resourceId`, `type`, `name`, `blockMinutes` y `requiresApproval`; el administrador manda en runtime sobre `capacity`, `opensAt`, `closesAt` y `resourceStatus`, y un `apply` posterior no los revierte. Ver US-028.
+3. **Efecto del mantenimiento sobre reservas existentes — confirmada.** El bloqueo **no cancela** automáticamente las reservas ya creadas: impide reservas nuevas en toda la ventana e informa al administrador cuántas quedan afectadas (`affectedReservationCount`) para que decida. Además, la franja bloqueada se devuelve explícitamente como **`status=MAINTENANCE`** en la disponibilidad, distinta de una franja ocupada por otra reserva. Ver US-029, US-030 y US-035.
+
+Decisión adicional derivada de la primera, del mismo ADR-0009: el **invitado externo pasa a tener perfil persistente** (`GuestProfile`, modelo §3.15), resoluble con `GET /guests/lookup?dni=` y creado por _upsert_ idempotente dentro de la transacción de la reserva (gana el primer registro si dos socios escriben nombres distintos para el mismo DNI). Sin esto, cada reserva obligaba a retipear al invitado y el mismo DNI podía figurar con nombres distintos.
 
 ## Historial de cambios
 
 - 2026-08-09: Creación de la épica EP-04 y asociación de las historias del Sprint 3 (US-027..US-036).
+- 2026-08-09: Cierre de las tres decisiones funcionales pendientes (ADR-0009 y ADR-0010); alta de la entidad `GuestProfile`, de los endpoints de resolución por DNI y del estado por franja en la disponibilidad.

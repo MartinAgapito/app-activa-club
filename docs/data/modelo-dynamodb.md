@@ -152,6 +152,15 @@ mock según RN-RES (fútbol 90/14, tenis 60/4, pádel 90/4, piscina 120/5, parri
 300/12, salón 240/30). `requiresApproval = true` solo para `PARRILLA` y
 `SALON_SOCIAL` (RN-RES-02). Admin edita aforo/horario/estado (RN-ADM-04).
 
+Los diez ítems se **cargan y versionan como datos de infraestructura** (un
+`aws_dynamodb_table_item` por recurso,
+[ADR-0010](../architecture/adr/ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md));
+no hay endpoint de alta. Terraform es fuente de verdad de `resourceId`, `type`,
+`name`, `blockMinutes` y `requiresApproval`, y fija el valor **inicial** de
+`capacity`, `opensAt`, `closesAt` y `resourceStatus`, que a partir de ahí los
+edita el administrador en runtime (`PATCH /resources/{resourceId}`) sin que un
+`apply` posterior los revierta.
+
 ### 3.8 Reserva (cabecera) — **Reservation**
 
 | Campo           | Valor                                                                                                          |
@@ -209,6 +218,12 @@ Atributos: `guestDni`, `month`, `visitCount`, `reservationIds` (lista),
 **máximo de 2 visitas/mes por invitado externo** (RN-RES-05). El mes se calcula
 en zona `America/Lima`. Al cancelar una reserva, se decrementa.
 
+Este ítem **solo cuenta visitas**: el nombre reutilizable del invitado vive en
+un ítem hermano de la misma partición, `GuestProfile` (§3.15). Ninguno de los
+dos se expone tal cual por la API: el contador nunca sale del servidor
+(revelaría la actividad del invitado con otros socios) y del perfil solo se
+devuelven nombre y apellido.
+
 ### 3.11 Bloqueo por mantenimiento — **MaintenanceBlock**
 
 | Campo           | Valor                                                                          |
@@ -262,22 +277,68 @@ Atributos: `auditId`, `actorId`, `actorRole`, `action` (p. ej.
 ([ADR-0008](../architecture/adr/ADR-0008-observabilidad-logging-auditoria.md)).
 Consulta cronológica por día: `Query` PK=`AUDIT#<fecha>`.
 
+### 3.15 Perfil de invitado externo — **GuestProfile**
+
+| Campo | Valor              |
+| ----- | ------------------ |
+| PK    | `GUEST#<guestDni>` |
+| SK    | `PROFILE`          |
+
+Atributos: `guestDni`, `firstName`, `lastName`, `createdByMemberId` (socio
+titular que lo registró la primera vez), `createdAt`, `updatedAt`.
+
+Ítem hermano del contador mensual (§3.10) bajo la misma partición del invitado,
+con el mismo patrón que `Member` (`PK=MEMBER#<memberId>` / `SK=PROFILE`). Existe
+para que un invitado recurrente **no haya que retipearlo en cada reserva**
+(RN-RES-03/04) y para que un mismo DNI figure siempre con el mismo nombre; el
+diseño está justificado en
+[ADR-0009](../architecture/adr/ADR-0009-identificacion-participantes-por-dni.md).
+
+- **Alta implícita e idempotente**: no hay endpoint de creación. El perfil se
+  escribe dentro del mismo `TransactWriteItems` que crea la reserva, como
+  `Update` con `SET firstName = if_not_exists(firstName, :firstName)` (ídem
+  `lastName`, `createdAt`, `createdByMemberId`) y `SET updatedAt = :now`. La
+  operación nunca falla por conflicto y **gana el primer registro**: si dos
+  socios escriben el mismo DNI con nombres distintos, prevalece el original y
+  el segundo envío se ignora.
+- `ReservationParticipant.guestName` (§3.9) se guarda como **copia del perfil
+  resuelto**, no del texto enviado en la petición: es una foto del nombre al
+  momento de la reserva y mantiene consistente lo que ven todas las reservas de
+  ese DNI.
+- **Lectura**: `GetItem` PK=`GUEST#<dni>`, SK=`PROFILE`
+  (`GET /guests/lookup?dni=`), que devuelve solo `firstName` y `lastName`.
+- **No editable en el MVP**: no existe endpoint para corregir el nombre de un
+  invitado ya registrado. Si el club lo necesita, será una capacidad
+  administrativa posterior, no una escritura del rol `member`.
+- **Límite transaccional**: en el peor caso (salón social, 30 participantes
+  invitados) la transacción de creación escribe 1 cabecera + 31 participantes +
+  30 contadores + 30 perfiles = 92 ítems, por debajo del límite de 100 de
+  `TransactWriteItems`. Por eso `participants` está acotado a 30 elementos en el
+  esquema de validación.
+
 ## 4. Índices y patrones de acceso (resumen)
 
 ### Tabla base (PK/SK)
 
-| #   | Patrón de acceso                  | Consulta                                                        | Regla        |
-| --- | --------------------------------- | --------------------------------------------------------------- | ------------ |
-| 1   | Obtener socio por id              | `GetItem` PK=`MEMBER#<id>`, SK=`PROFILE`                        | RN-ADM-01    |
-| 2   | Buscar socio por DNI (activación) | `GetItem` PK=`UNIQ#DNI#<dni>` → memberId                        | RN-ACT-01/03 |
-| 3   | Historial de pagos del socio      | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"PAYMENT#")`          | RN-ADM-07    |
-| 4   | Historial de membresías del socio | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"MEMBERSHIP#")`       | RN-PAG-01    |
-| 5   | Inbox de notificaciones del socio | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"NOTIF#")`            | RN-NOT-01    |
-| 6   | Idempotencia de pago              | `GetItem`/`Put condicional` PK=`IDEMP#<key>`                    | RN-PAG-07    |
-| 7   | Unicidad DNI/email                | `TransactWrite` `attribute_not_exists`                          | RN-ACT-03    |
-| 8   | Participantes de una reserva      | `Query` PK=`RESERVATION#<id>`, `begins_with(SK,"PARTICIPANT#")` | RN-RES-06    |
-| 9   | Contador mensual de invitado      | `Update` condicional PK=`GUEST#<dni>`, SK=`MONTH#<yyyy-mm>`     | RN-RES-05    |
-| 10  | Auditoría por día                 | `Query` PK=`AUDIT#<fecha>`                                      | RN-ADM       |
+| #   | Patrón de acceso                                           | Consulta                                                                                              | Regla                   |
+| --- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------- |
+| 1   | Obtener socio por id                                       | `GetItem` PK=`MEMBER#<id>`, SK=`PROFILE`                                                              | RN-ADM-01               |
+| 2   | Buscar socio por DNI (activación y lookup de participante) | `GetItem` PK=`UNIQ#DNI#<dni>` → memberId                                                              | RN-ACT-01/03, RN-RES-03 |
+| 3   | Historial de pagos del socio                               | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"PAYMENT#")`                                                | RN-ADM-07               |
+| 4   | Historial de membresías del socio                          | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"MEMBERSHIP#")`                                             | RN-PAG-01               |
+| 5   | Inbox de notificaciones del socio                          | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"NOTIF#")`                                                  | RN-NOT-01               |
+| 6   | Idempotencia de pago                                       | `GetItem`/`Put condicional` PK=`IDEMP#<key>`                                                          | RN-PAG-07               |
+| 7   | Unicidad DNI/email                                         | `TransactWrite` `attribute_not_exists`                                                                | RN-ACT-03               |
+| 8   | Participantes de una reserva                               | `Query` PK=`RESERVATION#<id>`, `begins_with(SK,"PARTICIPANT#")`                                       | RN-RES-06               |
+| 9   | Contador mensual de invitado                               | `Update` condicional PK=`GUEST#<dni>`, SK=`MONTH#<yyyy-mm>`                                           | RN-RES-05               |
+| 10  | Auditoría por día                                          | `Query` PK=`AUDIT#<fecha>`                                                                            | RN-ADM                  |
+| 23  | Resolver socio participante por DNI                        | `GetItem` PK=`UNIQ#DNI#<dni>` → `GetItem` PK=`MEMBER#<id>`, SK=`PROFILE` (proyecta solo nombre)       | RN-RES-03               |
+| 24  | Resolver perfil de invitado por DNI                        | `GetItem` PK=`GUEST#<dni>`, SK=`PROFILE`                                                              | RN-RES-03/04            |
+| 25  | Alta idempotente de invitado                               | `Update` con `if_not_exists` PK=`GUEST#<dni>`, SK=`PROFILE`, dentro del `TransactWrite` de la reserva | RN-RES-03/04            |
+
+> La numeración de patrones es incremental y global (no se reinicia por
+> sección): los patrones 23–25, aunque son de la tabla base, se agregaron
+> después de los del GSI3.
 
 ### GSI1 — identidad / sujeto (owner)
 
@@ -308,19 +369,20 @@ Consulta cronológica por día: `Query` PK=`AUDIT#<fecha>`.
 
 ## 5. Cobertura de reglas críticas
 
-| Regla                                         | Cómo la soporta el modelo                                                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| RN-ACT-03 (un DNI, una cuenta)                | Ítems de unicidad `UNIQ#DNI#` con escritura condicional                                     |
-| RN-PAG-06 (deuda no reserva)                  | `membershipStatus`/`outstandingBalance` en Member; validado antes de crear reserva          |
-| RN-PAG-07 (confirmación segura)               | Estado de pago `PENDING_CONFIRMATION`→`SUCCEEDED`; membresía se actualiza solo al confirmar |
-| RN-PAG-08 (sin datos sensibles)               | Payment no almacena PAN/CVV/secretos; solo `culqiChargeId`                                  |
-| RN-RES-05 (invitado 2/mes)                    | `GuestMonthlyCounter` con condición `visitCount < 2`                                        |
-| RN-RES-07 (sin cruces por recurso)            | GSI3 por recurso + rango de tiempo                                                          |
-| RN-RES-08 (sin superposición de participante) | GSI1 por `SUBJECT#` + rango de tiempo                                                       |
-| RN-RES-09 (aforo)                             | `capacity` del recurso vs. `participantCount`                                               |
-| RN-RES-10 (cancelar 24h antes)                | Regla sobre `startsAt` vs. ahora (America/Lima)                                             |
-| RN-RES-11 (mantenimiento)                     | `MaintenanceBlock` en GSI3 (colisiona con reservas)                                         |
-| RN-RES-12 (solo activos sin deuda)            | `memberStatus=ACTIVE` y `membershipStatus∉{DEBT,EXPIRED}`                                   |
+| Regla                                           | Cómo la soporta el modelo                                                                                 |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| RN-ACT-03 (un DNI, una cuenta)                  | Ítems de unicidad `UNIQ#DNI#` con escritura condicional                                                   |
+| RN-PAG-06 (deuda no reserva)                    | `membershipStatus`/`outstandingBalance` en Member; validado antes de crear reserva                        |
+| RN-PAG-07 (confirmación segura)                 | Estado de pago `PENDING_CONFIRMATION`→`SUCCEEDED`; membresía se actualiza solo al confirmar               |
+| RN-PAG-08 (sin datos sensibles)                 | Payment no almacena PAN/CVV/secretos; solo `culqiChargeId`                                                |
+| RN-RES-03/04 (participantes socios e invitados) | Lookup por DNI (`UNIQ#DNI#` y `GUEST#<dni>`/`PROFILE`) con exposición mínima; `GuestProfile` reutilizable |
+| RN-RES-05 (invitado 2/mes)                      | `GuestMonthlyCounter` con condición `visitCount < 2`                                                      |
+| RN-RES-07 (sin cruces por recurso)              | GSI3 por recurso + rango de tiempo                                                                        |
+| RN-RES-08 (sin superposición de participante)   | GSI1 por `SUBJECT#` + rango de tiempo                                                                     |
+| RN-RES-09 (aforo)                               | `capacity` del recurso vs. `participantCount`                                                             |
+| RN-RES-10 (cancelar 24h antes)                  | Regla sobre `startsAt` vs. ahora (America/Lima)                                                           |
+| RN-RES-11 (mantenimiento)                       | `MaintenanceBlock` en GSI3 (colisiona con reservas)                                                       |
+| RN-RES-12 (solo activos sin deuda)              | `memberStatus=ACTIVE` y `membershipStatus∉{DEBT,EXPIRED}`                                                 |
 
 ## 6. Referencias
 
