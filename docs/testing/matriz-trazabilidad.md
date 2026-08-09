@@ -75,7 +75,7 @@
 | P-11 | Pago exitoso/fallido dispara notificación correspondiente (`PAYMENT_SUCCEEDED`/`PAYMENT_FAILED`)                           | RN-NOT-04            | `POST /payments`                                                  | IA       | Media      | Pendiente                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | P-12 | Membresía anual ofrece facilidades de pago con tarjeta (`allowsInstallments`), sujeto a la integración disponible en Culqi | RN-PAG-02            | `GET /memberships/plans`, `POST /payments`                        | IA       | Baja       | Pendiente                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
-## 4. Reservas (RN-RES) — épica futura EP-05
+## 4. Reservas (RN-RES) — [EP-04](../scrum/epicas/EP-04-reservas-instalaciones.md), Sprint 3 (planificado)
 
 | #    | Caso de prueba                                                                                                                                   | Regla(s)               | Endpoint(s)                                              | Tipo     | Severidad  | Estado    |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- | -------------------------------------------------------- | -------- | ---------- | --------- |
@@ -103,6 +103,11 @@
 | R-22 | Liberar un bloqueo de mantenimiento habilita nuevamente la franja                                                                                | RN-RES-11, RN-ADM-04   | `DELETE /resources/{id}/maintenance/{blockId}`           | IA       | Media      | Pendiente |
 | R-23 | Admin actualiza aforo/horario/estado de un recurso y el cambio se refleja en disponibilidad                                                      | RN-ADM-04              | `PATCH /resources/{resourceId}`                          | IA       | Media      | Pendiente |
 | R-24 | Una reserva admite agregar otros socios e invitados externos como participantes (no solo al titular)                                             | RN-RES-03              | `POST /reservations`                                     | IA       | Media      | Pendiente |
+| R-25 | El socio lista solo sus propias reservas (`scope=me`) y no puede consultar el detalle de la reserva de otro socio → `403`/`404`                  | RN-RES-06, RN-ADM-07   | `GET /reservations?scope=me`, `GET /reservations/{id}`   | IA       | Alta       | Pendiente |
+| R-26 | Un socio no puede cancelar la reserva de otro socio → `403 FORBIDDEN` / `404 NOT_FOUND`                                                          | RN-RES-06, RN-RES-10   | `POST /reservations/{id}/cancel`                         | IA + SEC | Bloqueante | Pendiente |
+| R-27 | `GET /resources` devuelve el catálogo mock completo con aforo, duración de bloque, horario y `requiresApproval` coherentes con RN-RES            | RN-RES (recursos mock) | `GET /resources`                                         | IA       | Media      | Pendiente |
+| R-28 | Cancelar una reserva ya `CANCELLED` o `REJECTED` → `409 CONFLICT`, sin alterar estados ni contadores de invitado                                 | RN-RES-05, RN-RES-10   | `POST /reservations/{id}/cancel`                         | IA       | Media      | Pendiente |
+| R-29 | El rechazo administrativo libera la franja y devuelve el cupo mensual de los invitados externos de esa reserva                                   | RN-RES-02, RN-RES-05   | `POST /reservations/{id}/reject`                         | IA       | Media      | Pendiente |
 
 ## 5. Notificaciones (RN-NOT) — épica futura EP-06
 
@@ -165,12 +170,12 @@
 | Migración                               | 5               | 1          | 3      | 1      | 0     |
 | Activación/registro                     | 15              | 5          | 6      | 4      | 0     |
 | Pagos                                   | 12              | 3          | 4      | 4      | 1     |
-| Reservas                                | 24              | 3          | 8      | 13     | 0     |
+| Reservas                                | 29              | 5          | 11     | 13     | 0     |
 | Notificaciones                          | 12              | 0          | 1      | 9      | 2     |
 | Administración/auditoría                | 7               | 2          | 1      | 3      | 1     |
 | Dashboards/analytics                    | 9               | 0          | 1      | 6      | 2     |
 | Transversal (responsive/a11y/seguridad) | 6               | 1          | 1      | 4      | 0     |
-| **Total**                               | **90**          | **15**     | **25** | **44** | **6** |
+| **Total**                               | **95**          | **17**     | **28** | **44** | **6** |
 
 Todos los casos quedan en estado **pendiente** al cierre de Sprint 0. Esta
 tabla se actualizará en cada sprint funcional a medida que los casos pasen a
@@ -187,3 +192,4 @@ nuevos que surjan de criterios de aceptación más detallados.
 ## Historial de cambios
 
 - 2026-07-09: Versión inicial de la matriz de trazabilidad (US-006, Sprint 0). Todos los casos en estado pendiente.
+- 2026-08-09: Sección 4 (Reservas) actualizada durante la planificación de EP-04: se corrige el encabezado (la épica de reservas es **EP-04**, no EP-05, según el roadmap de [EP-01](../scrum/epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md)) y se agregan los casos R-25 a R-29, surgidos de los criterios de aceptación de US-031, US-033, US-034 y US-036 (visibilidad de reservas ajenas, cancelación de reserva ajena, catálogo de recursos, cancelación de una reserva ya cerrada y devolución del cupo de invitado al rechazar). El resumen de cobertura se ajusta en la fila de Reservas y en el total.
