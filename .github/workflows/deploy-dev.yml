@@ -22,6 +22,14 @@ name: CD - Despliegue a dev
 on:
   push:
     branches: [main]
+    # Un push que solo toca documentación no necesita un despliegue real:
+    # ni el backend, ni el frontend, ni la infraestructura cambiaron. Si un
+    # PR mezcla docs con código/infra, igual dispara el despliegue normal
+    # (paths-ignore solo se aplica cuando *todos* los archivos cambiados
+    # matchean el patrón).
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch: {}
 
 # Un solo despliegue a dev a la vez; los siguientes se encolan (no se
