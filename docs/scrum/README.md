@@ -19,9 +19,9 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 
 | ID                                                                   | Título                                                     | Fase            | Estado      |
 | -------------------------------------------------------------------- | ---------------------------------------------------------- | --------------- | ----------- |
-| [EP-01](./epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) | Base cloud, arquitectura, DevOps y gobernanza del proyecto | MVP — Fundación | En progreso |
-| [EP-02](./epicas/EP-02-migracion-activacion-acceso.md)               | Migración de socios, activación y acceso                   | MVP             | Planificada |
-| EP-03                                                                | Membresías y pagos                                         | MVP             | Planificada |
+| [EP-01](./epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) | Base cloud, arquitectura, DevOps y gobernanza del proyecto | MVP — Fundación | Cerrada     |
+| [EP-02](./epicas/EP-02-migracion-activacion-acceso.md)               | Migración de socios, activación y acceso                   | MVP             | Cerrada     |
+| [EP-03](./epicas/EP-03-membresias-pagos.md)                          | Membresías y pagos                                         | MVP             | Planificada |
 | EP-04                                                                | Reservas de instalaciones                                  | MVP             | Planificada |
 | EP-05                                                                | Notificaciones                                             | MVP             | Planificada |
 | EP-06                                                                | Administración                                             | MVP             | Planificada |
@@ -31,8 +31,9 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 
 | Sprint                            | Nombre                                   | Épica | Estado      |
 | --------------------------------- | ---------------------------------------- | ----- | ----------- |
-| [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01 | En progreso |
-| [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02 | Planificada |
+| [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01 | Cerrado     |
+| [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02 | Cerrado     |
+| [Sprint 2](./sprints/sprint-2.md) | Membresías y pagos                       | EP-03 | Planificado |
 
 ## Historias del Sprint 0 (EP-01)
 
@@ -63,6 +64,19 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | [US-017](./historias/US-017-aprobacion-rechazo-socios.md)              | Aprobar o rechazar solicitudes de socios nuevos        | Backend + Frontend | Alta      | US-011, US-016 |
 | [US-018](./historias/US-018-perfil-usuario.md)                         | Consultar y actualizar el perfil de usuario            | Backend + Frontend | Media     | US-011         |
 
+## Historias del Sprint 2 (EP-03)
+
+| ID                                                                     | Título                                                          | Responsable        | Prioridad | Depende de     |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------ | --------- | -------------- |
+| [US-019](./historias/US-019-provisionar-endpoints-membresias-pagos.md) | Provisionar endpoints e infraestructura de membresías y pagos   | DevOps             | Crítica   | —              |
+| [US-020](./historias/US-020-consultar-planes-membresia.md)             | Consultar los planes de membresía disponibles                   | Backend + Frontend | Alta      | US-019         |
+| [US-021](./historias/US-021-cobro-membresia-idempotente-culqi.md)      | Cobrar la membresía con Culqi de forma idempotente y confirmada | Backend            | Crítica   | US-019         |
+| [US-022](./historias/US-022-checkout-pago-membresia.md)                | Pagar la membresía desde la plataforma (checkout)               | Frontend           | Crítica   | US-020, US-021 |
+| [US-023](./historias/US-023-renovacion-membresia-autorenovacion.md)    | Renovar la membresía y autorizar la renovación automática       | Backend + Frontend | Alta      | US-021, US-022 |
+| [US-024](./historias/US-024-webhook-confirmacion-culqi.md)             | Confirmar pagos mediante el webhook de Culqi                    | Backend            | Alta      | US-019, US-021 |
+| [US-025](./historias/US-025-historial-pagos.md)                        | Consultar el historial de pagos (socio y administrador)         | Backend + Frontend | Media     | US-021         |
+| [US-026](./historias/US-026-manejo-seguro-datos-pago.md)               | Garantizar el manejo seguro de los datos de pago                | Backend + DevOps   | Alta      | US-021, US-024 |
+
 ## Convenciones de trazabilidad
 
 - Épica: `EP-NN`
@@ -74,3 +88,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 
 - 2026-07-09: Creación del backlog inicial, EP-01 y Sprint 0 (US-001).
 - 2026-07-16: Creación de EP-02 y Sprint 1 con las historias US-011..US-018; renumeración de las épicas funcionales siguientes.
+- 2026-08-09: Creación de EP-03 y Sprint 2 con las historias US-019..US-026 (membresías y pagos); actualización de los estados de Sprint 0/1 y EP-01/EP-02 a cerrados.
