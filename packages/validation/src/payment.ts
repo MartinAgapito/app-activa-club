@@ -7,13 +7,25 @@ import { membershipTypeSchema } from './member';
 /**
  * Creación de pago. Recibe únicamente el token de Culqi (tokenizado en el
  * cliente) y una clave de idempotencia; jamás PAN/CVV (RN-PAG-08).
+ *
+ * `.strict()` (US-026 criterio 1): por defecto Zod descarta en silencio
+ * cualquier clave no declarada en vez de rechazar la solicitud; en este
+ * esquema en particular eso no es aceptable — si un cliente (malicioso o
+ * con un bug) llegara a enviar `cardNumber`/`cvv`/`expirationDate`, la
+ * solicitud debe fallar explícitamente con `VALIDATION_ERROR` en vez de que
+ * el campo se elimine sin dejar rastro. El resto de los esquemas de
+ * `packages/validation` no necesita este endurecimiento (no reciben datos
+ * de tarjeta ni secretos); se acota a este esquema para no cambiar el
+ * comportamiento de otros endpoints sin evaluarlo caso por caso.
  */
-export const createPaymentSchema = z.object({
-  membershipType: membershipTypeSchema,
-  culqiToken: z.string().trim().min(1),
-  idempotencyKey: z.string().trim().min(8).max(128),
-  autoRenew: z.boolean().optional(),
-});
+export const createPaymentSchema = z
+  .object({
+    membershipType: membershipTypeSchema,
+    culqiToken: z.string().trim().min(1),
+    idempotencyKey: z.string().trim().min(8).max(128),
+    autoRenew: z.boolean().optional(),
+  })
+  .strict();
 
 export const paymentStatusSchema = z.enum(['PENDING_CONFIRMATION', 'SUCCEEDED', 'FAILED']);
 

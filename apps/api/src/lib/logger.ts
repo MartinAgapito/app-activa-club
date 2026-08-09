@@ -22,8 +22,27 @@ export interface LogFields {
   [extra: string]: unknown;
 }
 
-/** Claves que nunca deben aparecer en un log (defensa en profundidad). */
-const FORBIDDEN_KEYS = new Set(['password', 'culqiToken', 'cvv', 'cardNumber', 'culqiSecretKey']);
+/**
+ * Claves que nunca deben aparecer en un log (defensa en profundidad; US-026
+ * criterio 4). Incluye, además de los datos de tarjeta/token de cobro, los
+ * secretos que EP-03 introdujo con el webhook de Culqi (US-024, ADR-0007):
+ * la llave privada de cobro, el secreto de firma del webhook y el cuerpo
+ * crudo del evento entrante (podría reproducir el token de la tarjeta u
+ * otros datos del cargo tal como los envía Culqi).
+ */
+const FORBIDDEN_KEYS = new Set([
+  'password',
+  'culqiToken',
+  'cvv',
+  'cardNumber',
+  'culqiSecretKey',
+  'culqiPrivateKey',
+  'culqiWebhookSecret',
+  'webhookSecret',
+  'signature',
+  'signatureHeader',
+  'rawBody',
+]);
 
 function sanitize(fields: LogFields): LogFields {
   const clean: LogFields = { requestId: fields.requestId };
