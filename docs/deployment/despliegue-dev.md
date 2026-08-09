@@ -11,6 +11,10 @@ de CloudFront). Complementa, sin reemplazar, la validación de
 ## Disparadores
 
 - `push` sobre la rama `main`: automáticamente, en cuanto un PR se mergea.
+  **Excepto** si el PR solo tocó documentación (`**/*.md`, `docs/**`,
+  `paths-ignore` del workflow): un cambio así no necesita un despliegue real
+  (ni backend, ni frontend, ni infraestructura cambiaron). Si un PR mezcla
+  documentación con código/infraestructura, despliega normalmente.
 - `workflow_dispatch`: para volver a desplegar el mismo commit de `main`
   manualmente (por ejemplo, tras arreglar un problema de infraestructura sin
   cambios de código).
