@@ -59,7 +59,7 @@ const HANDLERS = {
   // Las 5 funciones sin logica propia todavia apuntan al placeholder
   // compartido (ver handlers/not-implemented.ts) -- cada historia lo
   // reemplaza por su handler real al implementarse, una funcion a la vez.
-  'memberships-plans': 'handlers/not-implemented.ts', // US-020
+  'memberships-plans': 'handlers/memberships/get-plans.ts', // US-020 (implementado)
   'payments-create': 'handlers/payments/post.ts', // US-021 (implementado)
   'payments-list': 'handlers/not-implemented.ts', // US-025
   'payments-get-by-id': 'handlers/not-implemented.ts', // US-025
