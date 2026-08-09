@@ -16,6 +16,10 @@ export default tseslint.config(
       '**/.terraform/**',
       '**/*.tfstate*',
       'infrastructure/terraform/**/*.tf',
+      // Runtime de CloudFront Functions (ES5.1 restringido, sin imports,
+      // "handler" invocado por CloudFront, no por Node): no es código de
+      // aplicación, las reglas de este monorepo no aplican.
+      'infrastructure/terraform/**/*.js',
     ],
   },
   js.configs.recommended,
