@@ -85,6 +85,17 @@ describe('POST /payments', () => {
     expect(createPaymentMock).not.toHaveBeenCalled();
   });
 
+  it('devuelve 400 VALIDATION_ERROR si el body incluye cardNumber/cvv no previstos, sin invocar createPayment (US-026 criterio 1, RN-PAG-08)', async () => {
+    const result = await handler(
+      buildEvent({ ...validBody, cardNumber: '4111111111111111', cvv: '123' }),
+    );
+
+    expect(result.statusCode).toBe(400);
+    const body = JSON.parse(result.body) as { error: { code: string } };
+    expect(body.error.code).toBe('VALIDATION_ERROR');
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
   it('devuelve 400 VALIDATION_ERROR si el body está vacío', async () => {
     const event = buildCognitoProxyEvent({
       httpMethod: 'POST',
