@@ -55,6 +55,16 @@ const HANDLERS = {
   'members-approve': 'handlers/members/approve.ts',
   'members-reject': 'handlers/members/reject.ts',
   'admin-migration-run': 'handlers/admin/run-migration.ts',
+  // EP-03 (US-019 infra ya desplegada; logica de negocio por historia).
+  // Las 5 funciones sin logica propia todavia apuntan al placeholder
+  // compartido (ver handlers/not-implemented.ts) -- cada historia lo
+  // reemplaza por su handler real al implementarse, una funcion a la vez.
+  'memberships-plans': 'handlers/not-implemented.ts', // US-020
+  'payments-create': 'handlers/payments/post.ts', // US-021 (implementado)
+  'payments-list': 'handlers/not-implemented.ts', // US-025
+  'payments-get-by-id': 'handlers/not-implemented.ts', // US-025
+  'payments-webhook': 'handlers/not-implemented.ts', // US-024
+  'members-update-auto-renew': 'handlers/not-implemented.ts', // US-023
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');
