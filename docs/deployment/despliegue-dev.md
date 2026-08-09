@@ -11,10 +11,15 @@ de CloudFront). Complementa, sin reemplazar, la validación de
 ## Disparadores
 
 - `push` sobre la rama `main`: automáticamente, en cuanto un PR se mergea.
-  **Excepto** si el PR solo tocó documentación (`**/*.md`, `docs/**`,
-  `paths-ignore` del workflow): un cambio así no necesita un despliegue real
-  (ni backend, ni frontend, ni infraestructura cambiaron). Si un PR mezcla
-  documentación con código/infraestructura, despliega normalmente.
+  **Solo si** el push toca alguna ruta que puede cambiar lo desplegado
+  (`paths` del workflow: `apps/**`, `packages/**`,
+  `infrastructure/terraform/**`, `scripts/**`, `package.json`,
+  `package-lock.json`, `tsconfig.base.json`, `.nvmrc`, o el propio
+  `deploy-dev.yml`). Es una lista blanca, no negra: un PR de solo
+  documentación, configuración de lint u otro archivo que no afecte el
+  build/deploy no dispara nada, sin necesidad de mantener una lista de
+  exclusiones que crezca con cada archivo nuevo. Si un PR mezcla algo de
+  esa lista con otra cosa, despliega normalmente.
 - `workflow_dispatch`: para volver a desplegar el mismo commit de `main`
   manualmente (por ejemplo, tras arreglar un problema de infraestructura sin
   cambios de código).

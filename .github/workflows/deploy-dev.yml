@@ -22,14 +22,24 @@ name: CD - Despliegue a dev
 on:
   push:
     branches: [main]
-    # Un push que solo toca documentación no necesita un despliegue real:
-    # ni el backend, ni el frontend, ni la infraestructura cambiaron. Si un
-    # PR mezcla docs con código/infra, igual dispara el despliegue normal
-    # (paths-ignore solo se aplica cuando *todos* los archivos cambiados
-    # matchean el patrón).
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
+    # Lista blanca (no negra): solo dispara un despliegue real si el push
+    # toca algo que efectivamente puede cambiar lo desplegado -código,
+    # dependencias, infraestructura o el propio workflow-. Deliberadamente
+    # "paths" en vez de "paths-ignore": con una lista negra, cada archivo
+    # nuevo que no afecte el deploy (config de lint, editorconfig, docs,
+    # etc.) requeriría acordarse de agregarlo a mano -ya pasó una vez con
+    # eslint.config.js-. Con una lista blanca, algo nuevo que no afecta el
+    # deploy simplemente no dispara nada, sin tocar este archivo.
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'infrastructure/terraform/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.base.json'
+      - '.nvmrc'
+      - '.github/workflows/deploy-dev.yml'
   workflow_dispatch: {}
 
 # Un solo despliegue a dev a la vez; los siguientes se encolan (no se
