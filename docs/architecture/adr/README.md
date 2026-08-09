@@ -6,16 +6,18 @@ arquitectónica no se cambia sin crear o actualizar el ADR correspondiente.
 
 ## Índice
 
-| ADR                                                            | Título                                                 | Estado   |
-| -------------------------------------------------------------- | ------------------------------------------------------ | -------- |
-| [ADR-0001](./ADR-0001-estrategia-entornos.md)                  | Estrategia de entornos (dev/prd)                       | Aceptado |
-| [ADR-0002](./ADR-0002-autenticacion-cognito-roles.md)          | Autenticación con Cognito y roles member/admin         | Aceptado |
-| [ADR-0003](./ADR-0003-dynamodb-single-table.md)                | DynamoDB single-table design                           | Aceptado |
-| [ADR-0004](./ADR-0004-api-gateway-rest-lambda-por-endpoint.md) | API Gateway REST + Lambda por endpoint                 | Aceptado |
-| [ADR-0005](./ADR-0005-s3-migracion-activos-hosting.md)         | S3 para migración, activos y hosting del SPA           | Aceptado |
-| [ADR-0006](./ADR-0006-ses-correos-transaccionales.md)          | SES para correos transaccionales                       | Aceptado |
-| [ADR-0007](./ADR-0007-culqi-sandbox-idempotencia-pagos.md)     | Culqi sandbox e idempotencia de pagos                  | Aceptado |
-| [ADR-0008](./ADR-0008-observabilidad-logging-auditoria.md)     | Manejo de errores, logging, auditoría y observabilidad | Aceptado |
+| ADR                                                                       | Título                                                                   | Estado   |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------- |
+| [ADR-0001](./ADR-0001-estrategia-entornos.md)                             | Estrategia de entornos (dev/prd)                                         | Aceptado |
+| [ADR-0002](./ADR-0002-autenticacion-cognito-roles.md)                     | Autenticación con Cognito y roles member/admin                           | Aceptado |
+| [ADR-0003](./ADR-0003-dynamodb-single-table.md)                           | DynamoDB single-table design                                             | Aceptado |
+| [ADR-0004](./ADR-0004-api-gateway-rest-lambda-por-endpoint.md)            | API Gateway REST + Lambda por endpoint                                   | Aceptado |
+| [ADR-0005](./ADR-0005-s3-migracion-activos-hosting.md)                    | S3 para migración, activos y hosting del SPA                             | Aceptado |
+| [ADR-0006](./ADR-0006-ses-correos-transaccionales.md)                     | SES para correos transaccionales                                         | Aceptado |
+| [ADR-0007](./ADR-0007-culqi-sandbox-idempotencia-pagos.md)                | Culqi sandbox e idempotencia de pagos                                    | Aceptado |
+| [ADR-0008](./ADR-0008-observabilidad-logging-auditoria.md)                | Manejo de errores, logging, auditoría y observabilidad                   | Aceptado |
+| [ADR-0009](./ADR-0009-identificacion-participantes-por-dni.md)            | Identificación de participantes por DNI y perfil persistente de invitado | Aceptado |
+| [ADR-0010](./ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md) | Catálogo de recursos como datos de infraestructura (Terraform)           | Aceptado |
 
 ## Plantilla
 
