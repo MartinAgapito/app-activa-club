@@ -22,7 +22,7 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | [EP-01](./epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) | Base cloud, arquitectura, DevOps y gobernanza del proyecto | MVP — Fundación | Cerrada     |
 | [EP-02](./epicas/EP-02-migracion-activacion-acceso.md)               | Migración de socios, activación y acceso                   | MVP             | Cerrada     |
 | [EP-03](./epicas/EP-03-membresias-pagos.md)                          | Membresías y pagos                                         | MVP             | Planificada |
-| EP-04                                                                | Reservas de instalaciones                                  | MVP             | Planificada |
+| [EP-04](./epicas/EP-04-reservas-instalaciones.md)                    | Reservas de instalaciones                                  | MVP             | Planificada |
 | EP-05                                                                | Notificaciones                                             | MVP             | Planificada |
 | EP-06                                                                | Administración                                             | MVP             | Planificada |
 | EP-07                                                                | Dashboards y analytics                                     | MVP             | Planificada |
@@ -34,6 +34,7 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01 | Cerrado     |
 | [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02 | Cerrado     |
 | [Sprint 2](./sprints/sprint-2.md) | Membresías y pagos                       | EP-03 | Planificado |
+| [Sprint 3](./sprints/sprint-3.md) | Reservas de instalaciones                | EP-04 | Planificado |
 
 ## Historias del Sprint 0 (EP-01)
 
@@ -77,6 +78,21 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | [US-025](./historias/US-025-historial-pagos.md)                        | Consultar el historial de pagos (socio y administrador)         | Backend + Frontend | Media     | US-021         |
 | [US-026](./historias/US-026-manejo-seguro-datos-pago.md)               | Garantizar el manejo seguro de los datos de pago                | Backend + DevOps   | Alta      | US-021, US-024 |
 
+## Historias del Sprint 3 (EP-04)
+
+| ID                                                                       | Título                                                       | Responsable        | Prioridad | Depende de             |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------ | ------------------ | --------- | ---------------------- |
+| [US-027](./historias/US-027-provisionar-endpoints-reservas.md)           | Provisionar endpoints e infraestructura de reservas          | DevOps             | Crítica   | —                      |
+| [US-028](./historias/US-028-catalogo-recursos-club.md)                   | Consultar el catálogo de instalaciones del club              | Backend + DevOps   | Crítica   | US-027                 |
+| [US-029](./historias/US-029-disponibilidad-recurso-por-dia.md)           | Consultar la disponibilidad de una instalación por día       | Backend + Frontend | Alta      | US-028                 |
+| [US-030](./historias/US-030-crear-reserva-confirmacion-automatica.md)    | Reservar una instalación con validación completa en servidor | Backend            | Crítica   | US-028                 |
+| [US-031](./historias/US-031-participantes-socios-invitados.md)           | Agregar otros socios e invitados externos a una reserva      | Backend            | Alta      | US-030                 |
+| [US-032](./historias/US-032-reservar-instalacion-desde-plataforma.md)    | Reservar una instalación desde la plataforma                 | Frontend           | Crítica   | US-029, US-030, US-031 |
+| [US-033](./historias/US-033-consultar-cancelar-mis-reservas.md)          | Consultar y cancelar mis reservas                            | Backend + Frontend | Alta      | US-030                 |
+| [US-034](./historias/US-034-aprobacion-rechazo-reservas-admin.md)        | Aprobar o rechazar reservas de parrillas y salón social      | Backend + Frontend | Alta      | US-030                 |
+| [US-035](./historias/US-035-bloqueo-recursos-mantenimiento.md)           | Bloquear temporalmente un recurso por mantenimiento          | Backend + Frontend | Media     | US-028, US-029         |
+| [US-036](./historias/US-036-gestion-recursos-consulta-reservas-admin.md) | Gestionar recursos y consultar todas las reservas como admin | Backend + Frontend | Media     | US-028, US-030         |
+
 ## Convenciones de trazabilidad
 
 - Épica: `EP-NN`
@@ -89,3 +105,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 - 2026-07-09: Creación del backlog inicial, EP-01 y Sprint 0 (US-001).
 - 2026-07-16: Creación de EP-02 y Sprint 1 con las historias US-011..US-018; renumeración de las épicas funcionales siguientes.
 - 2026-08-09: Creación de EP-03 y Sprint 2 con las historias US-019..US-026 (membresías y pagos); actualización de los estados de Sprint 0/1 y EP-01/EP-02 a cerrados.
+- 2026-08-09: Creación de EP-04 y Sprint 3 con las historias US-027..US-036 (reservas de instalaciones).
