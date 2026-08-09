@@ -13,6 +13,12 @@ export default tseslint.config(
       '**/dist/**',
       '**/build/**',
       '**/coverage/**',
+      // Worktrees de agentes en paralelo (Claude Code, isolation: "worktree"):
+      // checkouts git independientes con su propio tsconfig; si quedan
+      // presentes en disco mientras otro agente sigue corriendo, ESLint los
+      // detecta como "multiple candidate TSConfigRootDirs" y falla el
+      // pre-push de *cualquier* commit, no solo el de ese agente.
+      '.claude/worktrees/**',
       '**/.terraform/**',
       '**/*.tfstate*',
       'infrastructure/terraform/**/*.tf',
