@@ -161,11 +161,15 @@ para notificaciones o un nuevo bucket).
 (`/activa-club/dev/culqi/private-key`, tipo `SecureString`, cifrado con la
 llave administrada por defecto de la cuenta `alias/aws/ssm`, sin costo fijo
 de KMS). Guarda la llave **privada** de Culqi sandbox (RN-PAG-04/08,
-ADR-0007): las Lambdas `payments-create` (`POST /payments`) y
-`payments-webhook` (`POST /payments/webhook`) la leen en runtime vía
-`ssm:GetParameter` (nombre del parámetro inyectado como la variable de
+ADR-0007): la Lambda `payments-create` (`POST /payments`) la lee en runtime
+vía `ssm:GetParameter` (nombre del parámetro inyectado como la variable de
 entorno `CULQI_PRIVATE_KEY_PARAM_NAME`), nunca como texto plano en el
 código ni en variables de Terraform versionadas.
+
+`payments-webhook` (`POST /payments/webhook`, US-024) **no** lee este
+parámetro: lee uno separado, `CULQI_WEBHOOK_SECRET_PARAM_NAME` (ver
+siguiente sección) — el secreto que verifica la firma de una notificación
+entrante nunca debe ser el mismo que la llave que autoriza a cobrar.
 
 ### Por qué no hay todavía una cuenta Culqi sandbox real
 
@@ -190,12 +194,41 @@ aws ssm put-parameter \
   --overwrite
 ```
 
-No hace falta ningún cambio de Terraform ni un nuevo despliegue: las
-Lambdas de pago leen el valor vigente en cada invocación (`ssm:GetParameter`
+No hace falta ningún cambio de Terraform ni un nuevo despliegue: la Lambda
+`payments-create` lee el valor vigente en cada invocación (`ssm:GetParameter`
 sin caché de larga duración). La llave **pública** correspondiente se
 configura aparte, como variable de repositorio `DEV_CULQI_PUBLIC_KEY` (ver
 tabla de secrets/variables más arriba) — no es secreta, así que no pasa por
 SSM.
+
+## Secreto de verificación del webhook de Culqi (US-024): SSM Parameter Store
+
+`aws_ssm_parameter.culqi_webhook_secret`
+(`/activa-club/dev/culqi/webhook-secret`, mismo tipo/cifrado que el
+parámetro anterior) guarda el secreto compartido que la Lambda
+`payments-webhook` usa para verificar la firma HMAC de cada notificación
+entrante de Culqi antes de aplicar cualquier efecto (US-024, criterio 2;
+`apps/api/src/payments/webhook-signature.ts` documenta el esquema exacto
+asumido, a confirmar contra Culqi real). Es un secreto **distinto** de la
+llave privada de cobro: nunca autoriza a cobrar, solo a validar que una
+notificación es auténtica.
+
+Misma mecánica de placeholder/rotación que la llave privada (comandos
+análogos, cambiando el nombre del parámetro a
+`/activa-club/dev/culqi/webhook-secret`). Única diferencia relevante: a
+diferencia de `payments-create`, la Lambda `payments-webhook` **sí** cachea
+este secreto en memoria del proceso mientras la instancia de Lambda esté
+cálida (`apps/api/src/payments/webhook-secret.ts`, evita una llamada a SSM
+por invocación). Esto significa que, tras rotar el valor con `aws ssm
+put-parameter --overwrite`, las instancias ya cálidas siguen validando
+contra el secreto **anterior** hasta que Lambda las recicle o hasta el
+próximo despliegue de la función (que crea instancias nuevas). Esto no abre
+una ventana sin verificación (toda solicitud sigue exigiendo una firma
+válida contra _algún_ secreto), pero si se necesita un corte inmediato y
+estricto al valor nuevo, redesplegar `payments-webhook`
+(`node scripts/package-lambdas.mjs --only=payments-webhook` + el paso de
+Terraform del pipeline, o `workflow_dispatch` de `deploy-dev.yml`) después
+de rotar.
 
 ### Rotación
 

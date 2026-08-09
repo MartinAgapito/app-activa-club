@@ -779,6 +779,30 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     resources = ["*"]
   }
 
+  # Secreto de verificación de firma del webhook de Culqi (US-024, criterio
+  # 2, ADR-0007): SSM Parameter Store SecureString separado del de arriba
+  # ("/activa-club/dev/culqi/webhook-secret", ver environments/dev/main.tf,
+  # aws_ssm_parameter.culqi_webhook_secret). Mismo patrón que
+  # ManageDevCulqiSecretParameter (acotado al ARN exacto del parámetro,
+  # nunca "parameter/*"), pero como statement propio porque es un secreto
+  # distinto con un ciclo de vida propio (verificación de webhooks, no
+  # cobro).
+  statement {
+    sid    = "ManageDevCulqiWebhookSecretParameter"
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:PutParameter",
+      "ssm:AddTagsToResource",
+      "ssm:RemoveTagsFromResource",
+      "ssm:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/dev/culqi/webhook-secret",
+    ]
+  }
+
   # kms:Decrypt/Encrypt/GenerateDataKey sobre la llave administrada por
   # defecto de SSM ("alias/aws/ssm"): sin un ARN de recurso concreto y
   # estable que se pueda fijar de antemano (ver comentario extenso en

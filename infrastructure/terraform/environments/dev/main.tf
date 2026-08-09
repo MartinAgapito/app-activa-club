@@ -325,6 +325,33 @@ resource "aws_ssm_parameter" "culqi_private_key" {
   }
 }
 
+# Secreto de verificación de firma del webhook de Culqi (US-024, criterio 2;
+# ADR-0007). **Distinto** de `aws_ssm_parameter.culqi_private_key`: ese
+# secreto sirve para cobrar (llave privada, US-019); este solo sirve para
+# validar que una notificación entrante de `POST /payments/webhook`
+# realmente la envió Culqi (HMAC del cuerpo crudo, ver
+# `apps/api/src/payments/webhook-signature.ts`), nunca para cobrar. Mismo
+# patrón que el parámetro de arriba: SecureString con la llave administrada
+# por defecto de la cuenta, sin costo fijo de KMS.
+#
+# Tampoco hay todavía cuenta real de Culqi sandbox: mismo placeholder
+# explícito y el mismo `lifecycle.ignore_changes` para no pisar un valor real
+# cargado a mano en un futuro `terraform apply`.
+resource "aws_ssm_parameter" "culqi_webhook_secret" {
+  name        = "/${var.project}/${var.environment}/culqi/webhook-secret"
+  description = "Secreto compartido para verificar la firma del webhook de Culqi (RN-PAG-07/08, US-024). Placeholder hasta contar con una cuenta Culqi sandbox real; ver docs/deployment/despliegue-dev.md para cargar el valor real y rotarlo."
+  type        = "SecureString"
+  value       = "PENDIENTE_CULQI_SANDBOX_KEY"
+
+  tags = {
+    Name = "${var.project}-${var.environment}-culqi-webhook-secret"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 # --- Activación y registro (docs/api/contratos-api.md §3) — Público -------
 
 module "endpoint_activation_verify" {
@@ -839,22 +866,27 @@ module "endpoint_payments_webhook" {
   parent_resource_id     = local.api_resource_id["payments/webhook"]
 
   environment_variables = {
-    DYNAMODB_TABLE_NAME          = local.dynamodb_table_name
-    CULQI_PRIVATE_KEY_PARAM_NAME = aws_ssm_parameter.culqi_private_key.name
+    DYNAMODB_TABLE_NAME             = local.dynamodb_table_name
+    CULQI_WEBHOOK_SECRET_PARAM_NAME = aws_ssm_parameter.culqi_webhook_secret.name
   }
 
   iam_policy_statements = [
     {
       # Confirmación idempotente del pago + actualización de membresía
       # (ADR-0007): converge con POST /payments sin duplicar el cargo.
-      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
+      # dynamodb:Query cubre además la localización del Payment por
+      # paymentId sobre GSI2 (US-024, apps/api/src/payments/repository.ts,
+      # findPaymentByPaymentId): el webhook solo conoce el paymentId que este
+      # backend envió como referencia al crear el cargo, no el memberId.
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
     {
-      # Mismo secreto que payments-create (criterio de aceptación 4): la
-      # verificación de firma de Culqi también corre server-side.
+      # Secreto de verificación de firma (US-024, criterio 2), distinto de la
+      # llave privada de cobro (`aws_ssm_parameter.culqi_private_key`, usada
+      # solo por payments-create): este endpoint nunca cobra, solo confirma.
       actions   = ["ssm:GetParameter"]
-      resources = [aws_ssm_parameter.culqi_private_key.arn]
+      resources = [aws_ssm_parameter.culqi_webhook_secret.arn]
     },
     {
       actions    = ["kms:Decrypt"]
