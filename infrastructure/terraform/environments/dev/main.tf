@@ -757,8 +757,16 @@ module "endpoint_payments_create" {
       # PaymentIdempotency (PutItem condicional) + Payment (PutItem) +
       # Membership/Member (UpdateItem) en una única transacción (ADR-0007,
       # RT-01): mismo patrón de Put/Update explícitos + TransactWriteItems
-      # ya usado por activation-complete/registration.
-      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
+      # ya usado por activation-complete/registration. dynamodb:Query es
+      # imprescindible: `findMemberByCognitoSub` resuelve el socio
+      # autenticado por GSI1 (apps/api/src/members/repository.ts) antes de
+      # cualquier otra operación, y `reserveIdempotencyKey` relee el ítem
+      # previo por Query cuando la condición de unicidad falla
+      # (apps/api/src/payments/idempotency.ts). Sin este permiso, la Lambda
+      # fallaba con AccessDeniedException en el primer acceso a datos de
+      # *cualquier* solicitud, que `toErrorResult()` normaliza a un genérico
+      # 500 INTERNAL_ERROR (encontrado en verificación en vivo de US-026).
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
     {
