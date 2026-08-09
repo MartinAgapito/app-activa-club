@@ -18,11 +18,12 @@
 
 import {
   PutCommand,
+  QueryCommand,
   TransactWriteCommand,
   UpdateCommand,
   type DynamoDBDocumentClient,
 } from '@aws-sdk/lib-dynamodb';
-import type { Currency, MembershipType } from '@activa-club/shared-types';
+import type { Currency, MembershipType, PaymentStatus } from '@activa-club/shared-types';
 
 import { keys, tableName } from '../lib/dynamo';
 
@@ -199,4 +200,93 @@ export async function confirmPaymentSuccess(
       ],
     }),
   );
+}
+
+// --- Localización por `paymentId` (US-024, webhook de Culqi) --------------
+//
+// El modelo documentado (docs/data/modelo-dynamodb.md §3.5) solo permite
+// leer un `Payment` por `memberId` (PK) o listarlos por `paymentStatus`
+// (GSI2): no existe un índice directo por `paymentId`. El webhook de Culqi
+// (`POST /payments/webhook`) solo conoce el `paymentId` que este backend le
+// envió como referencia al crear el cargo (ADR-0007, `./culqi-client.ts`,
+// campo `reference`), no el `memberId` ni el `createdAt` que arma la clave
+// real del ítem. `findPaymentByPaymentId` resuelve esto recorriendo, como
+// mucho, las tres particiones de estado de GSI2 (nunca un `Scan` de toda la
+// tabla): para el volumen de pagos de un único club (alcance de este
+// MVP/tesis) es aceptable; si el volumen creciera de forma significativa,
+// se recomienda a Arquitectura evaluar un índice dedicado por `paymentId`
+// (p. ej. un futuro GSI4) en vez de mantener este recorrido acotado.
+
+export interface PaymentRecord {
+  memberId: string;
+  paymentId: string;
+  createdAt: string;
+  paymentStatus: PaymentStatus;
+  membershipType: MembershipType;
+  amount: number;
+  currency: Currency;
+  culqiChargeId: string | null;
+  idempotencyKey: string;
+  autoRenewRequested: boolean;
+  failureReason: string | null;
+  confirmedAt: string | null;
+}
+
+/** Orden de búsqueda: primero el caso más común (pago aún no confirmado esperando el webhook). */
+const PAYMENT_STATUS_LOOKUP_ORDER: readonly PaymentStatus[] = [
+  'PENDING_CONFIRMATION',
+  'SUCCEEDED',
+  'FAILED',
+];
+
+/** Cota defensiva de páginas por partición de estado, para no arriesgar un recorrido sin fin ante un volumen de datos inesperado (protección de tiempo de ejecución de la Lambda). */
+const MAX_LOOKUP_PAGES_PER_STATUS = 25;
+
+async function findPaymentInStatusPartition(
+  client: DynamoDBDocumentClient,
+  paymentStatus: PaymentStatus,
+  paymentId: string,
+): Promise<PaymentRecord | undefined> {
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+
+  for (let page = 0; page < MAX_LOOKUP_PAGES_PER_STATUS; page += 1) {
+    const result = await client.send(
+      new QueryCommand({
+        TableName: tableName(),
+        IndexName: 'GSI2',
+        KeyConditionExpression: 'GSI2PK = :pk',
+        FilterExpression: 'paymentId = :paymentId',
+        ExpressionAttributeValues: {
+          ':pk': keys.paymentsByStatus(paymentStatus).GSI2PK,
+          ':paymentId': paymentId,
+        },
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    );
+
+    const match = (result.Items ?? []).find((item) => item['paymentId'] === paymentId);
+    if (match) return match as unknown as PaymentRecord;
+
+    if (!result.LastEvaluatedKey) return undefined;
+    exclusiveStartKey = result.LastEvaluatedKey;
+  }
+
+  return undefined;
+}
+
+/**
+ * Localiza un `Payment` por `paymentId` sin conocer su `memberId`/`createdAt`
+ * (ver nota de cabecera de esta sección). Devuelve `undefined` si no existe
+ * ningún `Payment` con ese `paymentId` en ninguno de los tres estados
+ * posibles (criterios 6/7: pago inexistente/no reconocible).
+ */
+export async function findPaymentByPaymentId(
+  client: DynamoDBDocumentClient,
+  paymentId: string,
+): Promise<PaymentRecord | undefined> {
+  for (const paymentStatus of PAYMENT_STATUS_LOOKUP_ORDER) {
+    const found = await findPaymentInStatusPartition(client, paymentStatus, paymentId);
+    if (found) return found;
+  }
+  return undefined;
 }

@@ -63,7 +63,7 @@ const HANDLERS = {
   'payments-create': 'handlers/payments/post.ts', // US-021 (implementado)
   'payments-list': 'handlers/not-implemented.ts', // US-025
   'payments-get-by-id': 'handlers/not-implemented.ts', // US-025
-  'payments-webhook': 'handlers/not-implemented.ts', // US-024
+  'payments-webhook': 'handlers/payments/webhook.ts', // US-024 (implementado)
   'members-update-auto-renew': 'handlers/not-implemented.ts', // US-023
 };
 

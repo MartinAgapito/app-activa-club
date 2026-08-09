@@ -274,7 +274,38 @@ Errores: 402/422 `PAYMENT_FAILED`; 409 `PAYMENT_DUPLICATE` (misma
 ### POST /payments/webhook
 
 - Ruta **pública** sin Cognito, pero con **verificación de firma** de Culqi
-  (RT-14). Confirma cargos de forma idempotente y actualiza membresía. Response 202.
+  (RT-14). Confirma cargos de forma idempotente y actualiza membresía
+  (ADR-0007, US-024).
+- **Firma**: header `X-Culqi-Signature` con HMAC-SHA256 del cuerpo crudo
+  (hex, opcionalmente prefijado `sha256=`) usando un secreto compartido
+  (`CULQI_WEBHOOK_SECRET_PARAM_NAME`, distinto de la llave privada de cobro).
+  Firma inválida o ausente → 401 `UNAUTHENTICATED`, sin ningún efecto.
+- **Cuerpo** (forma asumida — sin cuenta Culqi sandbox real todavía, ver
+  US-024; a confirmar contra la documentación real de Culqi):
+
+  ```json
+  {
+    "id": "evt_test_xxx",
+    "type": "charge.succeeded",
+    "data": {
+      "object": {
+        "id": "chr_test_xxx",
+        "metadata": { "reference": "<paymentId>" },
+        "outcome": { "type": "declined", "user_message": "Tarjeta rechazada por el emisor." }
+      }
+    }
+  }
+  ```
+
+  `type` es `charge.succeeded` o `charge.failed`; `data.object.metadata.reference`
+  correlaciona con el `paymentId` propio de este backend (enviado como
+  `reference` al crear el cargo, ADR-0007); `outcome` solo se usa para
+  `charge.failed` (nunca incluye datos de tarjeta/CVV, RN-PAG-08).
+
+- Response 202 siempre que la firma sea válida, sin importar el desenlace de
+  negocio (pago confirmado, ya resuelto, fallo registrado o `paymentId` no
+  reconocido): evita que el emisor distinga por el código HTTP si un pago
+  existe en este sistema.
 
 ## 6. Recursos y disponibilidad (RN-RES, RN-ADM-04)
 

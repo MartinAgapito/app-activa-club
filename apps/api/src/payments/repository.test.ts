@@ -6,7 +6,7 @@ vi.mock('../lib/dynamo', async () => {
   return { ...actual, tableName: () => 'activa-club-test' };
 });
 
-const { createPendingPayment, markPaymentFailed, confirmPaymentSuccess } =
+const { createPendingPayment, markPaymentFailed, confirmPaymentSuccess, findPaymentByPaymentId } =
   await import('./repository');
 
 function fakeClient(
@@ -220,5 +220,85 @@ describe('confirmPaymentSuccess', () => {
       cycleEndsAt: '2027-08-09T15:00:00.000Z',
       autoRenewRequested: true,
     });
+  });
+});
+
+describe('findPaymentByPaymentId (US-024)', () => {
+  const pendingPayment = {
+    PK: 'MEMBER#member-1',
+    SK: 'PAYMENT#2026-08-09T00:00:00.000Z#payment-1',
+    GSI2PK: 'PAYMENT#STATUS#PENDING_CONFIRMATION',
+    memberId: 'member-1',
+    paymentId: 'payment-1',
+    createdAt: '2026-08-09T00:00:00.000Z',
+    paymentStatus: 'PENDING_CONFIRMATION',
+  };
+
+  it('encuentra el Payment en la primera partición consultada (PENDING_CONFIRMATION, caso más común)', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as {
+        constructor: { name: string };
+        input: { ExpressionAttributeValues: Record<string, unknown> };
+      };
+      expect(cmd.constructor.name).toBe('QueryCommand');
+      expect(cmd.input.ExpressionAttributeValues[':pk']).toBe(
+        'PAYMENT#STATUS#PENDING_CONFIRMATION',
+      );
+      return { Items: [pendingPayment] };
+    });
+
+    const result = await findPaymentByPaymentId(client, 'payment-1');
+
+    expect(result).toMatchObject({ memberId: 'member-1', paymentId: 'payment-1' });
+    expect(client.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('sigue buscando en SUCCEEDED y luego FAILED si no aparece en PENDING_CONFIRMATION (convergencia, criterio 4/5/10)', async () => {
+    const queriedStatuses: string[] = [];
+    const client = fakeClient(async (command) => {
+      const cmd = command as { input: { ExpressionAttributeValues: Record<string, unknown> } };
+      const pk = cmd.input.ExpressionAttributeValues[':pk'] as string;
+      queriedStatuses.push(pk);
+      if (pk === 'PAYMENT#STATUS#SUCCEEDED') {
+        return { Items: [{ ...pendingPayment, paymentStatus: 'SUCCEEDED' }] };
+      }
+      return { Items: [] };
+    });
+
+    const result = await findPaymentByPaymentId(client, 'payment-1');
+
+    expect(queriedStatuses).toEqual([
+      'PAYMENT#STATUS#PENDING_CONFIRMATION',
+      'PAYMENT#STATUS#SUCCEEDED',
+    ]);
+    expect(result).toMatchObject({ paymentStatus: 'SUCCEEDED' });
+  });
+
+  it('pagina dentro de una misma partición hasta encontrar la coincidencia', async () => {
+    let calls = 0;
+    const client = fakeClient(async () => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          Items: [{ ...pendingPayment, paymentId: 'otro-pago' }],
+          LastEvaluatedKey: { PK: 'x' },
+        };
+      }
+      return { Items: [pendingPayment] };
+    });
+
+    const result = await findPaymentByPaymentId(client, 'payment-1');
+
+    expect(calls).toBe(2);
+    expect(result).toMatchObject({ paymentId: 'payment-1' });
+  });
+
+  it('devuelve undefined si el paymentId no existe en ninguno de los tres estados (criterio 6/7)', async () => {
+    const client = fakeClient(async () => ({ Items: [] }));
+
+    const result = await findPaymentByPaymentId(client, 'payment-inexistente');
+
+    expect(result).toBeUndefined();
+    expect(client.send).toHaveBeenCalledTimes(3);
   });
 });
