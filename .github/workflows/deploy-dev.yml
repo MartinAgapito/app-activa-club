@@ -152,17 +152,22 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
+      # -lock-timeout: el job de solo-lectura de pr-quality.yml tambien corre
+      # por push a main (mismo evento que dispara este apply real) y puede
+      # sostener el lock un instante con su propio `terraform plan`. Esperar
+      # en vez de fallar al toque evita una falla transitoria evitable en
+      # este pipeline (el que sí importa: el que aplica de verdad).
       - name: Terraform plan
         env:
           TF_VAR_ses_sender_email: ${{ vars.DEV_SES_SENDER_EMAIL || 'no-reply-dev@example.com' }}
           TF_VAR_lambda_artifacts_dir: ${{ github.workspace }}/.lambda-artifacts
-        run: terraform plan -input=false -no-color -out=tfplan-dev
+        run: terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan-dev
 
       - name: Terraform apply
         env:
           TF_VAR_ses_sender_email: ${{ vars.DEV_SES_SENDER_EMAIL || 'no-reply-dev@example.com' }}
           TF_VAR_lambda_artifacts_dir: ${{ github.workspace }}/.lambda-artifacts
-        run: terraform apply -input=false -auto-approve tfplan-dev
+        run: terraform apply -input=false -auto-approve -lock-timeout=5m tfplan-dev
 
       - name: Leer outputs de Terraform
         id: outputs

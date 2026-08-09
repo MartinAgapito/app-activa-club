@@ -242,7 +242,16 @@ jobs:
         working-directory: infrastructure/terraform/environments/dev
         env:
           TF_VAR_ses_sender_email: no-reply-dev@example.com
-        run: terraform plan -input=false -no-color
+        # -lock-timeout: este job (rol de solo lectura) corre tanto por
+        # pull_request como por push a main (ver cabecera de este workflow);
+        # el segundo caso puede coincidir con un `terraform apply` real de
+        # deploy-dev.yml disparado por el mismo push, que sostiene el lock
+        # del state mientras aplica. Sin esto, "Error acquiring the state
+        # lock" fallaba esa corrida (no bloqueaba el merge -el gate real ya
+        # habia pasado en la corrida por pull_request-, pero generaba una
+        # falla roja confusa y evitable). Esperar el lock en vez de fallar
+        # al toque es mas barato que investigar la misma colision cada vez.
+        run: terraform plan -input=false -no-color -lock-timeout=5m
 
   # ---------------------------------------------------------------------
   # Controles basicos de seguridad: escaneo de patrones de secretos y
