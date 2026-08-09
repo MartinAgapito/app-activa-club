@@ -109,12 +109,12 @@ falla el workflow si alguna etapa no terminó en éxito.
 
 ## Secrets y variables requeridos
 
-| Nombre                    | Tipo                        | Uso                                                                     | Estado actual                                                                 |
-| ------------------------- | --------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `AWS_DEPLOY_DEV_ROLE_ARN` | Secret                      | Rol IAM de escritura para `terraform apply` + deploy de frontend en dev | Aplicado (rol `activa-club-github-actions-deploy-dev` de `bootstrap/main.tf`) |
-| `AWS_REGION`              | Variable de repo            | Región AWS (default `us-east-1`)                                        | Reutiliza la misma variable que `pr-quality.yml`                              |
-| `DEV_SES_SENDER_EMAIL`    | Variable de repo (opcional) | Remitente SES de dev para `terraform apply` (dato no sensible)          | Si no se define, usa `no-reply-dev@example.com`                               |
-| `DEV_CULQI_PUBLIC_KEY`    | Variable de repo (opcional) | Llave **pública** de Culqi sandbox, inyectada como `VITE_CULQI_PUBLIC_KEY` en el build del frontend (US-019). No es secreta, pero sí configurable por entorno | Si no se define, usa el placeholder `pk_test_PENDIENTE_CULQI_SANDBOX_KEY` |
+| Nombre                    | Tipo                        | Uso                                                                                                                                                           | Estado actual                                                                 |
+| ------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `AWS_DEPLOY_DEV_ROLE_ARN` | Secret                      | Rol IAM de escritura para `terraform apply` + deploy de frontend en dev                                                                                       | Aplicado (rol `activa-club-github-actions-deploy-dev` de `bootstrap/main.tf`) |
+| `AWS_REGION`              | Variable de repo            | Región AWS (default `us-east-1`)                                                                                                                              | Reutiliza la misma variable que `pr-quality.yml`                              |
+| `DEV_SES_SENDER_EMAIL`    | Variable de repo (opcional) | Remitente SES de dev para `terraform apply` (dato no sensible)                                                                                                | Si no se define, usa `no-reply-dev@example.com`                               |
+| `DEV_CULQI_PUBLIC_KEY`    | Variable de repo (opcional) | Llave **pública** de Culqi sandbox, inyectada como `VITE_CULQI_PUBLIC_KEY` en el build del frontend (US-019). No es secreta, pero sí configurable por entorno | Si no se define, usa el placeholder `pk_test_PENDIENTE_CULQI_SANDBOX_KEY`     |
 
 Sin claves AWS estáticas en ningún paso (OIDC exclusivamente). La llave
 **privada** de Culqi nunca pasa por GitHub Actions: vive directamente en SSM
