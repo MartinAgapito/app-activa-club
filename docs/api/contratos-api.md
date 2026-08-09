@@ -171,6 +171,35 @@ Errores: 409 `DNI_ALREADY_USED` / `EMAIL_ALREADY_USED`; 400 `VALIDATION_ERROR`.
 | POST   | `/members/{memberId}/approve` | admin  | Aprueba socio nuevo (RN-ADM-02)                    |
 | POST   | `/members/{memberId}/reject`  | admin  | Rechaza socio nuevo                                |
 
+### PATCH /members/me/auto-renew
+
+Activa o desactiva la renovación automática del socio autenticado (US-023,
+RN-PAG-03; tipo `AutoRenewRequest` de `packages/shared-types`, ya definido
+desde Sprint 0). Deliberadamente **desactivada por defecto**: ninguna
+cuenta queda con `autoRenew=true` sin esta acción explícita. La identidad
+sale siempre del JWT — no hay `memberId` en la ruta ni en el body, así que
+no existe forma de modificar la preferencia de otro socio.
+
+Request:
+
+```json
+{ "enabled": true }
+```
+
+Response 200: el `Member` actualizado (mismo shape que `GET /members/me`,
+incluido su campo `autoRenew`).
+
+Errores: 400 `VALIDATION_ERROR` (falta `enabled` o no es booleano); 422
+`MEMBER_NOT_APPROVED` (socio `PENDING`/`REJECTED`).
+
+Fuera de alcance: activar esta preferencia **no** dispara ningún cobro
+automático desatendido — esa ejecución no existe todavía (ver "Alcance de la
+renovación automática" en
+[US-023](../scrum/historias/US-023-renovacion-membresia-autorenovacion.md)).
+`autoRenew` también puede activarse junto con un pago exitoso vía
+`POST /payments` (§5, campo `autoRenew` del request — ahí sí se llama
+`autoRenew`, no `enabled`: son dos contratos distintos, no lo mismo).
+
 ### GET /members?status=PENDING&cursor=&limit=
 
 Response 200:
