@@ -11,6 +11,10 @@ interface ImportMetaEnv {
   /** Región de Cognito; opcional — por defecto se deriva del prefijo de
    * VITE_COGNITO_USER_POOL_ID (formato "<región>_<id>"), ver auth/cognito-client.ts. */
   readonly VITE_COGNITO_REGION?: string;
+  /** Llave PÚBLICA de Culqi sandbox (US-019, ADR-0007): tokeniza la tarjeta
+   * en el cliente vía Culqi.js (payments/culqi.ts). No es secreta, pero es
+   * configurable por entorno — ver .env.example. */
+  readonly VITE_CULQI_PUBLIC_KEY?: string;
 }
 
 interface ImportMeta {

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import type { Member, MembershipPlan } from '@activa-club/shared-types';
 import { MembershipPage } from './MembershipPage';
 import { ApiRequestError } from '../../lib/api/http-client';
@@ -58,9 +59,16 @@ function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  const router = createMemoryRouter(
+    [
+      { path: '/socio/membresia', element: <MembershipPage /> },
+      { path: '/socio/membresia/pagar', element: <p>Checkout</p> },
+    ],
+    { initialEntries: ['/socio/membresia'] },
+  );
   return render(
     <QueryClientProvider client={queryClient}>
-      <MembershipPage />
+      <RouterProvider router={router} />
     </QueryClientProvider>,
   );
 }
@@ -93,6 +101,17 @@ describe('MembershipPage', () => {
     expect(screen.getByText('Anual')).toBeInTheDocument();
     expect(screen.getByText('S/ 1,200.00')).toBeInTheDocument();
     expect(screen.getByText('1 año de vigencia')).toBeInTheDocument();
+  });
+
+  it('enlaza "Pagar este plan" al checkout con el plan elegido (US-022)', async () => {
+    fetchMemberProfileMock.mockResolvedValueOnce(BASE_MEMBER);
+    fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+    renderPage();
+
+    await screen.findByText('Mensual');
+    const links = screen.getAllByRole('link', { name: /pagar este plan/i });
+    expect(links[0]).toHaveAttribute('href', '/socio/membresia/pagar?plan=MONTHLY');
+    expect(links[1]).toHaveAttribute('href', '/socio/membresia/pagar?plan=ANNUAL');
   });
 
   it('no ofrece facilidades de pago cuando allowsInstallments es false (caso alternativo)', async () => {
