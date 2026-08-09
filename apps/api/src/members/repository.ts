@@ -85,6 +85,36 @@ export async function updateMemberContact(
   return result.Attributes as unknown as Member;
 }
 
+/**
+ * Activa o desactiva `autoRenew` directamente (US-023, criterios 6/7): a
+ * diferencia de `payments/repository.ts` (que solo fija `autoRenew=true` en
+ * el `Member` cuando un pago se confirma, y nunca lo desactiva), este camino
+ * es simétrico y de efecto inmediato — puede tanto activar como desactivar la
+ * preferencia sin pasar por el flujo de pago.
+ */
+export async function updateMemberAutoRenew(
+  client: DynamoDBDocumentClient,
+  memberId: string,
+  enabled: boolean,
+  now: string = new Date().toISOString(),
+): Promise<Member> {
+  const result = await client.send(
+    new UpdateCommand({
+      TableName: tableName(),
+      Key: keys.member(memberId),
+      ConditionExpression: 'attribute_exists(PK)',
+      UpdateExpression: 'SET autoRenew = :autoRenew, updatedAt = :updatedAt',
+      ExpressionAttributeValues: {
+        ':autoRenew': enabled,
+        ':updatedAt': now,
+      },
+      ReturnValues: 'ALL_NEW',
+    }),
+  );
+
+  return result.Attributes as unknown as Member;
+}
+
 /** Tamaño de página por defecto para listados administrativos paginados (US-017). */
 const DEFAULT_PAGE_SIZE = 20;
 
