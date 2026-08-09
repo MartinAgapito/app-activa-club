@@ -56,7 +56,7 @@ Es el corazón de EP-03 y la pieza que cierra el vacío dejado por el Sprint 1: 
 4. Un pago rechazado por Culqi responde 402/422 `PAYMENT_FAILED`, persiste el `Payment` con `paymentStatus=FAILED` y `failureReason` legible, y **no** modifica ningún campo de membresía del socio (RN-PAG-07).
 5. Si Culqi responde de forma ambigua o se pierde la respuesta, el pago queda `PENDING_CONFIRMATION` y la membresía **no** se activa hasta que la confirmación llegue (por reconsulta o por webhook, US-024).
 6. El monto y la moneda cobrados corresponden al plan solicitado según la configuración del backend; un `membershipType` no soportado devuelve 400 `VALIDATION_ERROR`.
-7. Un socio en estado `PENDING` o `REJECTED` que intenta pagar recibe 403 `MEMBER_NOT_APPROVED` y no se genera ningún cargo.
+7. Un socio en estado `PENDING` o `REJECTED` que intenta pagar recibe 422 `MEMBER_NOT_APPROVED` (regla de negocio no satisfecha, §1.2 del contrato — no es un caso de rol/permiso) y no se genera ningún cargo.
 8. Un socio con `membershipStatus` `DEBT` o `EXPIRED` **sí** puede pagar y su pago exitoso lo regulariza (RN-PAG-06).
 9. La petición nunca acepta ni el backend nunca persiste PAN, CVV, fecha de vencimiento ni ningún dato de tarjeta; solo se guarda `culqiChargeId`, monto, moneda, estado, tipo de membresía, `idempotencyKey` y marcas de tiempo (RN-PAG-08).
 10. La llave privada de Culqi se lee del secreto en tiempo de ejecución y nunca se escribe en logs ni en respuestas.
