@@ -64,7 +64,7 @@ const HANDLERS = {
   'payments-list': 'handlers/payments/list.ts', // US-025 (implementado)
   'payments-get-by-id': 'handlers/payments/get-by-id.ts', // US-025 (implementado)
   'payments-webhook': 'handlers/payments/webhook.ts', // US-024 (implementado)
-  'members-update-auto-renew': 'handlers/not-implemented.ts', // US-023
+  'members-update-auto-renew': 'handlers/members/patch-me-auto-renew.ts', // US-023 (implementado)
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');
