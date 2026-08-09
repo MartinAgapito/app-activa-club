@@ -10,6 +10,7 @@ vi.mock('../lib/dynamo', async () => {
 const {
   findMemberByCognitoSub,
   updateMemberContact,
+  updateMemberAutoRenew,
   getMemberById,
   listMembersByStatus,
   transitionMemberStatus,
@@ -98,6 +99,51 @@ describe('updateMemberContact', () => {
     );
 
     expect(result.phone).toBe('999000111');
+  });
+});
+
+describe('updateMemberAutoRenew', () => {
+  it('activa autoRenew con condición attribute_exists(PK)', async () => {
+    const client = fakeClient(async (command) => {
+      const input = (
+        command as {
+          input: {
+            Key: { PK: string; SK: string };
+            ConditionExpression?: string;
+            UpdateExpression?: string;
+            ExpressionAttributeValues: Record<string, unknown>;
+          };
+        }
+      ).input;
+      expect(input.Key).toEqual({ PK: 'MEMBER#01J000000000000000000TEST', SK: 'PROFILE' });
+      expect(input.ConditionExpression).toBe('attribute_exists(PK)');
+      expect(input.UpdateExpression).toBe('SET autoRenew = :autoRenew, updatedAt = :updatedAt');
+      expect(input.ExpressionAttributeValues[':autoRenew']).toBe(true);
+      expect(input.ExpressionAttributeValues[':updatedAt']).toBe('2026-07-21T00:00:00.000Z');
+      return { Attributes: { ...sampleMember, autoRenew: true } };
+    });
+
+    const result = await updateMemberAutoRenew(
+      client,
+      sampleMember.memberId,
+      true,
+      '2026-07-21T00:00:00.000Z',
+    );
+
+    expect(result.autoRenew).toBe(true);
+  });
+
+  it('desactiva autoRenew (efecto inmediato, criterio 7)', async () => {
+    const client = fakeClient(async (command) => {
+      const input = (command as { input: { ExpressionAttributeValues: Record<string, unknown> } })
+        .input;
+      expect(input.ExpressionAttributeValues[':autoRenew']).toBe(false);
+      return { Attributes: { ...sampleMember, autoRenew: false } };
+    });
+
+    const result = await updateMemberAutoRenew(client, sampleMember.memberId, false);
+
+    expect(result.autoRenew).toBe(false);
   });
 });
 
