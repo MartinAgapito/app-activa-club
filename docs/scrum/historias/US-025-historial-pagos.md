@@ -43,7 +43,7 @@ El historial es la evidencia del socio y la herramienta de soporte del administr
 
 1. `GET /payments` con rol `member` devuelve **solo** los pagos del socio autenticado, ordenados del más reciente al más antiguo, con paginación por cursor.
 2. Cada elemento del historial incluye fecha, tipo de membresía, monto, moneda y estado (`SUCCEEDED`, `PENDING_CONFIRMATION`, `FAILED`); los estados se muestran con etiquetas comprensibles en español, no con el código crudo.
-3. `GET /payments` con rol `admin` permite filtrar por `memberId` y por `status`; sin filtro devuelve los pagos según la convención de listado paginado.
+3. `GET /payments` con rol `admin` permite filtrar por `memberId` y/o por `status`; debe indicar al menos uno de los dos (`400 VALIDATION_ERROR` sin ninguno) — el modelo de datos de `Payment` solo define patrones de acceso por socio o por estado (`docs/data/modelo-dynamodb.md` §3.5/§4), no "todos los pagos sin filtro" sin un `Scan` completo de la tabla, misma decisión ya tomada para `GET /members` (US-017).
 4. Un `member` que envía el filtro `memberId` de otro socio **no** obtiene datos ajenos: el backend ignora el filtro o responde 403, y en ningún caso devuelve pagos de terceros.
 5. `GET /payments/{paymentId}` devuelve el detalle del pago; un `member` que solicita un pago que no le pertenece recibe 403 (o 404 si se prefiere no revelar la existencia del recurso), nunca los datos.
 6. Un `paymentId` inexistente devuelve 404 `NOT_FOUND`.
