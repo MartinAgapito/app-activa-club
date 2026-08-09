@@ -48,6 +48,11 @@ module "ses" {
   sender_email = var.ses_sender_email
 }
 
+# Requerida por local.ssm_default_kms_decrypt_conditions (permiso IAM de
+# kms:Decrypt acotado por cuenta, ver módulos endpoint_payments_create /
+# endpoint_payments_webhook, US-019); ningún otro recurso la usa hoy.
+data "aws_caller_identity" "current" {}
+
 # ---------------------------------------------------------------------------
 # Endpoints de identidad y acceso (EP-02, US-011): API Gateway REST + una
 # Lambda por endpoint (ADR-0004), autorizadas con el Cognito Authorizer y el
@@ -85,13 +90,37 @@ locals {
   migration_bucket_arn  = module.storage.migration_bucket_arn
   migration_bucket_name = module.storage.migration_bucket_name
 
+  # kms:Decrypt sobre la llave administrada por defecto de SSM
+  # ("alias/aws/ssm", ver aws_ssm_parameter.culqi_private_key más abajo) no
+  # admite un ARN de recurso concreto y estable en esta política: el ARN
+  # real de esa llave lo crea AWS de forma perezosa (la primera vez que se
+  # usa un SecureString sin especificar una llave propia) y referenciarlo
+  # con un data source de KMS en el mismo plan que crea el parámetro
+  # formaría una dependencia circular. Se acota en su lugar por condición
+  # (US-019, ver modules/endpoint/README.md): solo si la llamada a KMS pasa
+  # a través del servicio SSM (nunca una llamada directa a KMS) y solo
+  # dentro de esta cuenta AWS.
+  ssm_default_kms_decrypt_conditions = [
+    {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.aws_region}.amazonaws.com"]
+    },
+    {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    },
+  ]
+
   # Árbol de rutas de la API (docs/api/contratos-api.md §3, §4, §10), separado
   # por nivel de profundidad: Terraform no permite que una instancia de
   # aws_api_gateway_resource.this[x] dependa de otra instancia del mismo
   # recurso (formaría un ciclo), así que cada nivel de anidamiento se declara
   # en un recurso `for_each` distinto que depende únicamente del nivel
   # anterior.
-  api_resource_level1 = ["activation", "registration", "members", "admin"]
+  # "memberships" y "payments": EP-03/US-019 (docs/api/contratos-api.md §5).
+  api_resource_level1 = ["activation", "registration", "members", "admin", "memberships", "payments"]
 
   api_resource_level2 = {
     "activation/verify"   = { parent = "activation", part = "verify" }
@@ -99,12 +128,21 @@ locals {
     "members/me"          = { parent = "members", part = "me" }
     "members/{memberId}"  = { parent = "members", part = "{memberId}" }
     "admin/migration"     = { parent = "admin", part = "migration" }
+    # POST /payments y GET /payments (US-019) cuelgan directo del nodo
+    # level1 "payments" (igual que POST/GET /members con "members"), sin
+    # nodo level2 propio: solo "payments/webhook" y "payments/{paymentId}"
+    # necesitan un segmento adicional.
+    "memberships/plans"    = { parent = "memberships", part = "plans" }
+    "payments/webhook"     = { parent = "payments", part = "webhook" }
+    "payments/{paymentId}" = { parent = "payments", part = "{paymentId}" }
   }
 
   api_resource_level3 = {
     "members/{memberId}/approve" = { parent = "members/{memberId}", part = "approve" }
     "members/{memberId}/reject"  = { parent = "members/{memberId}", part = "reject" }
     "admin/migration/run"        = { parent = "admin/migration", part = "run" }
+    # PATCH /members/me/auto-renew (US-019, docs/api/contratos-api.md §4).
+    "members/me/auto-renew" = { parent = "members/me", part = "auto-renew" }
   }
 
   # Mapa combinado ruta completa -> ID de aws_api_gateway_resource, para que
@@ -134,6 +172,13 @@ locals {
       "members-approve",
       "members-reject",
       "admin-migration-run",
+      # EP-03, US-019 (docs/api/contratos-api.md §5, §4).
+      "memberships-plans",
+      "payments-create",
+      "payments-list",
+      "payments-get-by-id",
+      "payments-webhook",
+      "members-update-auto-renew",
       ] : function_name => (
       var.lambda_artifacts_dir == null ? null : "${var.lambda_artifacts_dir}/${function_name}.zip"
     )
@@ -179,6 +224,18 @@ locals {
     module.endpoint_members_reject.integration_id,
     module.endpoint_admin_migration_run.method_id,
     module.endpoint_admin_migration_run.integration_id,
+    module.endpoint_memberships_plans.method_id,
+    module.endpoint_memberships_plans.integration_id,
+    module.endpoint_payments_create.method_id,
+    module.endpoint_payments_create.integration_id,
+    module.endpoint_payments_list.method_id,
+    module.endpoint_payments_list.integration_id,
+    module.endpoint_payments_get_by_id.method_id,
+    module.endpoint_payments_get_by_id.integration_id,
+    module.endpoint_payments_webhook.method_id,
+    module.endpoint_payments_webhook.integration_id,
+    module.endpoint_members_update_auto_renew.method_id,
+    module.endpoint_members_update_auto_renew.integration_id,
   ]
 }
 
@@ -232,6 +289,40 @@ resource "aws_api_gateway_resource" "level3" {
   rest_api_id = aws_api_gateway_rest_api.this.id
   parent_id   = aws_api_gateway_resource.level2[each.value.parent].id
   path_part   = each.value.part
+}
+
+# ---------------------------------------------------------------------------
+# Secreto de la llave privada de Culqi sandbox (EP-03, US-019, RN-PAG-08,
+# ADR-0007): SSM Parameter Store SecureString en vez de Secrets Manager.
+# Elección: para un único valor de configuración sensible, sin rotación
+# automática gestionada por AWS ni versiones concurrentes que consultar
+# (Secrets Manager brilla ahí, pero cuesta ~US$0.40/mes por secreto +
+# llamadas de API; SSM SecureString no tiene costo fijo, encripta con la
+# llave administrada por defecto de la cuenta ("alias/aws/ssm", sin costo
+# adicional de KMS) y alcanza sobre para leer un valor server-side desde una
+# Lambda). Respeta el criterio de "presupuesto Free Tier" (criterio de
+# aceptación 11).
+#
+# No hay todavía cuenta real de Culqi sandbox (decisión tomada con el
+# usuario): el valor es un placeholder explícito, nunca una llave real ni un
+# secreto de verdad, así que no figura ningún dato sensible en este repo
+# (criterio de aceptación 3). `lifecycle.ignore_changes` sobre "value" es
+# intencional: una vez que alguien cargue el valor real a mano (`aws ssm
+# put-parameter --overwrite`, ver docs/deployment/despliegue-dev.md), un
+# futuro `terraform apply` no debe volver a pisarlo con el placeholder.
+resource "aws_ssm_parameter" "culqi_private_key" {
+  name        = "/${var.project}/${var.environment}/culqi/private-key"
+  description = "Llave privada de Culqi sandbox (server-side, RN-PAG-04/08). Placeholder hasta contar con una cuenta Culqi sandbox real; ver docs/deployment/despliegue-dev.md para cargar el valor real y rotarlo."
+  type        = "SecureString"
+  value       = "PENDIENTE_CULQI_SANDBOX_KEY"
+
+  tags = {
+    Name = "${var.project}-${var.environment}-culqi-private-key"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 # --- Activación y registro (docs/api/contratos-api.md §3) — Público -------
@@ -576,6 +667,233 @@ module "endpoint_admin_migration_run" {
     {
       actions   = ["dynamodb:PutItem", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+# --- Membresías y pagos (docs/api/contratos-api.md §5) — EP-03, US-019 ----
+#
+# Sin lógica de negocio (US-021/US-024/US-025 la implementan): todas estas
+# Lambdas despliegan el stub temporal de modules/endpoint hasta que
+# lambda_zip_path["<function_name>"] resuelva un artefacto real. El permiso
+# IAM de mínimo privilegio ya se otorga ahora para que esas historias de
+# backend no dependan de un cambio de infraestructura adicional.
+
+module "endpoint_memberships_plans" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "memberships-plans"
+  source_zip_path = local.lambda_zip_path["memberships-plans"]
+  http_method     = "GET"
+  resource_path   = "api/memberships/plans"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["memberships/plans"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  # Sin permisos adicionales: los planes son valores mock/parametrizables
+  # devueltos por la propia Lambda (docs/api/contratos-api.md §5), sin
+  # lectura de DynamoDB en el alcance de esta historia.
+}
+
+module "endpoint_payments_create" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "payments-create"
+  source_zip_path = local.lambda_zip_path["payments-create"]
+  http_method     = "POST"
+  resource_path   = "api/payments"
+  requires_auth   = true
+  allowed_groups  = ["member"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["payments"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME          = local.dynamodb_table_name
+    CULQI_PRIVATE_KEY_PARAM_NAME = aws_ssm_parameter.culqi_private_key.name
+  }
+
+  iam_policy_statements = [
+    {
+      # PaymentIdempotency (PutItem condicional) + Payment (PutItem) +
+      # Membership/Member (UpdateItem) en una única transacción (ADR-0007,
+      # RT-01): mismo patrón de Put/Update explícitos + TransactWriteItems
+      # ya usado por activation-complete/registration.
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+    {
+      # Lectura de la llave privada de Culqi (criterio de aceptación 4):
+      # acotado al único parámetro que esta Lambda necesita.
+      actions   = ["ssm:GetParameter"]
+      resources = [aws_ssm_parameter.culqi_private_key.arn]
+    },
+    {
+      # Descifrado del SecureString (ver comentario de
+      # local.ssm_default_kms_decrypt_conditions más arriba: la llave
+      # "alias/aws/ssm" no tiene un ARN de recurso concreto conocible acá).
+      actions    = ["kms:Decrypt"]
+      resources  = ["*"]
+      conditions = local.ssm_default_kms_decrypt_conditions
+    },
+  ]
+}
+
+module "endpoint_payments_list" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "payments-list"
+  source_zip_path = local.lambda_zip_path["payments-list"]
+  http_method     = "GET"
+  resource_path   = "api/payments"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["payments"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Historial propio (Query PK=MEMBER#<id>) o analytics por estado
+      # (Query GSI2PK=PAYMENT#STATUS#<status>, docs/data/modelo-dynamodb.md
+      # §3.5), según el rol del solicitante.
+      actions   = ["dynamodb:Query"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_payments_get_by_id" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "payments-get-by-id"
+  source_zip_path = local.lambda_zip_path["payments-get-by-id"]
+  http_method     = "GET"
+  resource_path   = "api/payments/{paymentId}"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["payments/{paymentId}"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem (si el handler conoce memberId+paymentId) o Query (si
+      # necesita resolverlo por índice): el PK real de Payment es
+      # MEMBER#<memberId> (docs/data/modelo-dynamodb.md §3.5).
+      actions   = ["dynamodb:GetItem", "dynamodb:Query"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_payments_webhook" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "payments-webhook"
+  source_zip_path = local.lambda_zip_path["payments-webhook"]
+  http_method     = "POST"
+  resource_path   = "api/payments/webhook"
+  # Público (docs/api/contratos-api.md §5, ADR-0007): la verificación de
+  # firma de Culqi la implementa US-024 dentro del handler, no el Cognito
+  # Authorizer. requires_auth = false ya es soportado tal cual por
+  # modules/endpoint (mismo mecanismo que /activation/* y /registration
+  # más arriba); no hizo falta ningún ajuste al módulo para esto.
+  requires_auth = false
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["payments/webhook"]
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME          = local.dynamodb_table_name
+    CULQI_PRIVATE_KEY_PARAM_NAME = aws_ssm_parameter.culqi_private_key.name
+  }
+
+  iam_policy_statements = [
+    {
+      # Confirmación idempotente del pago + actualización de membresía
+      # (ADR-0007): converge con POST /payments sin duplicar el cargo.
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+    {
+      # Mismo secreto que payments-create (criterio de aceptación 4): la
+      # verificación de firma de Culqi también corre server-side.
+      actions   = ["ssm:GetParameter"]
+      resources = [aws_ssm_parameter.culqi_private_key.arn]
+    },
+    {
+      actions    = ["kms:Decrypt"]
+      resources  = ["*"]
+      conditions = local.ssm_default_kms_decrypt_conditions
+    },
+  ]
+}
+
+# --- Socios: auto-renovación (docs/api/contratos-api.md §4) — US-019 ------
+
+module "endpoint_members_update_auto_renew" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "members-update-auto-renew"
+  source_zip_path = local.lambda_zip_path["members-update-auto-renew"]
+  http_method     = "PATCH"
+  resource_path   = "api/members/me/auto-renew"
+  requires_auth   = true
+  allowed_groups  = ["member"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["members/me/auto-renew"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Mismo patrón que members-update-me: Query (resolver el socio por
+      # cognitoSub, GSI1) + UpdateItem (RN-PAG-03).
+      actions   = ["dynamodb:Query", "dynamodb:UpdateItem"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
   ]
 }

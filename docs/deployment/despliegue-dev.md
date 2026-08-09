@@ -75,7 +75,12 @@ artefacto (`lambda-artifacts`) para el resto del pipeline.
 
 `npm run build --workspace apps/web` (Vite), inyectando
 `VITE_API_BASE_URL`, `VITE_COGNITO_USER_POOL_ID` y `VITE_COGNITO_CLIENT_ID`
-desde los outputs del apply anterior. Publica `apps/web/dist` como artefacto
+desde los outputs del apply anterior, más `VITE_CULQI_PUBLIC_KEY` (US-019,
+ADR-0007) desde la variable de repositorio `DEV_CULQI_PUBLIC_KEY` (o el
+placeholder `pk_test_PENDIENTE_CULQI_SANDBOX_KEY` si no está definida). Es la
+llave **pública** de Culqi: Culqi.js la usa en el navegador para tokenizar la
+tarjeta, así que no se trata como secreto (no requiere OIDC/SSM), pero sí es
+un valor configurable por entorno. Publica `apps/web/dist` como artefacto
 (`frontend-dist`).
 
 ### Etapa 4/5 — `deploy-frontend-dev`: deploy del frontend
@@ -109,8 +114,14 @@ falla el workflow si alguna etapa no terminó en éxito.
 | `AWS_DEPLOY_DEV_ROLE_ARN` | Secret                      | Rol IAM de escritura para `terraform apply` + deploy de frontend en dev | Aplicado (rol `activa-club-github-actions-deploy-dev` de `bootstrap/main.tf`) |
 | `AWS_REGION`              | Variable de repo            | Región AWS (default `us-east-1`)                                        | Reutiliza la misma variable que `pr-quality.yml`                              |
 | `DEV_SES_SENDER_EMAIL`    | Variable de repo (opcional) | Remitente SES de dev para `terraform apply` (dato no sensible)          | Si no se define, usa `no-reply-dev@example.com`                               |
+| `DEV_CULQI_PUBLIC_KEY`    | Variable de repo (opcional) | Llave **pública** de Culqi sandbox, inyectada como `VITE_CULQI_PUBLIC_KEY` en el build del frontend (US-019). No es secreta, pero sí configurable por entorno | Si no se define, usa el placeholder `pk_test_PENDIENTE_CULQI_SANDBOX_KEY` |
 
-Sin claves AWS estáticas en ningún paso (OIDC exclusivamente).
+Sin claves AWS estáticas en ningún paso (OIDC exclusivamente). La llave
+**privada** de Culqi nunca pasa por GitHub Actions: vive directamente en SSM
+Parameter Store (`aws_ssm_parameter.culqi_private_key`,
+`infrastructure/terraform/environments/dev/main.tf`) y solo la leen en
+runtime las Lambdas de pago (ver "Secreto de Culqi sandbox (US-019)" más
+abajo).
 
 ## Mantenimiento de permisos: cuándo hace falta un apply manual de bootstrap
 
@@ -132,17 +143,82 @@ correspondiente:
 
 Ya pasó varias veces en la práctica (ejemplos reales en el historial de
 `bootstrap/main.tf`): el rol de escritura inicial, permisos de CloudFront
-Function del módulo Terraform de CloudFront, y `cloudfront:Describe*` para
-el rol de solo lectura al agregarse una `aws_cloudfront_function`. Es
-esperable que vuelva a pasar cuando una historia futura agregue un servicio
-de AWS nuevo (p. ej. Culqi/pagos no necesita esto, pero SNS/SES para
-notificaciones o un nuevo bucket sí podrían).
+Function del módulo Terraform de CloudFront, `cloudfront:Describe*` para el
+rol de solo lectura al agregarse una `aws_cloudfront_function`, y — a partir
+de US-019 — los permisos de `ssm:GetParameter`/`ssm:PutParameter` y
+`kms:Decrypt`/`kms:Encrypt`/`kms:GenerateDataKey` (acotados por condición
+`kms:ViaService`) que necesitan tanto el rol de escritura (`deploy-dev`,
+para crear/leer el parámetro) como el de solo lectura (`plan`, para que
+`terraform plan` en Pull Requests pueda refrescarlo) al agregarse
+`aws_ssm_parameter.culqi_private_key`. Es esperable que vuelva a pasar
+cuando una historia futura agregue otro servicio de AWS nuevo (p. ej. SNS
+para notificaciones o un nuevo bucket).
+
+## Secreto de Culqi sandbox (US-019): SSM Parameter Store
+
+`infrastructure/terraform/environments/dev/main.tf` declara
+`aws_ssm_parameter.culqi_private_key`
+(`/activa-club/dev/culqi/private-key`, tipo `SecureString`, cifrado con la
+llave administrada por defecto de la cuenta `alias/aws/ssm`, sin costo fijo
+de KMS). Guarda la llave **privada** de Culqi sandbox (RN-PAG-04/08,
+ADR-0007): las Lambdas `payments-create` (`POST /payments`) y
+`payments-webhook` (`POST /payments/webhook`) la leen en runtime vía
+`ssm:GetParameter` (nombre del parámetro inyectado como la variable de
+entorno `CULQI_PRIVATE_KEY_PARAM_NAME`), nunca como texto plano en el
+código ni en variables de Terraform versionadas.
+
+### Por qué no hay todavía una cuenta Culqi sandbox real
+
+Terraform aplica el parámetro con un valor **placeholder** explícito
+(`"PENDIENTE_CULQI_SANDBOX_KEY"`) porque, al momento de US-019, todavía no
+existe una cuenta de Culqi sandbox asignada al proyecto (ver la propia
+historia, "casos alternativos"). El bloque `lifecycle { ignore_changes =
+[value] }` del recurso es intencional: una vez cargado el valor real a
+mano, un futuro `terraform apply` de otro cambio de infraestructura **no**
+lo vuelve a pisar con el placeholder.
+
+### Cargar el valor real (cuando exista la cuenta Culqi sandbox)
+
+Con las credenciales del rol de escritura de dev (o de una persona con
+permiso equivalente, nunca desde el repositorio):
+
+```bash
+aws ssm put-parameter \
+  --name "/activa-club/dev/culqi/private-key" \
+  --type SecureString \
+  --value "<llave-privada-real-de-culqi-sandbox>" \
+  --overwrite
+```
+
+No hace falta ningún cambio de Terraform ni un nuevo despliegue: las
+Lambdas de pago leen el valor vigente en cada invocación (`ssm:GetParameter`
+sin caché de larga duración). La llave **pública** correspondiente se
+configura aparte, como variable de repositorio `DEV_CULQI_PUBLIC_KEY` (ver
+tabla de secrets/variables más arriba) — no es secreta, así que no pasa por
+SSM.
+
+### Rotación
+
+Rotar la llave privada es el mismo comando `aws ssm put-parameter
+--overwrite` de arriba con el valor nuevo. Al no cachearse en el código de
+las Lambdas más allá de la propia invocación, el cambio queda efectivo de
+inmediato para invocaciones nuevas, sin necesidad de reiniciar ni
+redesplegar nada. Rotar también implica actualizar `DEV_CULQI_PUBLIC_KEY`
+en las variables del repositorio si Culqi emite un par de llaves nuevo
+(pública + privada juntas), y volver a desplegar el frontend
+(`workflow_dispatch` de `deploy-dev.yml`) para que el build recoja la
+llave pública nueva.
 
 ## Riesgos y consideraciones
 
 - **Costo**: sin recursos nuevos de costo fijo; el `terraform apply` real
   puede crear/actualizar Lambdas, API Gateway y alarmas de CloudWatch
-  (dentro de la capa gratuita para el volumen de este proyecto).
+  (dentro de la capa gratuita para el volumen de este proyecto). El
+  parámetro SSM de Culqi (US-019) no tiene costo (SSM Standard tier +
+  llave KMS administrada por AWS, sin cargo). Los 6 endpoints de EP-03
+  agregan 6 alarmas de CloudWatch más (16 en total con los 10 de EP-02),
+  ya fuera de las 10 incluidas en la capa gratuita: costo estimado
+  ~US$0.60/mes adicionales (ver `modules/endpoint/README.md`).
 - **Seguridad**: el rol de escritura solo es asumible por push a `main`
   (nunca `pull_request`) y está acotado por prefijo de nombre a los recursos
   de `dev` (ver comentarios de `bootstrap/main.tf`); no tiene permisos sobre
