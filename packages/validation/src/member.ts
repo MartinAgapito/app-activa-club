@@ -52,7 +52,7 @@ export const updateMemberSchema = z
   });
 
 export const autoRenewSchema = z.object({
-  autoRenew: z.boolean(),
+  enabled: z.boolean(),
 });
 
 export const rejectMemberSchema = z.object({

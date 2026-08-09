@@ -42,7 +42,7 @@ describe('PATCH /members/me/auto-renew', () => {
       httpMethod: 'PATCH',
       path: '/members/me/auto-renew',
       claims: { sub: 'test-sub', 'cognito:groups': '[admin]' },
-      body: JSON.stringify({ autoRenew: true }),
+      body: JSON.stringify({ enabled: true }),
     });
 
     const result = await handler(event);
@@ -57,7 +57,7 @@ describe('PATCH /members/me/auto-renew', () => {
       httpMethod: 'PATCH',
       path: '/members/me/auto-renew',
       claims: { sub: 'test-sub', 'cognito:groups': '[member]' },
-      body: JSON.stringify({ autoRenew: true }),
+      body: JSON.stringify({ enabled: true }),
     });
 
     const result = await handler(event);
@@ -77,7 +77,7 @@ describe('PATCH /members/me/auto-renew', () => {
       httpMethod: 'PATCH',
       path: '/members/me/auto-renew',
       claims: { sub: 'test-sub', 'cognito:groups': '[member]' },
-      body: JSON.stringify({ autoRenew: false }),
+      body: JSON.stringify({ enabled: false }),
     });
 
     const result = await handler(event);
@@ -99,7 +99,7 @@ describe('PATCH /members/me/auto-renew', () => {
       httpMethod: 'PATCH',
       path: '/members/me/auto-renew',
       claims: { sub: 'test-sub', 'cognito:groups': '[member]' },
-      body: JSON.stringify({ autoRenew: true }),
+      body: JSON.stringify({ enabled: true }),
     });
 
     const result = await handler(event);
@@ -109,7 +109,7 @@ describe('PATCH /members/me/auto-renew', () => {
     expect(body.error.code).toBe('MEMBER_NOT_APPROVED');
   });
 
-  it('devuelve 400 VALIDATION_ERROR si el body no trae autoRenew', async () => {
+  it('devuelve 400 VALIDATION_ERROR si el body no trae enabled', async () => {
     const event = buildCognitoProxyEvent({
       httpMethod: 'PATCH',
       path: '/members/me/auto-renew',
@@ -123,12 +123,12 @@ describe('PATCH /members/me/auto-renew', () => {
     expect(updateMemberAutoRenewMock).not.toHaveBeenCalled();
   });
 
-  it('devuelve 400 VALIDATION_ERROR si autoRenew no es booleano', async () => {
+  it('devuelve 400 VALIDATION_ERROR si enabled no es booleano', async () => {
     const event = buildCognitoProxyEvent({
       httpMethod: 'PATCH',
       path: '/members/me/auto-renew',
       claims: { sub: 'test-sub', 'cognito:groups': '[member]' },
-      body: JSON.stringify({ autoRenew: 'yes' }),
+      body: JSON.stringify({ enabled: 'yes' }),
     });
 
     const result = await handler(event);
@@ -158,7 +158,7 @@ describe('PATCH /members/me/auto-renew', () => {
       claims: { sub: 'test-sub', 'cognito:groups': '[member]' },
       // `memberId` no forma parte de `autoRenewSchema`: no hay forma de que
       // este valor llegue al orquestador ni de que afecte a otro socio.
-      body: JSON.stringify({ autoRenew: true, memberId: 'otro-socio-cualquiera' }),
+      body: JSON.stringify({ enabled: true, memberId: 'otro-socio-cualquiera' }),
     });
 
     const result = await handler(event);
@@ -175,7 +175,7 @@ describe('PATCH /members/me/auto-renew', () => {
       httpMethod: 'PATCH',
       path: '/members/me/auto-renew',
       claims: { 'cognito:groups': '[member]' } as unknown as Record<string, string>,
-      body: JSON.stringify({ autoRenew: true }),
+      body: JSON.stringify({ enabled: true }),
     });
     // Sin `sub` en los claims, `extractIdentity` no puede resolver identidad.
     (event.requestContext.authorizer as { claims: Record<string, string> }).claims = {
