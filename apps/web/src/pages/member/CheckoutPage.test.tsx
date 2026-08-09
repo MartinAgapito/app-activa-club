@@ -151,18 +151,75 @@ describe('CheckoutPage', () => {
       '/socio',
     );
 
-    // Criterio 4: únicamente membershipType, culqiToken e idempotencyKey.
+    // Criterio 4 (US-022): membershipType, culqiToken, idempotencyKey y,
+    // desde US-023, autoRenew (desactivada por defecto — criterio 5).
     expect(createPaymentMock).toHaveBeenCalledTimes(1);
     const [request] = createPaymentMock.mock.calls[0] as [Record<string, unknown>];
-    expect(Object.keys(request).sort()).toEqual(['culqiToken', 'idempotencyKey', 'membershipType']);
+    expect(Object.keys(request).sort()).toEqual([
+      'autoRenew',
+      'culqiToken',
+      'idempotencyKey',
+      'membershipType',
+    ]);
     expect(request['membershipType']).toBe('ANNUAL');
     expect(request['culqiToken']).toBe('tkn_test_123');
     expect(typeof request['idempotencyKey']).toBe('string');
+    expect(request['autoRenew']).toBe(false);
 
     // Criterio 7: se invalida la consulta de perfil cacheada.
     await waitFor(() => {
       expect(queryClient.getQueryState(MEMBER_PROFILE_QUERY_KEY)?.isInvalidated).toBe(true);
     });
+  });
+
+  it('US-023 — al marcar la opción de renovación automática, se envía autoRenew: true en el pago (criterio 6)', async () => {
+    fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_123');
+    createPaymentMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
+    renderPage();
+    const user = userEvent.setup();
+
+    // La opción explica en lenguaje claro qué implica antes de confirmar el
+    // pago, sin prometer un cobro automático que el sistema todavía no
+    // ejecuta (alcance de US-023).
+    const autoRenewCheckbox = await screen.findByRole('checkbox', {
+      name: /autorizar la renovación automática/i,
+    });
+    expect(screen.getByText(/todavía no ejecutamos ningún cobro automático/i)).toBeInTheDocument();
+    expect(autoRenewCheckbox).not.toBeChecked();
+
+    await user.click(autoRenewCheckbox);
+    expect(autoRenewCheckbox).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: /pagar con tarjeta/i }));
+
+    await screen.findByRole('heading', { name: /pago confirmado/i });
+    const [request] = createPaymentMock.mock.calls[0] as [Record<string, unknown>];
+    expect(request['autoRenew']).toBe(true);
+  });
+
+  it('US-023 — un intento nuevo tras un pago rechazado restablece la opción de renovación automática desmarcada', async () => {
+    fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+    requestCulqiTokenMock.mockResolvedValue('tkn_test_1');
+    createPaymentMock.mockRejectedValueOnce(
+      new ApiRequestError(422, 'PAYMENT_FAILED', 'Tarjeta rechazada por el emisor.'),
+    );
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole('checkbox', { name: /autorizar la renovación automática/i }),
+    );
+    await user.click(screen.getByRole('button', { name: /pagar con tarjeta/i }));
+
+    expect(await screen.findByText(/tu tarjeta fue rechazada/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /elegir otro plan/i }));
+
+    await user.click((await screen.findAllByRole('button', { name: /elegir este plan/i }))[0]!);
+
+    expect(
+      await screen.findByRole('checkbox', { name: /autorizar la renovación automática/i }),
+    ).not.toBeChecked();
   });
 
   it('pago rechazado (PAYMENT_FAILED): mensaje claro y permite reintentar con un token nuevo (criterio 8)', async () => {

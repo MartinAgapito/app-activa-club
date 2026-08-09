@@ -1,10 +1,14 @@
-// US-020 — consultar los planes de membresía disponibles.
+// US-020 — consultar los planes de membresía disponibles — y US-023 —
+// renovar la membresía y autorizar la renovación automática.
 // Cubre: estados de carga y error (con reintento) de cada sección de forma
-// independiente (criterio 5 — no bloquear la consulta de planes), el
-// renderizado de los dos planes con precio formateado en soles y duración
-// (criterios 1 y 4), el estado de la membresía vigente del socio (criterio
-// 5) y que `allowsInstallments: false` no ofrezca la opción de facilidades
-// de pago (caso alternativo).
+// independiente (criterio 5 de US-020 — no bloquear la consulta de planes),
+// el renderizado de los dos planes con precio formateado en soles y duración
+// (criterios 1 y 4 de US-020), el estado de la membresía vigente del socio
+// (criterio 5 de US-020), que `allowsInstallments: false` no ofrezca la
+// opción de facilidades de pago (caso alternativo), y de US-023: el estado
+// real de `autoRenew` (criterio 8), activarla y desactivarla con
+// confirmación explícita y visible (criterios 6 y 7), y que la preferencia
+// esté desactivada por defecto (criterio 5).
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -15,10 +19,13 @@ import type { Member, MembershipPlan } from '@activa-club/shared-types';
 import { MembershipPage } from './MembershipPage';
 import { ApiRequestError } from '../../lib/api/http-client';
 
-const { fetchMemberProfileMock, fetchMembershipPlansMock } = vi.hoisted(() => ({
-  fetchMemberProfileMock: vi.fn(),
-  fetchMembershipPlansMock: vi.fn(),
-}));
+const { fetchMemberProfileMock, fetchMembershipPlansMock, updateAutoRenewMock } = vi.hoisted(
+  () => ({
+    fetchMemberProfileMock: vi.fn(),
+    fetchMembershipPlansMock: vi.fn(),
+    updateAutoRenewMock: vi.fn(),
+  }),
+);
 
 vi.mock('../../members/profile-client', () => ({
   fetchMemberProfile: fetchMemberProfileMock,
@@ -26,6 +33,10 @@ vi.mock('../../members/profile-client', () => ({
 
 vi.mock('../../members/plans-client', () => ({
   fetchMembershipPlans: fetchMembershipPlansMock,
+}));
+
+vi.mock('../../members/auto-renew-client', () => ({
+  updateAutoRenew: updateAutoRenewMock,
 }));
 
 const BASE_MEMBER: Member = {
@@ -78,6 +89,7 @@ describe('MembershipPage', () => {
     vi.restoreAllMocks();
     fetchMemberProfileMock.mockReset();
     fetchMembershipPlansMock.mockReset();
+    updateAutoRenewMock.mockReset();
   });
 
   it('muestra estados de carga independientes para la membresía y los planes', () => {
@@ -177,5 +189,128 @@ describe('MembershipPage', () => {
     await user.click(screen.getByRole('button', { name: /reintentar/i }));
 
     expect(await screen.findByText('Mensual')).toBeInTheDocument();
+  });
+
+  describe('renovación automática (US-023)', () => {
+    it('muestra el estado real desactivado leído del backend, sin inferirlo (criterios 5 y 8)', async () => {
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: false });
+      fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+      renderPage();
+
+      expect(screen.getByText('Renovación automática')).toBeInTheDocument();
+      expect(await screen.findByText('Desactivada')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /activar renovación automática/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('muestra el estado real activado leído del backend (criterio 8)', async () => {
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: true });
+      fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+      renderPage();
+
+      expect(await screen.findByText('Activada')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /desactivar renovación automática/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('activarla exige una confirmación explícita antes de llamar al backend (criterio 6, RN-PAG-07)', async () => {
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: false });
+      fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(
+        await screen.findByRole('button', { name: /activar renovación automática/i }),
+      );
+
+      const dialog = await screen.findByRole('alertdialog', {
+        name: /¿activar la renovación automática\?/i,
+      });
+      expect(dialog).toHaveTextContent(/no ejecutamos ningún cobro/i);
+      expect(updateAutoRenewMock).not.toHaveBeenCalled();
+    });
+
+    it('activa la renovación automática, la confirma visiblemente y refresca el estado (criterios 6 y 8)', async () => {
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: false });
+      fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+      updateAutoRenewMock.mockResolvedValueOnce(undefined);
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: true });
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(
+        await screen.findByRole('button', { name: /activar renovación automática/i }),
+      );
+      await user.click(await screen.findByRole('button', { name: 'Activar' }));
+
+      expect(updateAutoRenewMock).toHaveBeenCalledWith({ enabled: true });
+      expect(
+        await screen.findByText('Activaste la renovación automática. Guardamos tu autorización.'),
+      ).toBeInTheDocument();
+      // Criterio 8: se vuelve a consultar GET /members/me tras el cambio.
+      expect(await screen.findByText('Activada')).toBeInTheDocument();
+      expect(fetchMemberProfileMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('desactiva la renovación automática con confirmación explícita e inmediata (criterio 7)', async () => {
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: true });
+      fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+      updateAutoRenewMock.mockResolvedValueOnce(undefined);
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: false });
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(
+        await screen.findByRole('button', { name: /desactivar renovación automática/i }),
+      );
+
+      const dialog = await screen.findByRole('alertdialog', {
+        name: /¿desactivar la renovación automática\?/i,
+      });
+      expect(dialog).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Desactivar' }));
+
+      expect(updateAutoRenewMock).toHaveBeenCalledWith({ enabled: false });
+      expect(await screen.findByText('Desactivaste la renovación automática.')).toBeInTheDocument();
+      expect(await screen.findByText('Desactivada')).toBeInTheDocument();
+    });
+
+    it('cancelar el diálogo no llama al backend ni cambia el estado mostrado', async () => {
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: false });
+      fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(
+        await screen.findByRole('button', { name: /activar renovación automática/i }),
+      );
+      await screen.findByRole('alertdialog');
+      await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(updateAutoRenewMock).not.toHaveBeenCalled();
+      expect(screen.getByText('Desactivada')).toBeInTheDocument();
+    });
+
+    it('un error del backend al cambiar la preferencia se muestra sin dejar un estado inconsistente', async () => {
+      fetchMemberProfileMock.mockResolvedValueOnce({ ...BASE_MEMBER, autoRenew: false });
+      fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+      updateAutoRenewMock.mockRejectedValueOnce(
+        new ApiRequestError(500, 'INTERNAL_ERROR', 'Ocurrió un error interno.'),
+      );
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(
+        await screen.findByRole('button', { name: /activar renovación automática/i }),
+      );
+      await user.click(await screen.findByRole('button', { name: 'Activar' }));
+
+      expect(await screen.findByText('Ocurrió un error interno.')).toBeInTheDocument();
+      expect(screen.getByText('Desactivada')).toBeInTheDocument();
+    });
   });
 });
