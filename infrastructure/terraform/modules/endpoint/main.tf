@@ -128,6 +128,34 @@ resource "aws_iam_role_policy" "logs" {
 
 # Permisos adicionales de mínimo privilegio declarados por el llamante
 # (p. ej. DynamoDB/Cognito/S3 acotados a los ARN que ese endpoint necesita).
+# "Condition" solo se agrega al statement cuando var.iam_policy_statements[*]
+# trae "conditions" (US-019: kms:Decrypt sobre la llave por defecto de SSM,
+# que no tiene un ARN de recurso concreto conocible de antemano). El `merge`
+# con `{}` cuando no hay condiciones evita escribir "Condition": null en el
+# documento de política (inválido para IAM); al no forzarse un tipo
+# list(object(...)) explícito, esta expresión produce una tupla heterogénea
+# que jsonencode() serializa igual, statement por statement tenga o no
+# "Condition".
+locals {
+  custom_policy_statements = [
+    for statement in var.iam_policy_statements : merge(
+      {
+        Effect   = "Allow"
+        Action   = statement.actions
+        Resource = statement.resources
+      },
+      length(statement.conditions) > 0 ? {
+        Condition = {
+          for test in distinct([for c in statement.conditions : c.test]) :
+          test => {
+            for c in statement.conditions : c.variable => c.values if c.test == test
+          }
+        }
+      } : {}
+    )
+  ]
+}
+
 resource "aws_iam_role_policy" "custom" {
   count = length(var.iam_policy_statements) > 0 ? 1 : 0
 
@@ -135,14 +163,8 @@ resource "aws_iam_role_policy" "custom" {
   role = aws_iam_role.lambda_exec.id
 
   policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      for statement in var.iam_policy_statements : {
-        Effect   = "Allow"
-        Action   = statement.actions
-        Resource = statement.resources
-      }
-    ]
+    Version   = "2012-10-17"
+    Statement = local.custom_policy_statements
   })
 }
 

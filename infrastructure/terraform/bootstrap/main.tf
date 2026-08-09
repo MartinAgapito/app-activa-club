@@ -295,6 +295,54 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
     resources = ["*"]
   }
 
+  # US-019: lectura del secreto de Culqi sandbox (SSM SecureString, ver
+  # environments/dev/main.tf y environments/prd/main.tf cuando exista), para
+  # que `terraform plan` en Pull Requests pueda refrescar su estado. Solo
+  # lectura (sin ssm:PutParameter): este rol nunca hace `apply`.
+  statement {
+    sid    = "ReadProjectSsmParameters"
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/*",
+    ]
+  }
+
+  statement {
+    sid       = "DescribeSsmParameters"
+    effect    = "Allow"
+    actions   = ["ssm:DescribeParameters"]
+    resources = ["*"]
+  }
+
+  # kms:Decrypt sobre la llave por defecto de SSM ("alias/aws/ssm"): mismo
+  # motivo/alcance que DecryptDevCulqiSecretParameter más abajo (rol de
+  # escritura), pero de solo lectura.
+  statement {
+    sid    = "DecryptProjectSsmParameters"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+    ]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.aws_region}.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
   statement {
     sid       = "CallerIdentity"
     effect    = "Allow"
@@ -698,6 +746,67 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
       "cloudfront:GetFunction",
     ]
     resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:function/${var.project}-dev-*"]
+  }
+
+  # Secreto de la llave privada de Culqi sandbox (EP-03, US-019, ADR-0007):
+  # SSM Parameter Store SecureString, un único parámetro por entorno
+  # ("/activa-club/dev/culqi/private-key", ver environments/dev/main.tf,
+  # aws_ssm_parameter.culqi_private_key). Acotado al ARN exacto de ese
+  # parámetro; nunca "parameter/*". ssm:DescribeParameters no admite scoping
+  # por ARN de recurso en su API (limitación de AWS, no de esta política),
+  # igual que otras acciones "Describe" ya documentadas más arriba en este
+  # archivo.
+  statement {
+    sid    = "ManageDevCulqiSecretParameter"
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:PutParameter",
+      "ssm:AddTagsToResource",
+      "ssm:RemoveTagsFromResource",
+      "ssm:ListTagsForResource",
+    ]
+    resources = [
+      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/dev/culqi/private-key",
+    ]
+  }
+
+  statement {
+    sid       = "DescribeDevSsmParameters"
+    effect    = "Allow"
+    actions   = ["ssm:DescribeParameters"]
+    resources = ["*"]
+  }
+
+  # kms:Decrypt/Encrypt/GenerateDataKey sobre la llave administrada por
+  # defecto de SSM ("alias/aws/ssm"): sin un ARN de recurso concreto y
+  # estable que se pueda fijar de antemano (ver comentario extenso en
+  # environments/dev/main.tf, local.ssm_default_kms_decrypt_conditions, y
+  # modules/endpoint/README.md), acotado en su lugar por condición: solo
+  # cuando la llamada a KMS pasa por el servicio SSM, y solo dentro de esta
+  # cuenta AWS.
+  statement {
+    sid    = "DecryptDevCulqiSecretParameter"
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:GenerateDataKey",
+    ]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.aws_region}.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
   }
 
   statement {

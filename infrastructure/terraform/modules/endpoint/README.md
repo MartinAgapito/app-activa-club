@@ -84,6 +84,22 @@ forzar el redeploy cuando cambia cualquier endpoint (ver
 Cada instancia crea, por defecto, una alarma de CloudWatch sobre `Errors`
 (`enable_error_alarm = true`), sin acciones asociadas (sin SNS) para no
 incurrir en costo por notificación. Con 10 endpoints de EP-02 esto usa 10 de
-las 10 alarmas incluidas en la capa gratuita de CloudWatch; si un futuro
-entorno (p. ej. `prd`) necesita desactivarlas para no exceder ese límite,
-pasar `enable_error_alarm = false` en las instancias menos críticas.
+las 10 alarmas incluidas en la capa gratuita de CloudWatch; los 6 endpoints
+de EP-03 (US-019) suman 6 alarmas más, ya fuera de la capa gratuita
+(~US$0.10/mes cada una tras superarla). Si un futuro entorno (p. ej. `prd`)
+necesita desactivarlas para no exceder ese límite, pasar
+`enable_error_alarm = false` en las instancias menos críticas.
+
+## `iam_policy_statements[*].conditions` (opcional, US-019)
+
+Cada entrada de `iam_policy_statements` admite una lista opcional
+`conditions` (`[]` por defecto) de objetos `{ test, variable, values }`, que
+se traduce a un bloque `"Condition"` del statement IAM generado. Existe para
+el caso en que el propio recurso no tiene un ARN concreto y estable que se
+pueda poner en `resources` (p. ej. `kms:Decrypt` sobre la llave por defecto
+de SSM Parameter Store, `alias/aws/ssm`, creada de forma perezosa por AWS y
+cuyo ARN real no es conocible de antemano por Terraform sin una dependencia
+circular con el propio secreto que la usa): en vez de otorgar el permiso
+sobre `Resource = "*"` sin ninguna restricción, se acota por condición (p.
+ej. `kms:ViaService` + `kms:CallerAccount`). Ver
+`environments/dev/main.tf`, endpoints `payments-create` y `payments-webhook`.

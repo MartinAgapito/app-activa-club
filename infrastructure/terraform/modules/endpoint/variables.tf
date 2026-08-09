@@ -101,10 +101,25 @@ variable "environment_variables" {
 }
 
 variable "iam_policy_statements" {
-  description = "Declaraciones IAM de mínimo privilegio adicionales que necesita esta función específica (acciones + recursos)."
+  description = <<-EOT
+    Declaraciones IAM de mínimo privilegio adicionales que necesita esta
+    función específica (acciones + recursos). "conditions" es opcional
+    (vacío por defecto): úsalo cuando el propio recurso no admite un ARN
+    concreto en "resources" (p. ej. kms:Decrypt sobre la llave administrada
+    por defecto de SSM Parameter Store, "alias/aws/ssm", cuyo ARN real no es
+    conocible de antemano por Terraform sin crear una dependencia circular
+    con el propio secreto que la usa) y haga falta acotar el permiso por
+    condición en su lugar (p. ej. "kms:ViaService"), en vez de usar
+    Resource = "*" sin ninguna restricción (US-019).
+  EOT
   type = list(object({
     actions   = list(string)
     resources = list(string)
+    conditions = optional(list(object({
+      test     = string
+      variable = string
+      values   = list(string)
+    })), [])
   }))
   default = []
 }
