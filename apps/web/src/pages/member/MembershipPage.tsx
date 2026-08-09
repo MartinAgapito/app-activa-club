@@ -1,19 +1,26 @@
-// Mi membresía — US-020.
+// Mi membresía — US-020 y US-023 (renovación automática).
 //
 // Consulta los planes de membresía disponibles (`GET /memberships/plans`,
 // docs/api/contratos-api.md §5) y el estado de la membresía vigente del
 // socio (`GET /members/me`, ya cacheado por `RequireActiveMember` al entrar
 // a `/socio/*`). Las dos consultas son independientes: si la del perfil
 // falla o tarda, la de planes se muestra igual y viceversa (criterio de
-// aceptación 5 — no bloquear la consulta de planes).
+// aceptación 5 de US-020 — no bloquear la consulta de planes).
 //
 // Solo llegan aquí socios con `memberStatus === 'ACTIVE'` (guard
 // `RequireActiveMember`); esta pantalla no decide esa regla, solo la asume.
+// Por eso ningún socio `PENDING`/`REJECTED` llega a ver la preferencia de
+// renovación automática (US-023, caso alternativo "socio PENDING/REJECTED
+// no puede... activar la preferencia"): el guard ya se lo impide.
+//
 // El pago (Culqi.js, formulario de tarjeta) es responsabilidad de US-022
 // (`CheckoutPage`, ruta `/socio/membresia/pagar?plan=<tipo>`): esta pantalla
 // solo enlaza al plan elegido, sin tocar ningún dato de tarjeta (RN-PAG-08).
+// Renovar reutiliza ese mismo checkout (US-023, criterio 1): no hay un flujo
+// de renovación separado.
 
-import type { UseQueryResult } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Badge,
@@ -21,14 +28,16 @@ import {
   Button,
   Card,
   CardHeader,
+  ConfirmDialog,
   ErrorState,
   PageHeader,
   Spinner,
 } from '@activa-club/ui';
 import type { Member, MembershipPlan } from '@activa-club/shared-types';
 import { ApiRequestError } from '../../lib/api/http-client';
-import { useMemberProfileQuery } from '../../members/profile-query';
+import { MEMBER_PROFILE_QUERY_KEY, useMemberProfileQuery } from '../../members/profile-query';
 import { useMembershipPlansQuery } from '../../members/plans-query';
+import { updateAutoRenew } from '../../members/auto-renew-client';
 import { formatDate } from '../../lib/format/date';
 import { formatCentsAsCurrency } from '../../lib/format/currency';
 import {
@@ -52,6 +61,8 @@ export function MembershipPage() {
       />
 
       <CurrentMembershipCard profileQuery={profileQuery} />
+
+      <AutoRenewCard profileQuery={profileQuery} />
 
       <PlansSection plansQuery={plansQuery} />
     </div>
@@ -116,6 +127,154 @@ function CurrentMembershipCard({ profileQuery }: CurrentMembershipCardProps) {
           )}
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+interface AutoRenewCardProps {
+  profileQuery: UseQueryResult<Member>;
+}
+
+/** Preferencia de renovación automática (US-023, criterios de aceptación 5,
+ * 6, 7 y 8): muestra el valor real de `autoRenew` que devuelve `GET
+ * /members/me` — nunca inferido en el cliente — y permite cambiarlo con una
+ * acción explícita e inequívoca (un botón dedicado, nunca un toggle que se
+ * dispare por accidente) más una confirmación (`ConfirmDialog`, RN-PAG-07)
+ * que explica en lenguaje honesto qué implica: solo guardamos la preferencia,
+ * ningún cobro automático desatendido se ejecuta todavía (ver "Alcance de la
+ * renovación automática" en la historia). */
+function AutoRenewCard({ profileQuery }: AutoRenewCardProps) {
+  const queryClient = useQueryClient();
+  // `null` = sin diálogo abierto; `true`/`false` = valor que se confirmaría.
+  const [pendingValue, setPendingValue] = useState<boolean | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(
+    null,
+  );
+
+  const mutation = useMutation({
+    mutationFn: (enabled: boolean) => updateAutoRenew({ enabled }),
+    onSuccess: async (_response, enabled) => {
+      setPendingValue(null);
+      setFeedback({
+        type: 'success',
+        text: enabled
+          ? 'Activaste la renovación automática. Guardamos tu autorización.'
+          : 'Desactivaste la renovación automática.',
+      });
+      // Criterio 8: el estado se refleja al instante desde el backend, no se
+      // asume el nuevo valor en el cliente.
+      await queryClient.invalidateQueries({ queryKey: MEMBER_PROFILE_QUERY_KEY });
+    },
+    onError: (error: unknown) => {
+      setPendingValue(null);
+      setFeedback({
+        type: 'error',
+        text:
+          error instanceof ApiRequestError
+            ? error.message
+            : 'No se pudo actualizar tu preferencia. Intenta nuevamente.',
+      });
+    },
+  });
+
+  if (profileQuery.isPending) {
+    return (
+      <Card>
+        <CardHeader title="Renovación automática" />
+        <div className="flex justify-center py-6">
+          <Spinner label="Consultando tu preferencia de renovación automática…" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (profileQuery.isError) {
+    return (
+      <Card>
+        <CardHeader title="Renovación automática" />
+        <ErrorState
+          title="No pudimos consultar tu preferencia de renovación automática"
+          description={
+            profileQuery.error instanceof ApiRequestError
+              ? profileQuery.error.message
+              : 'Ocurrió un error inesperado. Intenta nuevamente en unos minutos.'
+          }
+          action={<Button onClick={() => void profileQuery.refetch()}>Reintentar</Button>}
+        />
+      </Card>
+    );
+  }
+
+  const member = profileQuery.data;
+  if (!member) {
+    return null;
+  }
+
+  const isEnabled = member.autoRenew;
+
+  return (
+    <Card>
+      <CardHeader title="Renovación automática" />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={isEnabled ? 'positive' : 'neutral'}>
+          {isEnabled ? 'Activada' : 'Desactivada'}
+        </Badge>
+      </div>
+
+      <p className="mt-2 text-sm text-slate-600">
+        {isEnabled
+          ? 'Autorizaste la renovación automática de tu membresía. Por ahora esto guarda tu preferencia: todavía no ejecutamos ningún cobro automático sin que vuelvas a confirmarlo.'
+          : 'No autorizaste la renovación automática. Vas a necesitar pagar manualmente cada vez que corresponda renovar tu membresía.'}
+      </p>
+
+      {feedback ? (
+        <p
+          role={feedback.type === 'error' ? 'alert' : 'status'}
+          className={
+            feedback.type === 'success'
+              ? 'mt-3 rounded-lg border border-positive-200 bg-positive-50 px-3 py-2 text-sm text-positive-800'
+              : 'mt-3 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700'
+          }
+        >
+          {feedback.text}
+        </p>
+      ) : null}
+
+      <Button
+        type="button"
+        variant={isEnabled ? 'secondary' : 'positive'}
+        className="mt-4"
+        onClick={() => {
+          setFeedback(null);
+          setPendingValue(!isEnabled);
+        }}
+      >
+        {isEnabled ? 'Desactivar renovación automática' : 'Activar renovación automática'}
+      </Button>
+
+      <ConfirmDialog
+        open={pendingValue !== null}
+        title={
+          pendingValue
+            ? '¿Activar la renovación automática?'
+            : '¿Desactivar la renovación automática?'
+        }
+        description={
+          pendingValue
+            ? 'Guardamos tu autorización para renovar tu membresía automáticamente. Por ahora esto solo registra tu preferencia: no ejecutamos ningún cobro sin que vuelvas a confirmarlo. Podés desactivarla cuando quieras.'
+            : 'Ya no vamos a considerar tu autorización para renovar automáticamente. Vas a tener que pagar manualmente la próxima vez que corresponda renovar.'
+        }
+        confirmLabel={pendingValue ? 'Activar' : 'Desactivar'}
+        confirmVariant={pendingValue ? 'positive' : 'danger'}
+        isLoading={mutation.isPending}
+        onConfirm={() => {
+          if (pendingValue !== null) {
+            mutation.mutate(pendingValue);
+          }
+        }}
+        onCancel={() => setPendingValue(null)}
+      />
     </Card>
   );
 }

@@ -1,7 +1,7 @@
 // Checkout de pago de membresía — US-022 (docs/api/contratos-api.md §5,
-// ADR-0007, RN-PAG-01/04/05/08, RN-ACT-07).
+// ADR-0007, RN-PAG-01/04/05/08, RN-ACT-07) y US-023 (renovación automática).
 //
-// Accesible desde dos puntos (criterios 1 y 2):
+// Accesible desde dos puntos (criterios 1 y 2 de US-022):
 // - `MembershipPage` ("Pagar este plan" de un plan concreto): llega con
 //   `?plan=<MembershipType>` ya elegido.
 // - `PendingApprovalPage` (socio `APPROVED`, "callejón sin salida" del
@@ -15,8 +15,13 @@
 // Tokenización de tarjeta: exclusivamente con Culqi.js (./payments/culqi.ts)
 // usando la llave pública (`VITE_CULQI_PUBLIC_KEY`, US-019). Ningún dato de
 // tarjeta pasa por el estado de este componente ni por `POST /payments`
-// (RN-PAG-08, criterio 3): solo se envía `membershipType`, `culqiToken` e
-// `idempotencyKey` (criterio 4).
+// (RN-PAG-08): solo se envía `membershipType`, `culqiToken`,
+// `idempotencyKey` (criterio 4 de US-022) y `autoRenew` (criterio 6 de
+// US-023 — alternativa al toggle standalone de `MembershipPage`, con el
+// mismo texto honesto: activarla solo guarda la preferencia, ningún cobro
+// automático desatendido se ejecuta todavía). `autoRenew` solo queda
+// autorizada de verdad si el pago se confirma (criterio 10 de US-023,
+// RN-PAG-07); esa regla la aplica el backend, no esta pantalla.
 //
 // `idempotencyKey`: se genera una vez por intento de compra (al entrar a la
 // pantalla) y se reutiliza mientras ese intento siga en curso — incluido un
@@ -86,6 +91,9 @@ export function CheckoutPage() {
   const [isTokenizing, setIsTokenizing] = useState(false);
   const [culqiError, setCulqiError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<PaymentOutcome | null>(null);
+  // US-023, criterio 6: desactivada por defecto en cada intento nuevo — un
+  // socio nunca queda autorizado sin marcarla explícitamente (RN-PAG-03).
+  const [autoRenew, setAutoRenewChoice] = useState(false);
   const isSubmittingRef = useRef(false);
 
   const paymentMutation = useMutation({ mutationFn: createPayment });
@@ -96,6 +104,7 @@ export function CheckoutPage() {
     setOutcome(null);
     setCulqiError(null);
     setIdempotencyKey(crypto.randomUUID());
+    setAutoRenewChoice(false);
     setSearchParams({ plan: type });
   }
 
@@ -103,6 +112,7 @@ export function CheckoutPage() {
     setOutcome(null);
     setCulqiError(null);
     setIdempotencyKey(crypto.randomUUID());
+    setAutoRenewChoice(false);
   }
 
   async function handlePay() {
@@ -137,6 +147,7 @@ export function CheckoutPage() {
         membershipType: selectedPlan.type,
         culqiToken,
         idempotencyKey,
+        autoRenew,
       });
       setOutcome(toSuccessOutcome(response));
       if (response.paymentStatus === 'SUCCEEDED') {
@@ -254,6 +265,22 @@ export function CheckoutPage() {
           {culqiError}
         </p>
       ) : null}
+
+      <label className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <input
+          type="checkbox"
+          checked={autoRenew}
+          onChange={(event) => setAutoRenewChoice(event.target.checked)}
+          disabled={isProcessing}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        />
+        <span className="text-sm text-slate-700">
+          <span className="font-medium text-slate-900">Autorizar la renovación automática.</span>{' '}
+          Guardamos tu autorización para renovar tu membresía; por ahora esto solo registra tu
+          preferencia, todavía no ejecutamos ningún cobro automático sin que vuelvas a confirmarlo.
+          Podés desactivarla cuando quieras desde tu membresía.
+        </span>
+      </label>
 
       <Button
         type="button"
