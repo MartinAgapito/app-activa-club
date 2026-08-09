@@ -26,14 +26,21 @@ export const reservationStatusSchema = z.enum([
 
 /**
  * Participante de entrada (no incluye al titular, que es el socio autenticado).
- * MEMBER requiere `memberId`; GUEST requiere `dni` y `name`.
+ * MEMBER requiere `memberId` (obtenido con `GET /members/lookup?dni=`); GUEST
+ * requiere `dni`, `firstName` y `lastName`.
+ *
+ * El nombre del invitado se envía siempre, exista o no su `GuestProfile`: si ya
+ * existe, el servidor conserva el nombre registrado y descarta el enviado
+ * (ADR-0009), así que el cliente no necesita saber cuál de los dos casos aplica
+ * para armar la petición.
  */
 export const reservationParticipantInputSchema = z
   .object({
     type: z.enum(['MEMBER', 'GUEST']),
     memberId: z.string().optional(),
     dni: dniSchema.optional(),
-    name: z.string().trim().min(1).max(120).optional(),
+    firstName: z.string().trim().min(1).max(80).optional(),
+    lastName: z.string().trim().min(1).max(80).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'MEMBER' && !data.memberId) {
@@ -51,15 +58,30 @@ export const reservationParticipantInputSchema = z
           path: ['dni'],
         });
       }
-      if (!data.name) {
+      if (!data.firstName) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Un invitado externo requiere name.',
-          path: ['name'],
+          message: 'Un invitado externo requiere firstName.',
+          path: ['firstName'],
+        });
+      }
+      if (!data.lastName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Un invitado externo requiere lastName.',
+          path: ['lastName'],
         });
       }
     }
   });
+
+/**
+ * Query de `GET /guests/lookup?dni=` (RN-RES-03/04, ADR-0009): coincidencia
+ * exacta de DNI. Un 404 significa "todavía no fue invitado nunca", no un error.
+ */
+export const guestLookupQuerySchema = z.object({
+  dni: dniSchema,
+});
 
 export const createReservationSchema = z.object({
   resourceId: z.string().trim().min(1),

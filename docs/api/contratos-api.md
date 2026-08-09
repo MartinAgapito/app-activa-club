@@ -161,15 +161,16 @@ Errores: 409 `DNI_ALREADY_USED` / `EMAIL_ALREADY_USED`; 400 `VALIDATION_ERROR`.
 
 ## 4. Socios (RN-ADM, dashboard)
 
-| Método | Ruta                          | Auth   | Descripción                                        |
-| ------ | ----------------------------- | ------ | -------------------------------------------------- |
-| GET    | `/members/me`                 | member | Perfil propio + estado de membresía                |
-| PATCH  | `/members/me`                 | member | Actualiza datos propios (teléfono)                 |
-| PATCH  | `/members/me/auto-renew`      | member | Activa/desactiva renovación automática (RN-PAG-03) |
-| GET    | `/members`                    | admin  | Lista socios (filtro por estado)                   |
-| GET    | `/members/{memberId}`         | admin  | Detalle de un socio                                |
-| POST   | `/members/{memberId}/approve` | admin  | Aprueba socio nuevo (RN-ADM-02)                    |
-| POST   | `/members/{memberId}/reject`  | admin  | Rechaza socio nuevo                                |
+| Método | Ruta                          | Auth            | Descripción                                                 |
+| ------ | ----------------------------- | --------------- | ----------------------------------------------------------- |
+| GET    | `/members/me`                 | member          | Perfil propio + estado de membresía                         |
+| PATCH  | `/members/me`                 | member          | Actualiza datos propios (teléfono)                          |
+| PATCH  | `/members/me/auto-renew`      | member          | Activa/desactiva renovación automática (RN-PAG-03)          |
+| GET    | `/members/lookup?dni=`        | member \| admin | Resuelve un socio por DNI exacto (participantes, RN-RES-03) |
+| GET    | `/members`                    | admin           | Lista socios (filtro por estado)                            |
+| GET    | `/members/{memberId}`         | admin           | Detalle de un socio                                         |
+| POST   | `/members/{memberId}/approve` | admin           | Aprueba socio nuevo (RN-ADM-02)                             |
+| POST   | `/members/{memberId}/reject`  | admin           | Rechaza socio nuevo                                         |
 
 ### PATCH /members/me/auto-renew
 
@@ -199,6 +200,49 @@ renovación automática" en
 `autoRenew` también puede activarse junto con un pago exitoso vía
 `POST /payments` (§5, campo `autoRenew` del request — ahí sí se llama
 `autoRenew`, no `enabled`: son dos contratos distintos, no lo mismo).
+
+### GET /members/lookup?dni=45678912
+
+Resuelve **un** socio por su DNI exacto para poder agregarlo como participante
+de una reserva (RN-RES-03, US-031). Es el único endpoint del rol `member` que
+devuelve datos de otro socio, y por eso está deliberadamente acotado
+([ADR-0009](../architecture/adr/ADR-0009-identificacion-participantes-por-dni.md)):
+
+- **Coincidencia exacta** del DNI (8 dígitos, `dniSchema`). No admite búsqueda
+  parcial, por nombre ni listado: devuelve cero o un resultado, sin paginación.
+- **Respuesta mínima**: solo lo necesario para armar la reserva (`memberId`) y
+  para que el titular confirme a quién agrega (`firstName`, `lastName`). Nunca
+  correo, teléfono, DNI, `memberStatus`, `membershipStatus`,
+  `outstandingBalance` ni ningún otro campo del socio (criterio 13 de US-031).
+
+Request: `GET /api/members/lookup?dni=45678912`
+
+Response 200:
+
+```json
+{ "memberId": "01J...", "firstName": "María", "lastName": "Quispe" }
+```
+
+Errores: 400 `VALIDATION_ERROR` (falta `dni` o no cumple el formato); 401
+`UNAUTHENTICATED`; 404 `DNI_NOT_FOUND`.
+
+Se responde **404 `DNI_NOT_FOUND`** tanto si no existe ningún socio con ese DNI
+como si el socio existe pero su `memberStatus` es `PENDING` o `REJECTED`: una
+solicitud de alta todavía no aprobada (o rechazada) no es un socio del club
+(RN-ACT-06/07) y este endpoint tampoco debe servir para averiguar el estado de
+la solicitud de un tercero. Sí son resolubles los socios `MIGRATED`, `APPROVED`
+y `ACTIVE`: la exigencia de estar activo y sin deuda (RN-RES-12) recae en el
+**titular** de la reserva, no en sus acompañantes, así que un socio al día no
+queda bloqueado por la situación de membresía de quien lo acompaña.
+
+**Por qué un endpoint propio y no `GET /members?dni=`**: `GET /members` es un
+listado paginado por `memberStatus` exclusivo de `admin` que devuelve DNI,
+estado de membresía y origen de todos los socios. Sobrecargarlo con una forma
+de respuesta distinta según el rol del llamador haría que un fallo en la
+comprobación de rol expusiera el padrón completo, y obligaría a una sola Lambda
+a tener a la vez permiso de `Query` sobre GSI2 y de lectura puntual. Separados,
+la superficie del rol `member` es una Lambda que solo hace `GetItem` por DNI y
+devuelve tres campos.
 
 ### GET /members?status=PENDING&cursor=&limit=
 
@@ -392,6 +436,26 @@ Response 200: mismo shape que un elemento de `items` en `GET /payments`.
 | POST   | `/resources/{resourceId}/maintenance`                  | admin  | Bloqueo por mantenimiento (RN-RES-11) |
 | DELETE | `/resources/{resourceId}/maintenance/{blockId}`        | admin  | Libera un bloqueo                     |
 
+### GET /resources
+
+Devuelve el catálogo completo de instalaciones (los diez recursos del club) con
+todos los campos del tipo `Resource`. Un recurso en mantenimiento **sigue
+apareciendo** en la lista, marcado con `resourceStatus=MAINTENANCE`.
+
+El catálogo se carga como **dato de infraestructura versionado en Terraform**
+(un `aws_dynamodb_table_item` por recurso,
+[ADR-0010](../architecture/adr/ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md));
+no existe ni existirá un endpoint de alta de recursos. Reparto de propiedad de
+los campos, para que no haya duda de quién manda sobre cada uno:
+
+| Campos                                                           | Fuente de verdad  | Cómo se cambian                   |
+| ---------------------------------------------------------------- | ----------------- | --------------------------------- |
+| `resourceId`, `type`, `name`, `blockMinutes`, `requiresApproval` | Terraform         | PR + `apply` (reemplazo del ítem) |
+| `capacity`, `opensAt`, `closesAt`, `resourceStatus`              | Runtime (`admin`) | `PATCH /resources/{resourceId}`   |
+
+Terraform fija el valor **inicial** de los cuatro campos de runtime y no los
+vuelve a tocar: una edición del administrador sobrevive a los despliegues.
+
 ### GET /resources/{resourceId}/availability?date=2026-07-12
 
 Response 200:
@@ -401,14 +465,61 @@ Response 200:
   "resourceId": "futbol-1",
   "date": "2026-07-12",
   "blockMinutes": 90,
+  "resourceStatus": "AVAILABLE",
   "slots": [
-    { "startsAt": "2026-07-12T11:00:00Z", "endsAt": "2026-07-12T12:30:00Z", "available": true },
-    { "startsAt": "2026-07-12T12:30:00Z", "endsAt": "2026-07-12T14:00:00Z", "available": false }
+    {
+      "startsAt": "2026-07-12T11:00:00Z",
+      "endsAt": "2026-07-12T12:30:00Z",
+      "available": true,
+      "status": "AVAILABLE"
+    },
+    {
+      "startsAt": "2026-07-12T12:30:00Z",
+      "endsAt": "2026-07-12T14:00:00Z",
+      "available": false,
+      "status": "RESERVED"
+    },
+    {
+      "startsAt": "2026-07-12T14:00:00Z",
+      "endsAt": "2026-07-12T15:30:00Z",
+      "available": false,
+      "status": "MAINTENANCE"
+    }
   ]
 }
 ```
 
 Considera reservas activas (GSI3) y bloqueos de mantenimiento.
+
+`status` de cada franja (`AvailabilitySlotStatus`) explica **por qué** no se
+puede reservar, para que el socio distinga una franja tomada por otra reserva de
+una franja fuera de servicio (RN-RES-11):
+
+| `status`      | Significado                                                                     |
+| ------------- | ------------------------------------------------------------------------------- |
+| `AVAILABLE`   | Franja libre y reservable. Equivale a `available: true`.                        |
+| `RESERVED`    | Ocupada por una reserva activa (`CONFIRMED`, `PENDING_APPROVAL` o `APPROVED`).  |
+| `MAINTENANCE` | Solapada por un `MaintenanceBlock`, o recurso con `resourceStatus=MAINTENANCE`. |
+| `PAST`        | Franja cuyo inicio ya pasó respecto del momento de la consulta.                 |
+
+Reglas de resolución:
+
+- `available` se mantiene y es exactamente `status === "AVAILABLE"`. Ningún
+  cliente debe derivar la reservabilidad de `status`: `available` sigue siendo
+  el campo de decisión.
+- Cuando aplica más de un motivo, la precedencia es **`PAST` → `MAINTENANCE` →
+  `RESERVED`**: una franja del pasado se informa como pasada aunque además esté
+  bloqueada, y el mantenimiento manda sobre la ocupación por reserva (las
+  reservas ya creadas en una franja bloqueada **no** se cancelan
+  automáticamente, ver US-035).
+- `resourceStatus` a nivel de respuesta permite a la interfaz distinguir un
+  **bloqueo indefinido** del recurso (`MAINTENANCE`, puesto con
+  `PATCH /resources/{resourceId}`, que devuelve todas las franjas del día con
+  `status=MAINTENANCE`) de una **ventana acotada** de mantenimiento (que solo
+  afecta a las franjas solapadas).
+- El motivo del bloqueo (`reason`) **no** se expone en esta respuesta: es una
+  nota operativa del administrador. El socio ve que la franja está en
+  mantenimiento, no por qué.
 
 ### POST /resources/{resourceId}/maintenance
 
@@ -416,16 +527,61 @@ Request: `{ "startsAt": "...", "endsAt": "...", "reason": "Limpieza de piscina" 
 → 201; notificación `RESOURCE_MAINTENANCE` a socios con reserva en ese recurso;
 auditoría `RESOURCE_MAINTENANCE`.
 
+El bloqueo **impide reservas nuevas** en la franja (409
+`RESOURCE_IN_MAINTENANCE`) y hace que esas franjas se devuelvan con
+`status=MAINTENANCE`, pero **no cancela** las reservas ya existentes: el
+administrador decide caso por caso y puede cancelarlas sin la restricción de
+24 h (RN-RES-10, US-035/US-036). Por eso la respuesta 201 incluye
+`affectedReservationCount`, el número de reservas activas que quedan dentro de
+la ventana bloqueada:
+
+```json
+{
+  "blockId": "01J...",
+  "resourceId": "piscina-1",
+  "startsAt": "2026-07-20T13:00:00Z",
+  "endsAt": "2026-07-20T18:00:00Z",
+  "reason": "Limpieza de piscina",
+  "affectedReservationCount": 2
+}
+```
+
 ## 7. Reservas (RN-RES)
 
-| Método | Ruta                                    | Auth                               | Descripción                            |
-| ------ | --------------------------------------- | ---------------------------------- | -------------------------------------- |
-| POST   | `/reservations`                         | member                             | Crea reserva (valida todas las RN-RES) |
-| GET    | `/reservations?scope=me                 | all&status=&resourceId=&from=&to=` | member                                 | admin                     | Lista reservas |
-| GET    | `/reservations/{reservationId}`         | member                             | admin                                  | Detalle                   |
-| POST   | `/reservations/{reservationId}/cancel`  | member                             | admin                                  | Cancela (>24h, RN-RES-10) |
-| POST   | `/reservations/{reservationId}/approve` | admin                              | Aprueba parrilla/salón (RN-RES-02)     |
-| POST   | `/reservations/{reservationId}/reject`  | admin                              | Rechaza                                |
+| Método | Ruta                                    | Auth                               | Descripción                                               |
+| ------ | --------------------------------------- | ---------------------------------- | --------------------------------------------------------- |
+| POST   | `/reservations`                         | member                             | Crea reserva (valida todas las RN-RES)                    |
+| GET    | `/reservations?scope=me                 | all&status=&resourceId=&from=&to=` | member                                                    | admin                     | Lista reservas |
+| GET    | `/reservations/{reservationId}`         | member                             | admin                                                     | Detalle                   |
+| POST   | `/reservations/{reservationId}/cancel`  | member                             | admin                                                     | Cancela (>24h, RN-RES-10) |
+| POST   | `/reservations/{reservationId}/approve` | admin                              | Aprueba parrilla/salón (RN-RES-02)                        |
+| POST   | `/reservations/{reservationId}/reject`  | admin                              | Rechaza                                                   |
+| GET    | `/guests/lookup?dni=`                   | member \| admin                    | Resuelve un invitado externo ya registrado (RN-RES-03/04) |
+
+### GET /guests/lookup?dni=70605040
+
+Resuelve el **perfil de un invitado externo** por su DNI exacto, para que el
+socio titular reutilice a un invitado de reservas anteriores sin volver a
+escribir su nombre (entidad `GuestProfile`, modelo de datos §3.15;
+[ADR-0009](../architecture/adr/ADR-0009-identificacion-participantes-por-dni.md)).
+
+Response 200:
+
+```json
+{ "guestDni": "70605040", "firstName": "Ana", "lastName": "Torres" }
+```
+
+Errores: 400 `VALIDATION_ERROR` (DNI ausente o con formato inválido); 401
+`UNAUTHENTICATED`; **404 `NOT_FOUND`** cuando ese DNI todavía no fue invitado
+nunca — no es un error de negocio: es la señal de que la interfaz debe pedir
+nombre y apellido para darlo de alta al confirmar la reserva.
+
+Mismo criterio de privacidad que `GET /members/lookup`: solo nombre y apellido.
+En particular **no** se expone el contador mensual del invitado
+(`GuestMonthlyCounter`, cuántas visitas lleva o le quedan): revelaría que esa
+persona estuvo en el club invitada por otro socio. El tope de dos visitas se
+sigue haciendo valer en el servidor al crear la reserva (429
+`GUEST_MONTHLY_LIMIT`, RN-RES-05).
 
 ### POST /reservations
 
@@ -437,13 +593,37 @@ Request:
   "startsAt": "2026-07-20T15:00:00Z",
   "participants": [
     { "type": "MEMBER", "memberId": "01J...socioA" },
-    { "type": "GUEST", "dni": "70605040", "name": "Invitado Uno" }
+    { "type": "GUEST", "dni": "70605040", "firstName": "Ana", "lastName": "Torres" }
   ],
   "notes": "Cumpleaños"
 }
 ```
 
 El titular es el socio autenticado (se agrega como `HOLDER`, RN-RES-06).
+
+**Participantes de tipo `MEMBER`**: requieren `memberId`, que el titular obtiene
+con `GET /members/lookup?dni=` (§4). Un `memberId` que no corresponde a un socio
+resoluble se rechaza con 404 `NOT_FOUND` sin crear nada.
+
+**Participantes de tipo `GUEST`**: requieren `dni`, `firstName` y `lastName`
+(sustituyen al antiguo campo único `name`, para alinearlos con `Member` y con la
+entidad `GuestProfile`). El alta del invitado es **implícita e idempotente**
+dentro de la misma transacción que crea la reserva:
+
+- Si el DNI no tenía perfil, se crea con el nombre y apellido enviados.
+- Si ya tenía perfil, **se conserva el nombre existente** (gana el primer
+  registro) y el nombre enviado se ignora sin error: un error de tipeo de otro
+  socio no puede bloquear una reserva legítima ni renombrar a un invitado ajeno.
+  Por eso el `guestName` que queda en cada `ReservationParticipant` es copia del
+  perfil resuelto, no del texto de la petición, y todas las reservas del mismo
+  DNI muestran el mismo nombre.
+- Si cualquier regla falla (aforo, cupo mensual, solape, mantenimiento), la
+  transacción no deja ni reserva, ni participantes, ni perfil, ni contadores.
+
+`participants` admite como máximo 30 elementos (aforo mayor del catálogo, el
+salón social), lo que mantiene la transacción de creación por debajo del límite
+de 100 ítems de `TransactWriteItems` en el peor caso (cabecera + participantes +
+contadores mensuales + perfiles de invitado).
 Validaciones server-side (todas obligatorias):
 
 - Socio titular `ACTIVE` y sin deuda (RN-RES-12 / RN-PAG-06) → 422
@@ -610,6 +790,7 @@ Response 202: contrato de salida de migración (ver
 | Registro/aprobación | `/registration`, `/members/{id}/approve                | reject`                  | RN-ACT-05/06, RN-ADM-02 |
 | Pagos               | `/payments`, `/payments/webhook`, `/memberships/plans` | RN-PAG-01..08            |
 | Reservas            | `/reservations*`, `/resources/*/availability`          | RN-RES-01..12            |
+| Participantes       | `/members/lookup`, `/guests/lookup`                    | RN-RES-03/04             |
 | Mantenimiento       | `/resources/{id}/maintenance`                          | RN-RES-11, RN-ADM-04     |
 | Notificaciones      | `/notifications*`                                      | RN-NOT-01..04, RN-ADM-06 |
 | Dashboards          | `/dashboard/*`                                         | RN-ANL-01..08            |

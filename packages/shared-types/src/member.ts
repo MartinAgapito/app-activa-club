@@ -47,6 +47,20 @@ export interface MemberSummary {
   createdAt: ISODateString;
 }
 
+/**
+ * Resolución de un socio por DNI exacto para agregarlo como participante de una
+ * reserva (`GET /members/lookup?dni=`, RN-RES-03; ADR-0009).
+ *
+ * Exposición deliberadamente mínima: identificador para armar la reserva y
+ * nombre para confirmar visualmente a quién se agrega. Nunca correo, teléfono,
+ * DNI ni estado de membresía de un socio ajeno (criterio 13 de US-031).
+ */
+export interface MemberLookupResponse {
+  memberId: string;
+  firstName: string;
+  lastName: string;
+}
+
 // --- Activación (RN-ACT) ---
 
 export interface VerifyDniRequest {
