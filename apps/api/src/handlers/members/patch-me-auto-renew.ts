@@ -29,8 +29,8 @@ async function handleUpdateAutoRenew(
   const identity = extractIdentity(event);
   requireRole(identity, ['member']);
 
-  const { enabled } = parseJsonBody(event.body, autoRenewSchema);
-  const member = await updateMemberAutoRenew({ cognitoSub: identity.sub, enabled });
+  const { autoRenew } = parseJsonBody(event.body, autoRenewSchema);
+  const member = await updateMemberAutoRenew({ cognitoSub: identity.sub, enabled: autoRenew });
 
   return jsonResponse(200, member);
 }
