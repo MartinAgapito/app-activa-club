@@ -53,12 +53,15 @@ export const keys = {
     PK: `MEMBER#${memberId}`,
     SK: `MEMBERSHIP#${startedAt}#${membershipId}`,
   }),
+  // GSI2, solo se aplica al período vigente (expiraciones, RN-ANL-02).
+  membershipsActive: (endsAt: string) => ({ GSI2PK: 'MEMBERSHIP#ACTIVE', GSI2SK: endsAt }),
 
   // 3.5 Payment
   payment: (memberId: string, createdAt: string, paymentId: string) => ({
     PK: `MEMBER#${memberId}`,
     SK: `PAYMENT#${createdAt}#${paymentId}`,
   }),
+  paymentsByStatus: (paymentStatus: string) => ({ GSI2PK: `PAYMENT#STATUS#${paymentStatus}` }),
 
   // 3.6 PaymentIdempotency
   paymentIdempotency: (idempotencyKey: string) => ({
