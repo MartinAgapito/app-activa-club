@@ -7,7 +7,7 @@
 | Épica             | [EP-02](../epicas/EP-02-migracion-activacion-acceso.md) |
 | Fase              | MVP                                                     |
 | Duración sugerida | 2 semanas                                               |
-| Estado            | Planificada                                             |
+| Estado            | Cerrado                                                 |
 
 ## Sprint Goal
 
@@ -87,3 +87,16 @@ Estimación total: 45 puntos relativos.
 ## Historial de cambios
 
 - 2026-07-16: Creación del Sprint 1 con las 8 historias de EP-02 (US-011..US-018).
+- 2026-07-29: Cierre del sprint. Ola 4 (verificación extremo a extremo) ejecutada:
+  auditoría de integración (Integrador Técnico) + validación de cobertura (QA)
+  encontraron 3 bugs reales que bloqueaban los flujos completos migración→activación→login
+  y registro→aprobación→login — ninguno de lógica de negocio de las historias en sí, todos
+  de la capa de transporte entre frontend y backend real (sin CORS entre dominios, el stage
+  de API Gateway no se redesplegaba al cambiar la topología de rutas, y CloudFront enmascaraba
+  errores reales de la API como `200 OK`), más un bug de autorización (el frontend enviaba el
+  access token de Cognito en vez del ID token que exige el autorizador de API Gateway).
+  Corregidos en PRs #29-#38 (ver historial de commits) y verificados de punta a punta contra
+  `dev` con una cuenta real: registro → aprobación admin → login → pantalla de "pendiente de
+  primer pago" (RN-ACT-07, correcto: el pago de la primera membresía es EP-03/EP-04, fuera de
+  este sprint). `docs/testing/matriz-trazabilidad.md` actualizada para reflejar la cobertura
+  real de las secciones 1 y 2.

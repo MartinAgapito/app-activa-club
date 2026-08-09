@@ -95,27 +95,39 @@ falla el workflow si alguna etapa no terminó en éxito.
 
 ## Secrets y variables requeridos
 
-| Nombre                    | Tipo                        | Uso                                                                     | Estado actual                                                                                                                      |
-| ------------------------- | --------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `AWS_DEPLOY_DEV_ROLE_ARN` | Secret                      | Rol IAM de escritura para `terraform apply` + deploy de frontend en dev | **Pendiente**: requiere aplicar manualmente el nuevo rol de `bootstrap/main.tf` (`github_actions_deploy_dev`) y copiar su ARN aquí |
-| `AWS_REGION`              | Variable de repo            | Región AWS (default `us-east-1`)                                        | Reutiliza la misma variable que `pr-quality.yml`                                                                                   |
-| `DEV_SES_SENDER_EMAIL`    | Variable de repo (opcional) | Remitente SES de dev para `terraform apply` (dato no sensible)          | Si no se define, usa `no-reply-dev@example.com`                                                                                    |
+| Nombre                    | Tipo                        | Uso                                                                     | Estado actual                                                                 |
+| ------------------------- | --------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `AWS_DEPLOY_DEV_ROLE_ARN` | Secret                      | Rol IAM de escritura para `terraform apply` + deploy de frontend en dev | Aplicado (rol `activa-club-github-actions-deploy-dev` de `bootstrap/main.tf`) |
+| `AWS_REGION`              | Variable de repo            | Región AWS (default `us-east-1`)                                        | Reutiliza la misma variable que `pr-quality.yml`                              |
+| `DEV_SES_SENDER_EMAIL`    | Variable de repo (opcional) | Remitente SES de dev para `terraform apply` (dato no sensible)          | Si no se define, usa `no-reply-dev@example.com`                               |
 
 Sin claves AWS estáticas en ningún paso (OIDC exclusivamente).
 
-## Paso manual pendiente
+## Mantenimiento de permisos: cuándo hace falta un apply manual de bootstrap
 
-Este workflow **no puede ejecutarse con éxito todavía**: el rol
-`activa-club-github-actions-deploy-dev` está declarado en
-`infrastructure/terraform/bootstrap/main.tf` pero, como el resto de
-`bootstrap`, **no se aplica desde CI**. Antes de la primera ejecución real:
+El rol `activa-club-github-actions-deploy-dev` (igual que el de solo lectura
+`activa-club-github-actions-plan`) está declarado en
+`infrastructure/terraform/bootstrap/main.tf`, que **no se aplica desde
+CI** (ver la cabecera de ese archivo). Esto significa que cada vez que un
+cambio de infraestructura hace que ese rol necesite tocar un servicio de AWS
+que antes no tocaba, hace falta un paso manual **antes** de mergear el PR
+correspondiente:
 
 1. Aplicar manualmente `infrastructure/terraform/bootstrap` (con
-   credenciales elevadas de una persona, nunca las de CI) para crear el rol.
-2. Copiar el output `github_actions_deploy_dev_role_arn` al secreto de
-   repositorio `AWS_DEPLOY_DEV_ROLE_ARN`.
-3. Solo entonces disparar `deploy-dev.yml` (push a `main` o
-   `workflow_dispatch`).
+   credenciales elevadas de una persona, nunca las de CI) para otorgar el
+   permiso nuevo.
+2. Recién entonces mergear el PR que agrega el recurso/cambio que necesita
+   ese permiso — si se mergea antes, `deploy-dev.yml` (o el job de
+   `terraform plan` de `pr-quality.yml`, que usa el rol de solo lectura)
+   falla con `AccessDenied`.
+
+Ya pasó varias veces en la práctica (ejemplos reales en el historial de
+`bootstrap/main.tf`): el rol de escritura inicial, permisos de CloudFront
+Function del módulo Terraform de CloudFront, y `cloudfront:Describe*` para
+el rol de solo lectura al agregarse una `aws_cloudfront_function`. Es
+esperable que vuelva a pasar cuando una historia futura agregue un servicio
+de AWS nuevo (p. ej. Culqi/pagos no necesita esto, pero SNS/SES para
+notificaciones o un nuevo bucket sí podrían).
 
 ## Riesgos y consideraciones
 
