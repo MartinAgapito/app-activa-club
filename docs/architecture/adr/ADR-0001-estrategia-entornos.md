@@ -29,7 +29,7 @@ Se adoptan **dos entornos**: `dev` y `prd`.
   SES en sandbox, CloudWatch) tienen costo cercano a cero en reposo, por lo que
   mantener dos entornos no impacta significativamente el presupuesto.
 - La configuración específica por entorno (nombres de recursos, dominios, IDs de
-  Cognito, claves públicas de Culqi sandbox) se inyecta por **variables de
+  Cognito, llave publicable de Stripe test mode) se inyecta por **variables de
   entorno** y parámetros de Terraform; los secretos viven en SSM Parameter Store
   / Secrets Manager, nunca en el repositorio.
 - `prd` se despliega desde la rama principal ya validada; `dev` puede recibir
