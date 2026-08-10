@@ -7,7 +7,7 @@ vi.mock('../lib/dynamo', async () => {
   return { ...actual, tableName: () => 'activa-club-test' };
 });
 
-const { processCulqiWebhookEvent } = await import('./webhook');
+const { processStripeWebhookEvent } = await import('./webhook');
 
 interface CommandLike {
   constructor: { name: string };
@@ -35,7 +35,7 @@ const pendingPaymentItem = {
   membershipType: 'MONTHLY',
   amount: 12_000,
   currency: 'PEN',
-  culqiChargeId: null,
+  stripePaymentIntentId: null,
   idempotencyKey: 'idem-1',
   autoRenewRequested: false,
   failureReason: null,
@@ -74,22 +74,22 @@ function queryByStatusResponder(itemsByStatus: Record<string, unknown[]>) {
 }
 
 const succeededEvent = {
-  type: 'charge.succeeded' as const,
-  data: { object: { id: 'chr_test_1', metadata: { reference: 'payment-1' } } },
+  type: 'payment_intent.succeeded' as const,
+  data: { object: { id: 'pi_test_1', metadata: { paymentId: 'payment-1' } } },
 };
 
 const failedEvent = {
-  type: 'charge.failed' as const,
+  type: 'payment_intent.payment_failed' as const,
   data: {
     object: {
-      id: 'chr_test_2',
-      metadata: { reference: 'payment-1' },
-      outcome: { user_message: 'Tarjeta rechazada por el emisor.' },
+      id: 'pi_test_2',
+      metadata: { paymentId: 'payment-1' },
+      last_payment_error: { code: 'card_declined', decline_code: 'generic_decline' },
     },
   },
 };
 
-describe('processCulqiWebhookEvent', () => {
+describe('processStripeWebhookEvent', () => {
   it('confirma un pago PENDING_CONFIRMATION y activa la membresía (criterio 3)', async () => {
     const client = fakeClient(async (command) => {
       const cmd = command as CommandLike;
@@ -102,7 +102,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`comando inesperado: ${ctor}`);
     });
 
-    const outcome = await processCulqiWebhookEvent({
+    const outcome = await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-1',
       client,
@@ -120,7 +120,7 @@ describe('processCulqiWebhookEvent', () => {
       { Put: { Item: Record<string, unknown> } },
       unknown,
     ];
-    expect(transactItems[0].Update.ExpressionAttributeValues[':chargeId']).toBe('chr_test_1');
+    expect(transactItems[0].Update.ExpressionAttributeValues[':intentId']).toBe('pi_test_1');
     expect(transactItems[1].Put.Item['startedAt']).toBe('2026-08-09T15:00:00.000Z');
     expect(transactItems[1].Put.Item['endsAt']).toBe('2026-09-09T15:00:00.000Z');
 
@@ -132,7 +132,7 @@ describe('processCulqiWebhookEvent', () => {
     expect(queryCalls).toHaveLength(1);
   });
 
-  it('marca un pago PENDING_CONFIRMATION como FAILED sin tocar la membresía (criterio 6)', async () => {
+  it('marca un pago PENDING_CONFIRMATION como FAILED sin tocar la membresía, con failureReason del catálogo propio (criterio 6/7)', async () => {
     const client = fakeClient(async (command) => {
       const cmd = command as CommandLike;
       const ctor = cmd.constructor.name;
@@ -143,7 +143,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`no debería llamarse: ${ctor} (fallo no activa membresía)`);
     });
 
-    const outcome = await processCulqiWebhookEvent({
+    const outcome = await processStripeWebhookEvent({
       event: failedEvent,
       requestId: 'req-2',
       client,
@@ -158,6 +158,36 @@ describe('processCulqiWebhookEvent', () => {
     );
   });
 
+  it('un tipo de evento distinto de los dos relevantes se ignora sin efectos (criterio 9)', async () => {
+    const client = fakeClient(async (command) => {
+      throw new Error(`no debería llamarse: ${(command as CommandLike).constructor.name}`);
+    });
+
+    const outcome = await processStripeWebhookEvent({
+      event: { type: 'charge.refunded', data: { object: { id: 'ch_1', metadata: {} } } },
+      requestId: 'req-ignored',
+      client,
+    });
+
+    expect(outcome).toBe('IGNORED');
+    expect(client.send).not.toHaveBeenCalled();
+  });
+
+  it('un evento relevante sin metadata.paymentId no produce efectos (defensivo, criterio 6/7)', async () => {
+    const client = fakeClient(async (command) => {
+      throw new Error(`no debería llamarse: ${(command as CommandLike).constructor.name}`);
+    });
+
+    const outcome = await processStripeWebhookEvent({
+      event: { type: 'payment_intent.succeeded', data: { object: { id: 'pi_x', metadata: {} } } },
+      requestId: 'req-no-correlation',
+      client,
+    });
+
+    expect(outcome).toBe('PAYMENT_NOT_FOUND');
+    expect(client.send).not.toHaveBeenCalled();
+  });
+
   it('un evento sobre un pago ya SUCCEEDED no produce ningún cambio (criterio 4/10, convergencia)', async () => {
     const client = fakeClient(async (command) => {
       const cmd = command as CommandLike;
@@ -170,7 +200,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`no debería llamarse: ${ctor} (idempotente, sin efectos)`);
     });
 
-    const outcome = await processCulqiWebhookEvent({
+    const outcome = await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-3',
       client,
@@ -191,7 +221,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`no debería llamarse: ${ctor} (evento fuera de orden, sin revertir)`);
     });
 
-    const outcome = await processCulqiWebhookEvent({
+    const outcome = await processStripeWebhookEvent({
       event: failedEvent,
       requestId: 'req-4',
       client,
@@ -220,14 +250,14 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`comando inesperado: ${ctor}`);
     });
 
-    const first = await processCulqiWebhookEvent({
+    const first = await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-5a',
       client,
       now: new Date('2026-08-09T15:00:00.000Z'),
       membershipId: 'membership-1',
     });
-    const second = await processCulqiWebhookEvent({
+    const second = await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-5b',
       client,
@@ -259,7 +289,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`comando inesperado: ${ctor}`);
     });
 
-    const outcome = await processCulqiWebhookEvent({
+    const outcome = await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-6',
       client,
@@ -275,7 +305,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`no debería llamarse: ${cmd.constructor.name}`);
     });
 
-    const outcome = await processCulqiWebhookEvent({
+    const outcome = await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-7',
       client,
@@ -295,7 +325,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`no debería llamarse: ${ctor}`);
     });
 
-    const outcome = await processCulqiWebhookEvent({
+    const outcome = await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-8',
       client,
@@ -324,7 +354,7 @@ describe('processCulqiWebhookEvent', () => {
       throw new Error(`comando inesperado: ${ctor}`);
     });
 
-    await processCulqiWebhookEvent({
+    await processStripeWebhookEvent({
       event: succeededEvent,
       requestId: 'req-9',
       client,

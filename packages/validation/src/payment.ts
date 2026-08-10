@@ -5,8 +5,9 @@ import { z } from 'zod';
 import { membershipTypeSchema } from './member';
 
 /**
- * Creación de pago. Recibe únicamente el token de Culqi (tokenizado en el
- * cliente) y una clave de idempotencia; jamás PAN/CVV (RN-PAG-08).
+ * Creación de pago. Recibe únicamente el identificador de método de pago de
+ * Stripe (`pm_...`, tokenizado en el cliente por Stripe.js/Elements) y una
+ * clave de idempotencia; jamás PAN/CVV (RN-PAG-08, ADR-0011 §D1).
  *
  * `.strict()` (US-026 criterio 1): por defecto Zod descarta en silencio
  * cualquier clave no declarada en vez de rechazar la solicitud; en este
@@ -21,7 +22,7 @@ import { membershipTypeSchema } from './member';
 export const createPaymentSchema = z
   .object({
     membershipType: membershipTypeSchema,
-    culqiToken: z.string().trim().min(1),
+    stripePaymentMethodId: z.string().trim().min(1),
     idempotencyKey: z.string().trim().min(8).max(128),
     autoRenew: z.boolean().optional(),
   })

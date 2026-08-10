@@ -224,6 +224,13 @@ ajuste ya hecho para US-016/registro).
 Ver `.env.example` en la raíz del monorepo, sección `apps/api`. Nuevo en esta
 historia: `MIGRATION_BUCKET_NAME` (bucket S3 de migración, `lib/env.ts`).
 
+Nuevas en US-037 (migración de Culqi a Stripe, ADR-0011): `STRIPE_SECRET_KEY_PARAM_NAME`
+(`payments-create`, `src/payments/stripe-secret-key.ts`) y
+`STRIPE_WEBHOOK_SECRET_PARAM_NAME` (`payments-webhook`,
+`src/payments/webhook-secret.ts`); ambas apuntan al nombre de un parámetro
+SSM `SecureString`, nunca a la llave en texto plano. Reemplazan a
+`CULQI_PRIVATE_KEY_PARAM_NAME`/`CULQI_WEBHOOK_SECRET_PARAM_NAME`.
+
 ## 9. Pendiente para otras historias
 
 - **Terraform**: los endpoints admin/identidad provisionados en US-011
@@ -239,9 +246,19 @@ historia: `MIGRATION_BUCKET_NAME` (bucket S3 de migración, `lib/env.ts`).
   recibe `ALREADY_ACTIVATED` en vez de un código más específico, ya que el
   contrato de `/activation/*` no define uno distinto para ese caso.
 - **Backend (Sprint 1+)**: aprobación/rechazo de socios (US-017), perfil
-  (US-018), membresías/pagos (Culqi + idempotencia, ADR-0007), reservas
-  (cruces/aforo/invitados), notificaciones y dashboards, siguiendo el patrón
-  de esta carpeta.
+  (US-018), reservas (cruces/aforo/invitados), notificaciones y dashboards,
+  siguiendo el patrón de esta carpeta.
+- **Pagos (`src/payments/`, `src/handlers/payments/`)**: implementados contra
+  **Stripe test mode** (ADR-0011, US-037; reemplaza a Culqi/ADR-0007). Cargo
+  server-side vía PaymentIntents (`stripe-client.ts`,
+  `createStripeChargeClient`, con el SDK oficial `stripe`), idempotencia
+  doble (nativa de Stripe + ítem propio `PaymentIdempotency`,
+  `idempotency.ts`) y webhook (`handlers/payments/webhook.ts`) verificado con
+  `stripe.webhooks.constructEvent` sobre el cuerpo crudo. Variables de
+  entorno nuevas: `STRIPE_SECRET_KEY_PARAM_NAME` (Lambda `payments-create`,
+  llave secreta `sk_test_...`) y `STRIPE_WEBHOOK_SECRET_PARAM_NAME` (Lambda
+  `payments-webhook`, signing secret `whsec_...`), ambas apuntando a
+  parámetros SSM `SecureString` (nunca la llave en el repo).
 - **QA**: pruebas de integración contra API Gateway/DynamoDB reales (`docs/testing/`).
 
 ## 10. Scripts

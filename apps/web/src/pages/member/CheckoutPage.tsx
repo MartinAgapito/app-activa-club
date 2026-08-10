@@ -1,5 +1,6 @@
 // Checkout de pago de membresía — US-022 (docs/api/contratos-api.md §5,
-// ADR-0007, RN-PAG-01/04/05/08, RN-ACT-07) y US-023 (renovación automática).
+// ADR-0011, RN-PAG-01/04/05/08, RN-ACT-07), US-023 (renovación automática) y
+// US-037 (migración de la pasarela de Culqi a Stripe test mode).
 //
 // Accesible desde dos puntos (criterios 1 y 2 de US-022):
 // - `MembershipPage` ("Pagar este plan" de un plan concreto): llega con
@@ -12,10 +13,11 @@
 // pantalla vive fuera de `RequireActiveMember` (ver routes/router.tsx),
 // protegida solo por `RequireRole allow={['member']}`.
 //
-// Tokenización de tarjeta: exclusivamente con Culqi.js (./payments/culqi.ts)
-// usando la llave pública (`VITE_CULQI_PUBLIC_KEY`, US-019). Ningún dato de
-// tarjeta pasa por el estado de este componente ni por `POST /payments`
-// (RN-PAG-08): solo se envía `membershipType`, `culqiToken`,
+// Tokenización de tarjeta: exclusivamente con Stripe.js/Elements
+// (./payments/stripe.ts) usando la llave publicable
+// (`VITE_STRIPE_PUBLISHABLE_KEY`, US-037/ADR-0011). Ningún dato de tarjeta
+// pasa por el estado de este componente ni por `POST /payments`
+// (RN-PAG-08): solo se envía `membershipType`, `stripePaymentMethodId`,
 // `idempotencyKey` (criterio 4 de US-022) y `autoRenew` (criterio 6 de
 // US-023 — alternativa al toggle standalone de `MembershipPage`, con el
 // mismo texto honesto: activarla solo guarda la preferencia, ningún cobro
@@ -26,16 +28,25 @@
 // `idempotencyKey`: se genera una vez por intento de compra (al entrar a la
 // pantalla) y se reutiliza mientras ese intento siga en curso — incluido un
 // doble clic en "Pagar" (criterio 5/6, protegido además con un `ref` de
-// single-flight para no depender solo del re-render de React). Un intento
-// nuevo y deliberado (reintentar tras un `PAYMENT_FAILED` con otra tarjeta)
-// genera una `idempotencyKey` nueva: reutilizar la misma llevaría al backend
-// a devolver `PAYMENT_DUPLICATE` con el resultado `FAILED` ya persistido
-// (`apps/api/src/payments/idempotency.ts`), bloqueando cualquier reintento
-// real.
+// single-flight en `PaymentForm` para no depender solo del re-render de
+// React). Un intento nuevo y deliberado (reintentar tras un `PAYMENT_FAILED`
+// con otra tarjeta) genera una `idempotencyKey` nueva: reutilizar la misma
+// llevaría al backend a devolver `PAYMENT_DUPLICATE` con el resultado
+// `FAILED` ya persistido (`apps/api/src/payments/idempotency.ts`),
+// bloqueando cualquier reintento real.
+//
+// Carga de Stripe.js: se dispara una única vez al montar la pantalla (no al
+// hacer clic en "Pagar"), para poder mostrar un error explícito y no
+// habilitar ningún envío si la llave publicable no está configurada o el
+// script no llega a cargar (bloqueado por un adblocker, sin red — caso
+// alternativo de la historia), en vez de descubrirlo recién al intentar
+// pagar (criterio 15 de US-037).
 
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { CardElement, Elements, useElements, useStripe } from '@stripe/react-stripe-js';
+import type { Stripe, StripeCardElementOptions } from '@stripe/stripe-js';
 import {
   Badge,
   Button,
@@ -55,7 +66,11 @@ import {
   MEMBERSHIP_TYPE_DURATION_LABEL,
   MEMBERSHIP_TYPE_LABEL,
 } from '../../lib/format/membership-plan';
-import { CulqiError, requestCulqiToken } from '../../payments/culqi';
+import {
+  createStripePaymentMethod,
+  loadStripeClient,
+  StripePaymentError,
+} from '../../payments/stripe';
 import { createPayment } from '../../payments/payments-client';
 import {
   toErrorOutcome,
@@ -64,13 +79,33 @@ import {
 } from '../../payments/payment-outcome';
 import { useAuth } from '../../auth/AuthContext';
 
-const CULQI_PUBLIC_KEY = import.meta.env.VITE_CULQI_PUBLIC_KEY ?? '';
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+
+const GENERIC_CARD_ERROR_MESSAGE = 'No se pudo procesar la tarjeta. Intenta nuevamente.';
+
+const CARD_ELEMENT_OPTIONS: StripeCardElementOptions = {
+  hidePostalCode: true,
+  style: {
+    base: {
+      fontSize: '14px',
+      color: '#0f172a',
+      fontFamily: 'inherit',
+      '::placeholder': { color: '#94a3b8' },
+    },
+    invalid: { color: '#b91c1c' },
+  },
+};
 
 const VALID_MEMBERSHIP_TYPES: readonly MembershipType[] = ['MONTHLY', 'ANNUAL'];
 
 function isMembershipType(value: string | null): value is MembershipType {
   return value !== null && (VALID_MEMBERSHIP_TYPES as readonly string[]).includes(value);
 }
+
+type StripeReadiness =
+  | { status: 'loading' }
+  | { status: 'ready'; stripe: Stripe }
+  | { status: 'error'; message: string };
 
 export function CheckoutPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -88,21 +123,35 @@ export function CheckoutPage() {
   // iniciar un intento explícitamente nuevo (elegir otro plan, o reintentar
   // tras un `PAYMENT_FAILED`), nunca en un reintento del mismo click.
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
-  const [isTokenizing, setIsTokenizing] = useState(false);
-  const [culqiError, setCulqiError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<PaymentOutcome | null>(null);
   // US-023, criterio 6: desactivada por defecto en cada intento nuevo — un
   // socio nunca queda autorizado sin marcarla explícitamente (RN-PAG-03).
   const [autoRenew, setAutoRenewChoice] = useState(false);
-  const isSubmittingRef = useRef(false);
+
+  const [stripeReadiness, setStripeReadiness] = useState<StripeReadiness>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    loadStripeClient(STRIPE_PUBLISHABLE_KEY)
+      .then((stripe) => {
+        if (!cancelled) setStripeReadiness({ status: 'ready', stripe });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setStripeReadiness({
+          status: 'error',
+          message: error instanceof StripePaymentError ? error.message : GENERIC_CARD_ERROR_MESSAGE,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const paymentMutation = useMutation({ mutationFn: createPayment });
 
-  const isProcessing = isTokenizing || paymentMutation.isPending;
-
   function choosePlan(type: MembershipType) {
     setOutcome(null);
-    setCulqiError(null);
     setIdempotencyKey(crypto.randomUUID());
     setAutoRenewChoice(false);
     setSearchParams({ plan: type });
@@ -110,42 +159,16 @@ export function CheckoutPage() {
 
   function startNewAttempt() {
     setOutcome(null);
-    setCulqiError(null);
     setIdempotencyKey(crypto.randomUUID());
     setAutoRenewChoice(false);
   }
 
-  async function handlePay() {
-    if (!selectedPlan || isSubmittingRef.current) return;
-    isSubmittingRef.current = true;
-    setCulqiError(null);
-    setIsTokenizing(true);
-
-    let culqiToken: string;
-    try {
-      culqiToken = await requestCulqiToken({
-        publicKey: CULQI_PUBLIC_KEY,
-        amount: selectedPlan.amount,
-        currency: selectedPlan.currency,
-        title: 'Activa Club',
-        description: `Membresía ${MEMBERSHIP_TYPE_LABEL[selectedPlan.type]}`,
-      });
-    } catch (error) {
-      setIsTokenizing(false);
-      isSubmittingRef.current = false;
-      setCulqiError(
-        error instanceof CulqiError
-          ? error.message
-          : 'No se pudo procesar la tarjeta. Intenta nuevamente.',
-      );
-      return;
-    }
-    setIsTokenizing(false);
-
+  async function submitPayment(stripePaymentMethodId: string) {
+    if (!selectedPlan) return;
     try {
       const response = await paymentMutation.mutateAsync({
         membershipType: selectedPlan.type,
-        culqiToken,
+        stripePaymentMethodId,
         idempotencyKey,
         autoRenew,
       });
@@ -165,8 +188,6 @@ export function CheckoutPage() {
         // guard de rutas (RequireRole) redirija a /login.
         signOut();
       }
-    } finally {
-      isSubmittingRef.current = false;
     }
   }
 
@@ -242,7 +263,7 @@ export function CheckoutPage() {
     <CenteredCard>
       <CardHeader
         title="Pagar membresía"
-        description="El pago se procesa con tarjeta a través de Culqi (RN-PAG-05): no ofrecemos efectivo, Yape, Plin ni transferencias."
+        description="El pago se procesa con tarjeta a través de Stripe (RN-PAG-05): no ofrecemos efectivo, Yape, Plin ni transferencias."
       />
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -257,21 +278,12 @@ export function CheckoutPage() {
         </p>
       </div>
 
-      {culqiError ? (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700"
-        >
-          {culqiError}
-        </p>
-      ) : null}
-
       <label className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
         <input
           type="checkbox"
           checked={autoRenew}
           onChange={(event) => setAutoRenewChoice(event.target.checked)}
-          disabled={isProcessing}
+          disabled={paymentMutation.isPending}
           className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
         />
         <span className="text-sm text-slate-700">
@@ -282,25 +294,116 @@ export function CheckoutPage() {
         </span>
       </label>
 
+      {stripeReadiness.status === 'ready' ? (
+        <Elements stripe={stripeReadiness.stripe}>
+          <PaymentForm
+            isPaymentMutationPending={paymentMutation.isPending}
+            onSubmit={submitPayment}
+          />
+        </Elements>
+      ) : stripeReadiness.status === 'loading' ? (
+        <div className="mt-4 flex justify-center py-2">
+          <Spinner size="md" label="Cargando la pasarela de pago…" />
+        </div>
+      ) : (
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700"
+        >
+          {stripeReadiness.message}
+        </p>
+      )}
+
+      <p className="mt-3 text-center text-xs text-slate-500">
+        Tus datos de tarjeta se procesan de forma segura con Stripe. Activa Club nunca recibe ni
+        almacena el número completo de tu tarjeta.
+      </p>
+
+      <BackToMembershipLink className="mt-6" />
+    </CenteredCard>
+  );
+}
+
+interface PaymentFormProps {
+  isPaymentMutationPending: boolean;
+  onSubmit: (stripePaymentMethodId: string) => Promise<void>;
+}
+
+/** Formulario del Card Element de Stripe. Vive dentro de un `<Elements>`
+ * provider (ver `CheckoutPage`), única forma de usar `useStripe`/`useElements`. */
+function PaymentForm({ isPaymentMutationPending, onSubmit }: PaymentFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const isSubmittingRef = useRef(false);
+  const [isCreatingPaymentMethod, setIsCreatingPaymentMethod] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+
+  const isProcessing = isCreatingPaymentMethod || isPaymentMutationPending;
+
+  async function handlePay() {
+    if (!stripe || !elements || isSubmittingRef.current) return;
+    const cardElement = elements.getElement(CardElement);
+    if (!cardElement) {
+      setCardError(GENERIC_CARD_ERROR_MESSAGE);
+      return;
+    }
+
+    isSubmittingRef.current = true;
+    setCardError(null);
+    setIsCreatingPaymentMethod(true);
+
+    let stripePaymentMethodId: string;
+    try {
+      stripePaymentMethodId = await createStripePaymentMethod({ stripe, cardElement });
+    } catch (error) {
+      setIsCreatingPaymentMethod(false);
+      isSubmittingRef.current = false;
+      setCardError(
+        error instanceof StripePaymentError ? error.message : GENERIC_CARD_ERROR_MESSAGE,
+      );
+      return;
+    }
+    setIsCreatingPaymentMethod(false);
+
+    try {
+      await onSubmit(stripePaymentMethodId);
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  }
+
+  return (
+    <>
+      <div className="mt-4 flex flex-col gap-1.5">
+        <span id="card-element-label" className="text-sm font-medium text-slate-700">
+          Datos de la tarjeta
+        </span>
+        <div
+          role="group"
+          aria-labelledby="card-element-label"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-3 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500"
+        >
+          <CardElement options={CARD_ELEMENT_OPTIONS} />
+        </div>
+        {cardError ? (
+          <p role="alert" className="text-sm text-danger-600">
+            {cardError}
+          </p>
+        ) : null}
+      </div>
+
       <Button
         type="button"
         fullWidth
         className="mt-4"
         variant="positive"
         isLoading={isProcessing}
-        disabled={isProcessing}
+        disabled={isProcessing || !stripe || !elements}
         onClick={() => void handlePay()}
       >
         {isProcessing ? 'Procesando pago…' : 'Pagar con tarjeta'}
       </Button>
-
-      <p className="mt-3 text-center text-xs text-slate-500">
-        Se abrirá la pasarela segura de Culqi para ingresar los datos de tu tarjeta. Activa Club
-        nunca recibe ni almacena el número completo de tu tarjeta.
-      </p>
-
-      <BackToMembershipLink className="mt-6" />
-    </CenteredCard>
+    </>
   );
 }
 

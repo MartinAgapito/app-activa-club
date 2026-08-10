@@ -9,7 +9,7 @@ const { handler } = await import('./post');
 
 const validBody = {
   membershipType: 'ANNUAL',
-  culqiToken: 'tkn_test_xxx',
+  stripePaymentMethodId: 'pm_test_xxx',
   idempotencyKey: '9b1f7c2e-uuid-de-prueba',
   autoRenew: false,
 };

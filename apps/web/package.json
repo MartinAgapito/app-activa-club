@@ -17,6 +17,8 @@
     "@activa-club/ui": "*",
     "@activa-club/validation": "*",
     "@hookform/resolvers": "^5.4.0",
+    "@stripe/react-stripe-js": "^6.8.0",
+    "@stripe/stripe-js": "^9.13.0",
     "@tanstack/react-query": "^5.101.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
