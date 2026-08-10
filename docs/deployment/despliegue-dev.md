@@ -259,6 +259,39 @@ un par de llaves nuevo (publicable + secreta juntas, "roll key" del
 dashboard), y volver a desplegar el frontend (`workflow_dispatch` de
 `deploy-dev.yml`) para que el build recoja la llave publicable nueva.
 
+## Tarjetas de prueba y límites de test mode
+
+Referencia rápida para probar el checkout (`/socio/membresia/pagar`) contra
+la cuenta real de Stripe test mode, sin depender de la memoria de quien esté
+probando.
+
+| Número de tarjeta     | Resultado                        |
+| --------------------- | -------------------------------- |
+| `4242 4242 4242 4242` | Pago aprobado                    |
+| `4000 0000 0000 0002` | Rechazada (tarjeta declinada)    |
+| `4000 0000 0000 9995` | Rechazada (fondos insuficientes) |
+| `4000 0000 0000 0069` | Rechazada (tarjeta vencida)      |
+
+Para todas: cualquier fecha de vencimiento **futura** (p. ej. `12/30`),
+cualquier CVC de 3 dígitos (p. ej. `123`) y cualquier código postal si lo
+pide. Lista completa y actualizada en
+[docs.stripe.com/testing](https://docs.stripe.com/testing).
+
+**Transacciones ilimitadas, sin costo, sin sistema de créditos**: a
+diferencia de otras plataformas que entregan un crédito de prueba limitado,
+Stripe test mode es un entorno completo y separado que nunca mueve dinero
+real ni toca redes bancarias reales, sin importar cuántas veces se use — no
+hay saldo que se agote. El único límite es un _rate limit_ genérico de la
+API (pensado para pruebas de carga automatizadas, no para uso manual normal
+ni para una demo). Fuente:
+[docs.stripe.com/testing](https://docs.stripe.com/testing).
+
+El "saldo"/monto que puede aparecer en el dashboard de Stripe (sección
+Balance/Payments) es solo el equivalente en la moneda de la cuenta de los
+montos de prueba ya procesados (p. ej. S/ 120.00 de una membresía mensual
+convertido a USD para mostrarlo) — una cifra de referencia visual, nunca
+dinero real ni algo que haya que reponer.
+
 ## Riesgos y consideraciones
 
 - **Costo**: sin recursos nuevos de costo fijo; el `terraform apply` real
