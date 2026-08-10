@@ -295,7 +295,8 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
     resources = ["*"]
   }
 
-  # US-019: lectura del secreto de Culqi sandbox (SSM SecureString, ver
+  # US-037 (antes US-019 con Culqi, ADR-0011 reemplaza a ADR-0007): lectura
+  # de los secretos de Stripe test mode (SSM SecureString, ver
   # environments/dev/main.tf y environments/prd/main.tf cuando exista), para
   # que `terraform plan` en Pull Requests pueda refrescar su estado. Solo
   # lectura (sin ssm:PutParameter): este rol nunca hace `apply`.
@@ -320,7 +321,7 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
   }
 
   # kms:Decrypt sobre la llave por defecto de SSM ("alias/aws/ssm"): mismo
-  # motivo/alcance que DecryptDevCulqiSecretParameter más abajo (rol de
+  # motivo/alcance que DecryptDevStripeSecretParameter más abajo (rol de
   # escritura), pero de solo lectura.
   statement {
     sid    = "DecryptProjectSsmParameters"
@@ -748,16 +749,16 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:function/${var.project}-dev-*"]
   }
 
-  # Secreto de la llave privada de Culqi sandbox (EP-03, US-019, ADR-0007):
-  # SSM Parameter Store SecureString, un único parámetro por entorno
-  # ("/activa-club/dev/culqi/private-key", ver environments/dev/main.tf,
-  # aws_ssm_parameter.culqi_private_key). Acotado al ARN exacto de ese
-  # parámetro; nunca "parameter/*". ssm:DescribeParameters no admite scoping
-  # por ARN de recurso en su API (limitación de AWS, no de esta política),
-  # igual que otras acciones "Describe" ya documentadas más arriba en este
-  # archivo.
+  # Secreto de la llave secreta de Stripe test mode (EP-03, US-037, ADR-0011
+  # — reemplaza a ADR-0007/Culqi sandbox): SSM Parameter Store SecureString,
+  # un único parámetro por entorno ("/activa-club/dev/stripe/secret-key", ver
+  # environments/dev/main.tf, aws_ssm_parameter.stripe_secret_key). Acotado
+  # al ARN exacto de ese parámetro; nunca "parameter/*". ssm:DescribeParameters
+  # no admite scoping por ARN de recurso en su API (limitación de AWS, no de
+  # esta política), igual que otras acciones "Describe" ya documentadas más
+  # arriba en este archivo.
   statement {
-    sid    = "ManageDevCulqiSecretParameter"
+    sid    = "ManageDevStripeSecretParameter"
     effect = "Allow"
     actions = [
       "ssm:GetParameter",
@@ -768,7 +769,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
       "ssm:ListTagsForResource",
     ]
     resources = [
-      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/dev/culqi/private-key",
+      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/dev/stripe/secret-key",
     ]
   }
 
@@ -779,16 +780,17 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     resources = ["*"]
   }
 
-  # Secreto de verificación de firma del webhook de Culqi (US-024, criterio
-  # 2, ADR-0007): SSM Parameter Store SecureString separado del de arriba
-  # ("/activa-club/dev/culqi/webhook-secret", ver environments/dev/main.tf,
-  # aws_ssm_parameter.culqi_webhook_secret). Mismo patrón que
-  # ManageDevCulqiSecretParameter (acotado al ARN exacto del parámetro,
-  # nunca "parameter/*"), pero como statement propio porque es un secreto
-  # distinto con un ciclo de vida propio (verificación de webhooks, no
-  # cobro).
+  # Secreto de verificación de firma (signing secret) del webhook de Stripe
+  # (US-037, criterio 17, ADR-0011): SSM Parameter Store SecureString
+  # separado del de arriba
+  # ("/activa-club/dev/stripe/webhook-signing-secret", ver
+  # environments/dev/main.tf, aws_ssm_parameter.stripe_webhook_signing_secret).
+  # Mismo patrón que ManageDevStripeSecretParameter (acotado al ARN exacto
+  # del parámetro, nunca "parameter/*"), pero como statement propio porque es
+  # un secreto distinto con un ciclo de vida propio (verificación de
+  # webhooks, no cobro).
   statement {
-    sid    = "ManageDevCulqiWebhookSecretParameter"
+    sid    = "ManageDevStripeWebhookSecretParameter"
     effect = "Allow"
     actions = [
       "ssm:GetParameter",
@@ -799,7 +801,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
       "ssm:ListTagsForResource",
     ]
     resources = [
-      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/dev/culqi/webhook-secret",
+      "arn:aws:ssm:*:${data.aws_caller_identity.current.account_id}:parameter/${var.project}/dev/stripe/webhook-signing-secret",
     ]
   }
 
@@ -811,7 +813,7 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
   # cuando la llamada a KMS pasa por el servicio SSM, y solo dentro de esta
   # cuenta AWS.
   statement {
-    sid    = "DecryptDevCulqiSecretParameter"
+    sid    = "DecryptDevStripeSecretParameter"
     effect = "Allow"
     actions = [
       "kms:Decrypt",
