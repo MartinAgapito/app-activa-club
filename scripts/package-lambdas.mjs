@@ -65,6 +65,24 @@ const HANDLERS = {
   'payments-get-by-id': 'handlers/payments/get-by-id.ts', // US-025 (implementado)
   'payments-webhook': 'handlers/payments/webhook.ts', // US-024 (implementado)
   'members-update-auto-renew': 'handlers/members/patch-me-auto-renew.ts', // US-023 (implementado)
+  // EP-04 (US-027 infra ya desplegada; logica de negocio por historia,
+  // US-028..US-036). Las 13 funciones sin logica propia todavia apuntan al
+  // placeholder compartido (ver handlers/not-implemented.ts) -- cada
+  // historia lo reemplaza por su handler real al implementarse, una funcion
+  // a la vez (mismo patron ya usado para EP-03).
+  'resources-list': 'handlers/not-implemented.ts', // US-028
+  'resources-availability': 'handlers/not-implemented.ts', // US-029
+  'resources-update': 'handlers/not-implemented.ts', // US-036
+  'resources-maintenance-create': 'handlers/not-implemented.ts', // US-035
+  'resources-maintenance-delete': 'handlers/not-implemented.ts', // US-035
+  'reservations-create': 'handlers/not-implemented.ts', // US-030/US-031
+  'reservations-list': 'handlers/not-implemented.ts', // US-033/US-036
+  'reservations-get-by-id': 'handlers/not-implemented.ts', // US-033
+  'reservations-cancel': 'handlers/not-implemented.ts', // US-033
+  'reservations-approve': 'handlers/not-implemented.ts', // US-034
+  'reservations-reject': 'handlers/not-implemented.ts', // US-034
+  'members-lookup': 'handlers/not-implemented.ts', // US-031
+  'guests-lookup': 'handlers/not-implemented.ts', // US-031
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');
