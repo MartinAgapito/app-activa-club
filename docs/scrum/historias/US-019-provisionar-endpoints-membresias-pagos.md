@@ -12,6 +12,18 @@
 | Estimación relativa | 8                                            |
 | Dependencias        | —                                            |
 
+> **Nota (2026-08-09) — cambio de pasarela de pagos.** Esta historia se
+> implementó originalmente con **Culqi sandbox** (ADR-0007). El proyecto migró a
+> **Stripe (test mode)** porque Culqi exige RUC para emitir credenciales incluso
+> de sandbox, requisito que este proyecto de tesis no puede cumplir. Ver
+> [ADR-0011](../../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)
+> para la decisión y la nomenclatura vigente, y
+> [US-037](./US-037-migrar-pasarela-culqi-a-stripe.md) para el trabajo de
+> migración. Los parámetros SSM y la variable de build cambian de nombre (`/stripe/secret-key`, `/stripe/webhook-signing-secret`, `VITE_STRIPE_PUBLISHABLE_KEY`); los endpoints, alarmas y el principio de mínimo privilegio no cambian.
+>
+> El contenido siguiente **no se reescribe**: es el registro real de lo que se
+> especificó e implementó en el Sprint 2.
+
 ## Objetivo
 
 Provisionar en Terraform la infraestructura de endpoints serverless de membresías y pagos (API Gateway + Lambda por endpoint, log groups y alarmas), el resguardo del secreto de la llave privada de Culqi sandbox y la exposición de la llave pública al frontend, de modo que backend y frontend puedan integrar el flujo de pago contra el ambiente `dev` real.

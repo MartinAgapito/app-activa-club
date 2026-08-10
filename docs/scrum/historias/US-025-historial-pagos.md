@@ -12,6 +12,18 @@
 | Estimación relativa | 5                                            |
 | Dependencias        | US-021                                       |
 
+> **Nota (2026-08-09) — cambio de pasarela de pagos.** Esta historia se
+> implementó originalmente con **Culqi sandbox** (ADR-0007). El proyecto migró a
+> **Stripe (test mode)** porque Culqi exige RUC para emitir credenciales incluso
+> de sandbox, requisito que este proyecto de tesis no puede cumplir. Ver
+> [ADR-0011](../../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)
+> para la decisión y la nomenclatura vigente, y
+> [US-037](./US-037-migrar-pasarela-culqi-a-stripe.md) para el trabajo de
+> migración. El único identificador externo expuesto pasa a ser `stripePaymentIntentId`; las reglas de visibilidad y paginación no cambian.
+>
+> El contenido siguiente **no se reescribe**: es el registro real de lo que se
+> especificó e implementó en el Sprint 2.
+
 ## Historia
 
 Como **socio**, quiero **ver el historial de mis pagos con su fecha, monto, plan y estado**, para **saber qué pagué, hasta cuándo estoy cubierto y verificar un cobro cuando tenga dudas**.

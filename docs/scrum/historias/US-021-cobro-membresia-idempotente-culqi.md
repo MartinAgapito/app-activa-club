@@ -12,6 +12,21 @@
 | Estimación relativa | 8                                            |
 | Dependencias        | US-019                                       |
 
+> **Nota (2026-08-09) — cambio de pasarela de pagos.** Esta historia se
+> implementó y verificó originalmente con **Culqi sandbox** (ADR-0007). El
+> proyecto migró a **Stripe (test mode)** porque Culqi exige RUC para emitir
+> credenciales incluso de sandbox, requisito que este proyecto de tesis no
+> puede cumplir. Ver
+> [ADR-0011](../../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)
+> para la decisión y la nomenclatura vigente, y
+> [US-037](./US-037-migrar-pasarela-culqi-a-stripe.md) para el trabajo de
+> migración. Los criterios de aceptación siguen siendo válidos tal cual: lo único que cambia es el proveedor que ejecuta el cargo.
+>
+> El contenido siguiente **no se reescribe**: es el registro real de lo que se
+> especificó e implementó en el Sprint 2. Donde diga `culqiToken`, léase
+> `stripePaymentMethodId`; donde diga `culqiChargeId`, léase
+> `stripePaymentIntentId`; donde diga Culqi.js, léase Stripe Elements.
+
 ## Historia
 
 Como **socio**, quiero **que el cobro de mi membresía se procese una sola vez y active mi membresía solo cuando el pago se confirme**, para **quedar activo sin riesgo de que me cobren dos veces ni de que mi cuenta cambie de estado por un pago que no prosperó**.

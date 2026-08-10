@@ -46,7 +46,7 @@ El diseño debe permitir agregar múltiples administradores más adelante.
 - Existen membresías mensual y anual.
 - La membresía anual contempla facilidades de pago mediante tarjeta, sujeto a la integración disponible.
 - La renovación automática es opcional y debe requerir autorización explícita del socio.
-- Todos los pagos son digitales mediante Culqi sandbox y tarjetas.
+- Todos los pagos son digitales mediante Stripe (test mode) y tarjetas.
 - No se incluyen pagos manuales, efectivo, Yape, Plin ni transferencias.
 - Un socio con deuda o membresía vencida puede iniciar sesión y pagar, pero no puede reservar.
 - Los pagos actualizan el estado de membresía solo cuando se confirme el resultado de forma segura.
@@ -169,7 +169,7 @@ Dashboard administrativo con:
 - Base de datos: Amazon DynamoDB.
 - Archivos y JSON de migración: Amazon S3.
 - Correos: Amazon SES.
-- Pagos: Culqi en entorno sandbox.
+- Pagos: Stripe en entorno de prueba (test mode).
 - Logs y monitoreo: Amazon CloudWatch.
 - Infraestructura como código: Terraform.
 - CI/CD: GitHub Actions con OIDC hacia AWS.
@@ -208,7 +208,7 @@ Dashboard administrativo con:
 - Documentar contratos antes de implementar integración frontend-backend.
 - Ninguna regla crítica debe depender únicamente del frontend.
 - Nunca guardar contraseñas en DynamoDB.
-- Nunca almacenar datos de tarjeta, CVV ni secretos de Culqi.
+- Nunca almacenar datos de tarjeta, CVV ni secretos de Stripe.
 - Usar validación de entrada, autorización por rol y logging estructurado.
 - Priorizar bajo costo, seguridad, serverless y simplicidad para el MVP.
 - Toda infraestructura AWS debe existir en Terraform; no se deben requerir cambios manuales en la consola.

@@ -1,9 +1,25 @@
 # ADR-0007 — Culqi sandbox e idempotencia de pagos
 
-- **Estado**: Aceptado
+- **Estado**: **Reemplazado por [ADR-0011](./ADR-0011-stripe-sandbox-reemplaza-culqi.md)** (2026-08-09)
 - **Fecha**: 2026-07-09
 - **Decisores**: Arquitecto
 - **Historia relacionada**: US-002, US-003
+
+> **Nota de reemplazo (2026-08-09)** — Esta decisión ya **no** está vigente en
+> lo relativo al **proveedor de pagos**: Culqi exige RUC para emitir
+> credenciales incluso de sandbox, algo que este proyecto de tesis no puede
+> cumplir, por lo que el Product Owner decidió migrar a **Stripe en test
+> mode**. Ver [ADR-0011](./ADR-0011-stripe-sandbox-reemplaza-culqi.md) para el
+> flujo vigente y la nomenclatura definitiva, y
+> [US-037](../../scrum/historias/US-037-migrar-pasarela-culqi-a-stripe.md) para
+> el trabajo de migración.
+>
+> El contenido original se conserva **sin modificar**: documenta por qué se
+> eligió Culqi primero y qué garantías se exigieron desde el inicio
+> (tokenización en cliente, cargo server-side, idempotencia, webhook firmado).
+> Esas garantías **se mantienen intactas** en ADR-0011 — lo único que cambia es
+> el proveedor que las provee. Mostrar la evolución de la decisión, incluida la
+> restricción externa que la forzó, es parte del valor documental de la tesis.
 
 ## Contexto
 

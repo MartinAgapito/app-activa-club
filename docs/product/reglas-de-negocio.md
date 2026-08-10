@@ -32,11 +32,20 @@
 | RN-PAG-01 | Existen membresías mensual y anual.                                                               |
 | RN-PAG-02 | La membresía anual contempla facilidades de pago con tarjeta, sujeto a la integración disponible. |
 | RN-PAG-03 | La renovación automática es opcional y requiere autorización explícita del socio.                 |
-| RN-PAG-04 | Todos los pagos son digitales mediante Culqi sandbox y tarjetas.                                  |
+| RN-PAG-04 | Todos los pagos son digitales mediante Stripe (test mode) y tarjetas.                             |
 | RN-PAG-05 | No se incluyen pagos manuales, efectivo, Yape, Plin ni transferencias.                            |
 | RN-PAG-06 | Un socio con deuda o membresía vencida puede iniciar sesión y pagar, pero no puede reservar.      |
 | RN-PAG-07 | Los pagos actualizan el estado de membresía solo cuando se confirme el resultado de forma segura. |
-| RN-PAG-08 | Nunca se almacenan datos de tarjeta, CVV ni secretos de Culqi.                                    |
+| RN-PAG-08 | Nunca se almacenan datos de tarjeta, CVV ni secretos de Stripe.                                   |
+
+> **Cambio de proveedor (2026-08-09)** — RN-PAG-04 y RN-PAG-08 nombraban a
+> **Culqi sandbox** hasta esta fecha. El Product Owner decidió migrar a
+> **Stripe en test mode** porque Culqi exige RUC para emitir credenciales
+> incluso de sandbox, requisito que este proyecto de tesis no puede cumplir.
+> **La intención de ambas reglas no cambia** (pago digital con tarjeta,
+> cero datos sensibles almacenados); solo cambia el proveedor. Ver
+> [ADR-0011](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md) y
+> [US-037](../scrum/historias/US-037-migrar-pasarela-culqi-a-stripe.md).
 
 ## Módulo 4 — Reservas (RN-RES)
 

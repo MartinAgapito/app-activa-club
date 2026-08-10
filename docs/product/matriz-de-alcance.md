@@ -37,7 +37,7 @@
 | Capacidad                                                              | Clasificación    | Nota                                      |
 | ---------------------------------------------------------------------- | ---------------- | ----------------------------------------- |
 | Membresía mensual y anual                                              | MVP              |                                           |
-| Pago con tarjeta vía Culqi sandbox                                     | MVP              |                                           |
+| Pago con tarjeta vía Stripe (test mode)                                | MVP              | Proveedor definido en ADR-0011            |
 | Actualización de estado de membresía tras confirmación segura del pago | MVP              |                                           |
 | Bloqueo de reservas para socios con deuda o membresía vencida          | MVP              | Puede iniciar sesión y pagar, no reservar |
 | Facilidades de pago de la anual con tarjeta                            | MVP              | Sujeto a integración disponible           |
