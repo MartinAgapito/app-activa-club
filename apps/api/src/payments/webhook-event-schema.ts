@@ -51,11 +51,21 @@ export const stripeWebhookEventSchema = z.object({
         id: z.string().trim().min(1),
         /** `paymentId` propio de este backend, ver nota de cabecera (ausente en eventos irrelevantes). */
         metadata: z.object({ paymentId: z.string().trim().min(1).optional() }).optional(),
+        // `.nullable()` (no solo `.optional()`): un `PaymentIntent` real de
+        // Stripe trae `last_payment_error: null` de forma explícita cuando
+        // no hubo error (confirmado contra un evento real de
+        // `payment_intent.succeeded` en la verificación en vivo de US-037),
+        // no lo omite. `.optional()` a secas solo acepta `undefined` y
+        // rechaza `null`, lo que hacía fallar con 400 VALIDATION_ERROR
+        // exactamente el evento que más importa (el de pago exitoso),
+        // mientras que `payment_intent.payment_failed` pasaba porque sí trae
+        // un objeto no nulo.
         last_payment_error: z
           .object({
             code: z.string().trim().min(1).optional(),
             decline_code: z.string().trim().min(1).optional(),
           })
+          .nullable()
           .optional(),
       })
       .passthrough(),
