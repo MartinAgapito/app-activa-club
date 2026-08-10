@@ -54,18 +54,18 @@ dependencias instaladas ni scripts (`apps/web/package.json` y
 
 ## 3. Niveles de prueba y herramientas
 
-| Nivel                     | Herramienta                                                                                                                                                       | Objeto de prueba                                                                                                                                                                                                                          | Ubicación prevista                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Unitaria                  | **Vitest**                                                                                                                                                        | Funciones puras, esquemas Zod (`packages/validation`), utilidades de dominio (cálculo de aforo, solapamiento de horarios, cálculo de cancelación 24h, mapeo de migración), reducers/hooks aislados del frontend                           | `packages/*/src/**/*.test.ts`, `apps/api/src/**/*.test.ts`, `apps/web/src/**/*.test.ts` |
-| Integración (componentes) | **Vitest + React Testing Library (RTL)**                                                                                                                          | Componentes y formularios de `apps/web` con estado, validación cliente-servidor simulada (MSW o mocks de fetch), estados de carga/error/vacío, restricciones de permisos en UI                                                            | `apps/web/src/**/*.test.tsx`                                                            |
-| Integración (API/backend) | **Vitest + pruebas de API** (invocación directa de handlers Lambda o `supertest`/`fetch` contra emulación local: `serverless-offline`/SAM local + DynamoDB Local) | Reglas de negocio server-side: aforo, cruces, deuda, idempotencia de pago, aprobación/rechazo, unicidad de DNI/email, auditoría                                                                                                           | `apps/api/test/integration/**`                                                          |
-| E2E                       | **Playwright**                                                                                                                                                    | Flujos completos de usuario contra un entorno desplegado (`dev`/`prd`) o local: activación → login → reserva; registro → aprobación → pago → reserva; pago exitoso/fallido en Culqi sandbox; cancelación; notificaciones; dashboard admin | `apps/web/e2e/**` (o paquete E2E dedicado, a confirmar en Sprint 1)                     |
-| Manual documentada        | Casos exploratorios en `docs/testing/` (plantilla en §8)                                                                                                          | Exploración de usabilidad, accesibilidad básica, responsive en dispositivos reales, casos que aún no se automatizan                                                                                                                       | `docs/testing/casos-manuales/**`                                                        |
+| Nivel                     | Herramienta                                                                                                                                                       | Objeto de prueba                                                                                                                                                                                                                             | Ubicación prevista                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Unitaria                  | **Vitest**                                                                                                                                                        | Funciones puras, esquemas Zod (`packages/validation`), utilidades de dominio (cálculo de aforo, solapamiento de horarios, cálculo de cancelación 24h, mapeo de migración), reducers/hooks aislados del frontend                              | `packages/*/src/**/*.test.ts`, `apps/api/src/**/*.test.ts`, `apps/web/src/**/*.test.ts` |
+| Integración (componentes) | **Vitest + React Testing Library (RTL)**                                                                                                                          | Componentes y formularios de `apps/web` con estado, validación cliente-servidor simulada (MSW o mocks de fetch), estados de carga/error/vacío, restricciones de permisos en UI                                                               | `apps/web/src/**/*.test.tsx`                                                            |
+| Integración (API/backend) | **Vitest + pruebas de API** (invocación directa de handlers Lambda o `supertest`/`fetch` contra emulación local: `serverless-offline`/SAM local + DynamoDB Local) | Reglas de negocio server-side: aforo, cruces, deuda, idempotencia de pago, aprobación/rechazo, unicidad de DNI/email, auditoría                                                                                                              | `apps/api/test/integration/**`                                                          |
+| E2E                       | **Playwright**                                                                                                                                                    | Flujos completos de usuario contra un entorno desplegado (`dev`/`prd`) o local: activación → login → reserva; registro → aprobación → pago → reserva; pago exitoso/fallido en Stripe test mode; cancelación; notificaciones; dashboard admin | `apps/web/e2e/**` (o paquete E2E dedicado, a confirmar en Sprint 1)                     |
+| Manual documentada        | Casos exploratorios en `docs/testing/` (plantilla en §8)                                                                                                          | Exploración de usabilidad, accesibilidad básica, responsive en dispositivos reales, casos que aún no se automatizan                                                                                                                          | `docs/testing/casos-manuales/**`                                                        |
 
 ### 3.1 Qué NO se prueba en cada nivel
 
-- Unitario: no debe tocar red, DynamoDB real ni Culqi real.
-- Integración: puede usar DynamoDB Local/emulado y **Culqi sandbox** (nunca
+- Unitario: no debe tocar red, DynamoDB real ni la API real de Stripe (el SDK `stripe` se mockea).
+- Integración: puede usar DynamoDB Local/emulado y **Stripe test mode** (nunca
   producción); no depende de la UI.
 - E2E: no reimplementa reglas de negocio con aserciones de detalle interno;
   valida el resultado observable por el usuario (estado, mensaje, navegación).
@@ -86,7 +86,7 @@ trazabilidad (§ siguiente documento) asigna el nivel mínimo por caso.
 ## 5. Política de datos de prueba
 
 1. **Nunca datos reales ni credenciales reales** (socios, DNIs, correos,
-   tarjetas, tokens de Cognito/Culqi de producción). Regla obligatoria, sin
+   tarjetas, tokens de Cognito ni llaves de Stripe de producción). Regla obligatoria, sin
    excepción.
 2. **DNI de prueba**: 8 dígitos sintéticos con formato válido
    (`dniSchema`), por ejemplo `00000001`..`00000099`, documentados como
@@ -100,18 +100,22 @@ trazabilidad (§ siguiente documento) asigna el nivel mínimo por caso.
    son un JSON mock ficticio (ver `mock-data/README.md`), nunca un export real
    del sistema on-premise. El propio dataset de migración de producción/prd,
    si existe, no se usa en pruebas automatizadas.
-6. **Pagos**: exclusivamente **Culqi sandbox** con tokens de prueba
-   (`tkn_test_...`) y tarjetas de prueba publicadas por Culqi para sandbox.
-   Nunca se usan tarjetas reales ni llaves de producción en pruebas
-   (RN-PAG-04/08). Las llaves de sandbox se inyectan por variables de entorno
-   (`.env` no commiteado; ver `.env.example`), nunca hardcodeadas en el
-   código de prueba.
+6. **Pagos**: exclusivamente **Stripe test mode** con llaves `pk_test_`/
+   `sk_test_`, métodos de pago de prueba (`pm_...`) y las tarjetas de prueba
+   publicadas por Stripe (`4242 4242 4242 4242` aprobada,
+   `4000 0000 0000 0002` rechazada). Nunca se usan tarjetas reales ni llaves
+   de producción (`pk_live_`/`sk_live_`) en pruebas (RN-PAG-04/08,
+   [ADR-0011](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)).
+   Las llaves de test se inyectan por variables de entorno (`.env` no
+   commiteado; ver `.env.example`), nunca hardcodeadas en el código de prueba.
+   Los eventos de webhook se generan con la CLI oficial de Stripe
+   (`stripe trigger` / `stripe listen`), que produce firmas válidas reales.
 7. **Aislamiento de entorno**: las pruebas de integración/E2E corren contra
    `dev`/`prd` o emulación local, nunca contra un entorno con datos de
    socios reales. Los IDs generados en pruebas se limpian o se aíslan por
    prefijo/TTL para no contaminar analíticas (RN-ANL-*).
 8. **Secretos**: ninguna prueba ni fixture contiene secretos de AWS,
-   Cognito o Culqi; las credenciales de test se resuelven vía variables de
+   Cognito o Stripe; las credenciales de test se resuelven vía variables de
    entorno/CI (consistente con US-005: OIDC, sin llaves estáticas).
 
 ## 6. Responsabilidades por rol
@@ -251,8 +255,11 @@ tablas DynamoDB reales, ni frontend funcional:
    handlers implementados (depende de US-009 en Sprint 1).
 2. Ejecución real de E2E contra `apps/web`: no hay scaffolding de Vite/React
    aún (depende de US-008 en Sprint 1).
-3. Pruebas contra Culqi sandbox real (tokens, webhook con firma): dependen de
-   la integración de pagos (ADR-0007) implementada en Sprint 1+.
+3. Pruebas contra la pasarela de pagos real (métodos de pago, webhook con
+   firma): dependen de la integración de pagos implementada en Sprint 1+.
+   Originalmente prevista sobre Culqi sandbox (ADR-0007), se ejecuta sobre
+   **Stripe test mode** desde [ADR-0011](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)
+   (ver [US-037](../scrum/historias/US-037-migrar-pasarela-culqi-a-stripe.md)).
 4. Medición de cobertura real (%): no hay código de producción que cubrir.
 5. Pruebas de carga/performance: fuera de alcance del MVP y de Sprint 0; se
    evaluará su necesidad cuando exista tráfico real o de staging.
@@ -271,7 +278,7 @@ tablas DynamoDB reales, ni frontend funcional:
 - [Definition of Done](../scrum/definition-of-done.md)
 - [US-005 — CI de calidad](../scrum/historias/US-005-ci-calidad-github-actions.md)
 - [US-010 — Validar contratos e integración](../scrum/historias/US-010-validar-contratos-integracion.md)
-- [ADR-0007 — Culqi sandbox e idempotencia de pagos](../architecture/adr/ADR-0007-culqi-sandbox-idempotencia-pagos.md)
+- [ADR-0011 — Stripe (test mode) reemplaza a Culqi como pasarela](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md), que reemplaza a [ADR-0007 — Culqi sandbox e idempotencia de pagos](../architecture/adr/ADR-0007-culqi-sandbox-idempotencia-pagos.md)
 - [ADR-0008 — Observabilidad, logging y auditoría](../architecture/adr/ADR-0008-observabilidad-logging-auditoria.md)
 
 ## Historial de cambios

@@ -54,7 +54,7 @@ Sin migración e identidad no hay usuarios que puedan operar el sistema: ningún
 
 Estos bloques MVP se planificarán en sprints/épicas siguientes y no forman parte de EP-02:
 
-- Membresías y pagos vía Culqi sandbox (EP-03).
+- Membresías y pagos vía Stripe test mode (EP-03).
 - Reservas de instalaciones (EP-04).
 - Notificaciones internas y correos transaccionales como funcionalidad propia (EP-05); en EP-02 solo se disparan los eventos de activación/aprobación previstos por los contratos, sin construir el módulo de notificaciones.
 - Administración avanzada, dashboards y analytics (EP-06, EP-07).
