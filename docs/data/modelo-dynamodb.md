@@ -373,7 +373,7 @@ diseño está justificado en
 ## 5. Cobertura de reglas críticas
 
 | Regla                                           | Cómo la soporta el modelo                                                                                 |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | RN-ACT-03 (un DNI, una cuenta)                  | Ítems de unicidad `UNIQ#DNI#` con escritura condicional                                                   |
 | RN-PAG-06 (deuda no reserva)                    | `membershipStatus`/`outstandingBalance` en Member; validado antes de crear reserva                        |
 | RN-PAG-07 (confirmación segura)                 | Estado de pago `PENDING_CONFIRMATION`→`SUCCEEDED`; membresía se actualiza solo al confirmar               |
