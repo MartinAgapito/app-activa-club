@@ -13,7 +13,8 @@
 // renovación automática (US-023, caso alternativo "socio PENDING/REJECTED
 // no puede... activar la preferencia"): el guard ya se lo impide.
 //
-// El pago (Culqi.js, formulario de tarjeta) es responsabilidad de US-022
+// El pago (Stripe.js/Elements, formulario de tarjeta) es responsabilidad de
+// US-022 (migrado a Stripe por US-037)
 // (`CheckoutPage`, ruta `/socio/membresia/pagar?plan=<tipo>`): esta pantalla
 // solo enlaza al plan elegido, sin tocar ningún dato de tarjeta (RN-PAG-08).
 // Renovar reutiliza ese mismo checkout (US-023, criterio 1): no hay un flujo

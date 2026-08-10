@@ -64,8 +64,9 @@ npm run test -w @activa-club/web
 ## Variables de entorno
 
 Ver `.env.example` en la raíz del monorepo (`VITE_API_BASE_URL`,
-`VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`). Ninguna es un secreto:
-las claves privadas de Cognito/Culqi nunca se exponen al frontend (RN-PAG-08).
+`VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`,
+`VITE_STRIPE_PUBLISHABLE_KEY`). Ninguna es un secreto: las claves privadas de
+Cognito/Stripe nunca se exponen al frontend (RN-PAG-08).
 
 No implementar lógica de negocio ni llamadas reales a la API fuera de una
 historia de usuario aprobada (ver `docs/scrum/`) y los contratos de API/tipos

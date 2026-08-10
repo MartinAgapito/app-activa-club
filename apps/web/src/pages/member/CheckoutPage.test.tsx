@@ -1,38 +1,50 @@
-// US-022 — checkout de pago de membresía.
+// US-022 — checkout de pago de membresía, migrado a Stripe por US-037.
 // Cubre: selección de plan (con y sin preselección por query param), los 4
 // resultados posibles de `POST /payments` (SUCCEEDED, PENDING_CONFIRMATION,
 // PAYMENT_FAILED, PAYMENT_DUPLICATE), `MEMBER_NOT_APPROVED`, doble clic con
 // la misma `idempotencyKey` (P-04), estados de carga/deshabilitado, que
 // ningún dato de tarjeta viaje a `POST /payments` ni se persista fuera de
-// Culqi.js (RN-PAG-08), y que no se ofrezca ningún medio de pago distinto de
-// tarjeta (RN-PAG-05).
+// Stripe.js/Elements (RN-PAG-08), y que no se ofrezca ningún medio de pago
+// distinto de tarjeta (RN-PAG-05).
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import type { Stripe, StripeCardElement } from '@stripe/stripe-js';
 import type { CreatePaymentResponse, MembershipPlan } from '@activa-club/shared-types';
 import { CheckoutPage } from './CheckoutPage';
 import { ApiRequestError } from '../../lib/api/http-client';
 import { MEMBER_PROFILE_QUERY_KEY } from '../../members/profile-query';
-import { CulqiError } from '../../payments/culqi';
+import { StripePaymentError } from '../../payments/stripe';
 
-const { fetchMembershipPlansMock, requestCulqiTokenMock, createPaymentMock, signOutMock } =
-  vi.hoisted(() => ({
-    fetchMembershipPlansMock: vi.fn(),
-    requestCulqiTokenMock: vi.fn(),
-    createPaymentMock: vi.fn(),
-    signOutMock: vi.fn(),
-  }));
+const {
+  fetchMembershipPlansMock,
+  loadStripeClientMock,
+  createStripePaymentMethodMock,
+  createPaymentMock,
+  signOutMock,
+} = vi.hoisted(() => ({
+  fetchMembershipPlansMock: vi.fn(),
+  loadStripeClientMock: vi.fn(),
+  createStripePaymentMethodMock: vi.fn(),
+  createPaymentMock: vi.fn(),
+  signOutMock: vi.fn(),
+}));
 
 vi.mock('../../members/plans-client', () => ({
   fetchMembershipPlans: fetchMembershipPlansMock,
 }));
 
-vi.mock('../../payments/culqi', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../payments/culqi')>();
-  return { ...actual, requestCulqiToken: requestCulqiTokenMock };
+vi.mock('../../payments/stripe', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../payments/stripe')>();
+  return {
+    ...actual,
+    loadStripeClient: loadStripeClientMock,
+    createStripePaymentMethod: createStripePaymentMethodMock,
+  };
 });
 
 vi.mock('../../payments/payments-client', () => ({
@@ -42,6 +54,19 @@ vi.mock('../../payments/payments-client', () => ({
 vi.mock('../../auth/AuthContext', () => ({
   useAuth: () => ({ signOut: signOutMock }),
 }));
+
+// `Elements`/`CardElement` reales dependen de un iframe cargado desde
+// js.stripe.com: no funcional en jsdom. Se reemplazan por versiones mínimas;
+// el comportamiento real de Stripe.js se prueba en `payments/stripe.test.ts`.
+vi.mock('@stripe/react-stripe-js', () => ({
+  Elements: ({ children }: { children: ReactNode }) => <>{children}</>,
+  CardElement: () => <div data-testid="stripe-card-element" />,
+  useStripe: () => FAKE_STRIPE,
+  useElements: () => ({ getElement: () => FAKE_CARD_ELEMENT }),
+}));
+
+const FAKE_STRIPE = {} as Stripe;
+const FAKE_CARD_ELEMENT = {} as StripeCardElement;
 
 const BASE_PLANS: MembershipPlan[] = [
   { type: 'MONTHLY', amount: 12000, currency: 'PEN', label: 'Mensual' },
@@ -83,10 +108,15 @@ function renderPage(initialEntry = '/socio/membresia/pagar?plan=ANNUAL') {
 }
 
 describe('CheckoutPage', () => {
+  beforeEach(() => {
+    loadStripeClientMock.mockResolvedValue(FAKE_STRIPE);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     fetchMembershipPlansMock.mockReset();
-    requestCulqiTokenMock.mockReset();
+    loadStripeClientMock.mockReset();
+    createStripePaymentMethodMock.mockReset();
     createPaymentMock.mockReset();
     signOutMock.mockReset();
   });
@@ -131,13 +161,15 @@ describe('CheckoutPage', () => {
     await screen.findByRole('heading', { name: /pagar membresía/i });
     // La única acción de pago disponible es "Pagar con tarjeta"; no se
     // ofrece ningún botón/opción para Yape, Plin, efectivo o transferencia.
+    const payButton = await screen.findByRole('button', { name: /pagar con tarjeta/i });
     const actionButtons = screen.getAllByRole('button').map((button) => button.textContent);
+    expect(actionButtons).toEqual([payButton.textContent]);
     expect(actionButtons).toEqual(['Pagar con tarjeta']);
   });
 
   it('pago exitoso: confirma el plan, invalida el perfil y ofrece ir a /socio (criterio 7)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_123');
+    createStripePaymentMethodMock.mockResolvedValueOnce('pm_test_123');
     createPaymentMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
     const { queryClient } = renderPage();
     const user = userEvent.setup();
@@ -151,18 +183,19 @@ describe('CheckoutPage', () => {
       '/socio',
     );
 
-    // Criterio 4 (US-022): membershipType, culqiToken, idempotencyKey y,
-    // desde US-023, autoRenew (desactivada por defecto — criterio 5).
+    // Criterio 4 (US-022): membershipType, stripePaymentMethodId,
+    // idempotencyKey y, desde US-023, autoRenew (desactivada por defecto —
+    // criterio 5). Criterio 13 (US-037): ningún dato de tarjeta en el body.
     expect(createPaymentMock).toHaveBeenCalledTimes(1);
     const [request] = createPaymentMock.mock.calls[0] as [Record<string, unknown>];
     expect(Object.keys(request).sort()).toEqual([
       'autoRenew',
-      'culqiToken',
       'idempotencyKey',
       'membershipType',
+      'stripePaymentMethodId',
     ]);
     expect(request['membershipType']).toBe('ANNUAL');
-    expect(request['culqiToken']).toBe('tkn_test_123');
+    expect(request['stripePaymentMethodId']).toBe('pm_test_123');
     expect(typeof request['idempotencyKey']).toBe('string');
     expect(request['autoRenew']).toBe(false);
 
@@ -174,7 +207,7 @@ describe('CheckoutPage', () => {
 
   it('US-023 — al marcar la opción de renovación automática, se envía autoRenew: true en el pago (criterio 6)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_123');
+    createStripePaymentMethodMock.mockResolvedValueOnce('pm_test_123');
     createPaymentMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
     renderPage();
     const user = userEvent.setup();
@@ -191,7 +224,7 @@ describe('CheckoutPage', () => {
     await user.click(autoRenewCheckbox);
     expect(autoRenewCheckbox).toBeChecked();
 
-    await user.click(screen.getByRole('button', { name: /pagar con tarjeta/i }));
+    await user.click(await screen.findByRole('button', { name: /pagar con tarjeta/i }));
 
     await screen.findByRole('heading', { name: /pago confirmado/i });
     const [request] = createPaymentMock.mock.calls[0] as [Record<string, unknown>];
@@ -200,7 +233,7 @@ describe('CheckoutPage', () => {
 
   it('US-023 — un intento nuevo tras un pago rechazado restablece la opción de renovación automática desmarcada', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValue('tkn_test_1');
+    createStripePaymentMethodMock.mockResolvedValue('pm_test_1');
     createPaymentMock.mockRejectedValueOnce(
       new ApiRequestError(422, 'PAYMENT_FAILED', 'Tarjeta rechazada por el emisor.'),
     );
@@ -210,7 +243,7 @@ describe('CheckoutPage', () => {
     await user.click(
       await screen.findByRole('checkbox', { name: /autorizar la renovación automática/i }),
     );
-    await user.click(screen.getByRole('button', { name: /pagar con tarjeta/i }));
+    await user.click(await screen.findByRole('button', { name: /pagar con tarjeta/i }));
 
     expect(await screen.findByText(/tu tarjeta fue rechazada/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /elegir otro plan/i }));
@@ -222,9 +255,9 @@ describe('CheckoutPage', () => {
     ).not.toBeChecked();
   });
 
-  it('pago rechazado (PAYMENT_FAILED): mensaje claro y permite reintentar con un token nuevo (criterio 8)', async () => {
+  it('pago rechazado (PAYMENT_FAILED): mensaje claro y permite reintentar con un método de pago nuevo (criterio 8)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValue('tkn_test_1');
+    createStripePaymentMethodMock.mockResolvedValue('pm_test_1');
     createPaymentMock.mockRejectedValueOnce(
       new ApiRequestError(422, 'PAYMENT_FAILED', 'Tarjeta rechazada por el emisor.'),
     );
@@ -237,7 +270,7 @@ describe('CheckoutPage', () => {
     expect(screen.queryByText(/tarjeta rechazada por el emisor/i)).not.toBeInTheDocument();
 
     createPaymentMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
-    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_2');
+    createStripePaymentMethodMock.mockResolvedValueOnce('pm_test_2');
     await user.click(screen.getByRole('button', { name: /intentar con otra tarjeta/i }));
     await user.click(await screen.findByRole('button', { name: /pagar con tarjeta/i }));
 
@@ -251,7 +284,7 @@ describe('CheckoutPage', () => {
 
   it('pago duplicado (PAYMENT_DUPLICATE): muestra el resultado previo y no ofrece cobrar de nuevo (criterio 9)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_1');
+    createStripePaymentMethodMock.mockResolvedValueOnce('pm_test_1');
     createPaymentMock.mockRejectedValueOnce(
       new ApiRequestError(409, 'PAYMENT_DUPLICATE', 'Ya existe un pago con esta clave.', [
         { field: 'paymentId', issue: '01J-OLD' },
@@ -273,7 +306,7 @@ describe('CheckoutPage', () => {
 
   it('pago pendiente de confirmación: informa la verificación sin prometer activación (criterio 10)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_1');
+    createStripePaymentMethodMock.mockResolvedValueOnce('pm_test_1');
     createPaymentMock.mockResolvedValueOnce({
       ...SUCCESS_RESPONSE,
       paymentStatus: 'PENDING_CONFIRMATION',
@@ -293,7 +326,7 @@ describe('CheckoutPage', () => {
 
   it('403 MEMBER_NOT_APPROVED: explica que la cuenta no está aprobada (criterio 11)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_1');
+    createStripePaymentMethodMock.mockResolvedValueOnce('pm_test_1');
     createPaymentMock.mockRejectedValueOnce(
       new ApiRequestError(403, 'MEMBER_NOT_APPROVED', 'El socio debe estar aprobado o activo.'),
     );
@@ -311,25 +344,41 @@ describe('CheckoutPage', () => {
     );
   });
 
-  it('caso alternativo: Culqi.js no carga — muestra un error explícito y no envía el pago', async () => {
+  it('caso alternativo: Stripe.js no carga — muestra un error explícito y no ofrece ningún botón de pago (criterio 14)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockRejectedValueOnce(
-      new CulqiError(
+    loadStripeClientMock.mockReset();
+    loadStripeClientMock.mockRejectedValueOnce(
+      new StripePaymentError(
         'No pudimos cargar la pasarela de pago. Verifica tu conexión e intenta nuevamente.',
       ),
     );
     renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: /pagar con tarjeta/i }));
 
     expect(await screen.findByText(/no pudimos cargar la pasarela de pago/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /pagar con tarjeta/i })).not.toBeInTheDocument();
+    expect(createPaymentMock).not.toHaveBeenCalled();
+  });
+
+  it('caso alternativo: sin VITE_STRIPE_PUBLISHABLE_KEY configurada, no habilita el envío del pago (criterio 15)', async () => {
+    fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
+    loadStripeClientMock.mockReset();
+    loadStripeClientMock.mockRejectedValueOnce(
+      new StripePaymentError(
+        'La pasarela de pago no está disponible en este momento. Contacta al club para regularizar tu pago.',
+      ),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByText(/la pasarela de pago no está disponible en este momento/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /pagar con tarjeta/i })).not.toBeInTheDocument();
     expect(createPaymentMock).not.toHaveBeenCalled();
   });
 
   it('muestra el botón deshabilitado con indicador de carga mientras el pago está en curso (criterio 6)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockReturnValue(new Promise(() => {}));
+    createStripePaymentMethodMock.mockReturnValue(new Promise(() => {}));
     renderPage();
     const user = userEvent.setup();
 
@@ -341,10 +390,10 @@ describe('CheckoutPage', () => {
 
   it('doble clic en confirmar: un solo cargo, misma idempotencyKey (P-04)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    let resolveToken: (token: string) => void = () => {};
-    requestCulqiTokenMock.mockReturnValue(
+    let resolvePaymentMethod: (paymentMethodId: string) => void = () => {};
+    createStripePaymentMethodMock.mockReturnValue(
       new Promise<string>((resolve) => {
-        resolveToken = resolve;
+        resolvePaymentMethod = resolve;
       }),
     );
     createPaymentMock.mockResolvedValue(SUCCESS_RESPONSE);
@@ -354,14 +403,14 @@ describe('CheckoutPage', () => {
     fireEvent.click(payButton);
     fireEvent.click(payButton);
 
-    resolveToken('tkn_test_double');
+    resolvePaymentMethod('pm_test_double');
     await waitFor(() => expect(createPaymentMock).toHaveBeenCalledTimes(1));
-    expect(requestCulqiTokenMock).toHaveBeenCalledTimes(1);
+    expect(createStripePaymentMethodMock).toHaveBeenCalledTimes(1);
   });
 
-  it('no persiste ningún dato de pago en localStorage fuera de Culqi.js (RN-PAG-08)', async () => {
+  it('no persiste ningún dato de pago en localStorage fuera de Stripe.js/Elements (RN-PAG-08)', async () => {
     fetchMembershipPlansMock.mockResolvedValueOnce(BASE_PLANS);
-    requestCulqiTokenMock.mockResolvedValueOnce('tkn_test_123');
+    createStripePaymentMethodMock.mockResolvedValueOnce('pm_test_123');
     createPaymentMock.mockResolvedValueOnce(SUCCESS_RESPONSE);
     renderPage();
     const user = userEvent.setup();
