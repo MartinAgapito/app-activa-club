@@ -88,7 +88,7 @@ Adjunta capturas antes/después si el PR incluye cambios visuales en
 
 ## 8. Checklist de seguridad
 
-- [ ] No se incluyen secretos, credenciales, claves AWS, tokens de Culqi ni
+- [ ] No se incluyen secretos, credenciales, claves AWS, llaves de Stripe ni
       archivos `.env` reales.
 - [ ] No se incluyen datos sensibles de socios (DNI reales, datos de pago,
       PII) fuera de `mock-data/` sanitizado.

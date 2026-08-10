@@ -91,7 +91,7 @@ locals {
   migration_bucket_name = module.storage.migration_bucket_name
 
   # kms:Decrypt sobre la llave administrada por defecto de SSM
-  # ("alias/aws/ssm", ver aws_ssm_parameter.culqi_private_key más abajo) no
+  # ("alias/aws/ssm", ver aws_ssm_parameter.stripe_secret_key más abajo) no
   # admite un ARN de recurso concreto y estable en esta política: el ARN
   # real de esa llave lo crea AWS de forma perezosa (la primera vez que se
   # usa un SecureString sin especificar una llave propia) y referenciarlo
@@ -292,32 +292,32 @@ resource "aws_api_gateway_resource" "level3" {
 }
 
 # ---------------------------------------------------------------------------
-# Secreto de la llave privada de Culqi sandbox (EP-03, US-019, RN-PAG-08,
-# ADR-0007): SSM Parameter Store SecureString en vez de Secrets Manager.
-# Elección: para un único valor de configuración sensible, sin rotación
-# automática gestionada por AWS ni versiones concurrentes que consultar
-# (Secrets Manager brilla ahí, pero cuesta ~US$0.40/mes por secreto +
-# llamadas de API; SSM SecureString no tiene costo fijo, encripta con la
-# llave administrada por defecto de la cuenta ("alias/aws/ssm", sin costo
-# adicional de KMS) y alcanza sobre para leer un valor server-side desde una
-# Lambda). Respeta el criterio de "presupuesto Free Tier" (criterio de
-# aceptación 11).
+# Secreto de la llave secreta de Stripe test mode (EP-03, US-037, RN-PAG-08,
+# ADR-0011 — reemplaza a ADR-0007/Culqi sandbox): SSM Parameter Store
+# SecureString en vez de Secrets Manager. Elección: para un único valor de
+# configuración sensible, sin rotación automática gestionada por AWS ni
+# versiones concurrentes que consultar (Secrets Manager brilla ahí, pero
+# cuesta ~US$0.40/mes por secreto + llamadas de API; SSM SecureString no
+# tiene costo fijo, encripta con la llave administrada por defecto de la
+# cuenta ("alias/aws/ssm", sin costo adicional de KMS) y alcanza sobre para
+# leer un valor server-side desde una Lambda). Respeta el criterio de
+# "presupuesto Free Tier" (criterio de aceptación 11).
 #
-# No hay todavía cuenta real de Culqi sandbox (decisión tomada con el
-# usuario): el valor es un placeholder explícito, nunca una llave real ni un
-# secreto de verdad, así que no figura ningún dato sensible en este repo
-# (criterio de aceptación 3). `lifecycle.ignore_changes` sobre "value" es
-# intencional: una vez que alguien cargue el valor real a mano (`aws ssm
-# put-parameter --overwrite`, ver docs/deployment/despliegue-dev.md), un
-# futuro `terraform apply` no debe volver a pisarlo con el placeholder.
-resource "aws_ssm_parameter" "culqi_private_key" {
-  name        = "/${var.project}/${var.environment}/culqi/private-key"
-  description = "Llave privada de Culqi sandbox (server-side, RN-PAG-04/08). Placeholder hasta contar con una cuenta Culqi sandbox real; ver docs/deployment/despliegue-dev.md para cargar el valor real y rotarlo."
+# No hay todavía cuenta real de Stripe (decisión tomada con el usuario): el
+# valor es un placeholder explícito, nunca una llave real ni un secreto de
+# verdad, así que no figura ningún dato sensible en este repo (criterio de
+# aceptación 3). `lifecycle.ignore_changes` sobre "value" es intencional: una
+# vez que alguien cargue el valor real a mano (`aws ssm put-parameter
+# --overwrite`, ver docs/deployment/despliegue-dev.md), un futuro
+# `terraform apply` no debe volver a pisarlo con el placeholder.
+resource "aws_ssm_parameter" "stripe_secret_key" {
+  name        = "/${var.project}/${var.environment}/stripe/secret-key"
+  description = "Llave secreta de Stripe test mode (server-side, RN-PAG-04/08). Placeholder hasta contar con una cuenta Stripe real; ver docs/deployment/despliegue-dev.md para cargar el valor real y rotarlo."
   type        = "SecureString"
-  value       = "PENDIENTE_CULQI_SANDBOX_KEY"
+  value       = "PENDIENTE_STRIPE_TEST_KEY"
 
   tags = {
-    Name = "${var.project}-${var.environment}-culqi-private-key"
+    Name = "${var.project}-${var.environment}-stripe-secret-key"
   }
 
   lifecycle {
@@ -325,26 +325,26 @@ resource "aws_ssm_parameter" "culqi_private_key" {
   }
 }
 
-# Secreto de verificación de firma del webhook de Culqi (US-024, criterio 2;
-# ADR-0007). **Distinto** de `aws_ssm_parameter.culqi_private_key`: ese
-# secreto sirve para cobrar (llave privada, US-019); este solo sirve para
-# validar que una notificación entrante de `POST /payments/webhook`
-# realmente la envió Culqi (HMAC del cuerpo crudo, ver
-# `apps/api/src/payments/webhook-signature.ts`), nunca para cobrar. Mismo
-# patrón que el parámetro de arriba: SecureString con la llave administrada
-# por defecto de la cuenta, sin costo fijo de KMS.
+# Secreto de verificación de firma del webhook de Stripe (US-037, criterio
+# 17; ADR-0011). **Distinto** de `aws_ssm_parameter.stripe_secret_key`: ese
+# secreto sirve para cobrar (llave secreta); este solo sirve para validar que
+# una notificación entrante de `POST /payments/webhook` realmente la envió
+# Stripe (`stripe.webhooks.constructEvent` sobre el cuerpo crudo, ver
+# `apps/api/src/payments/stripe-client.ts` y ADR-0011 §D6), nunca para
+# cobrar. Mismo patrón que el parámetro de arriba: SecureString con la llave
+# administrada por defecto de la cuenta, sin costo fijo de KMS.
 #
-# Tampoco hay todavía cuenta real de Culqi sandbox: mismo placeholder
-# explícito y el mismo `lifecycle.ignore_changes` para no pisar un valor real
-# cargado a mano en un futuro `terraform apply`.
-resource "aws_ssm_parameter" "culqi_webhook_secret" {
-  name        = "/${var.project}/${var.environment}/culqi/webhook-secret"
-  description = "Secreto compartido para verificar la firma del webhook de Culqi (RN-PAG-07/08, US-024). Placeholder hasta contar con una cuenta Culqi sandbox real; ver docs/deployment/despliegue-dev.md para cargar el valor real y rotarlo."
+# Tampoco hay todavía cuenta real de Stripe: mismo placeholder explícito y el
+# mismo `lifecycle.ignore_changes` para no pisar un valor real cargado a mano
+# en un futuro `terraform apply`.
+resource "aws_ssm_parameter" "stripe_webhook_signing_secret" {
+  name        = "/${var.project}/${var.environment}/stripe/webhook-signing-secret"
+  description = "Secreto de verificación de firma (signing secret) del webhook de Stripe (RN-PAG-07/08, US-037). Placeholder hasta contar con una cuenta Stripe real; ver docs/deployment/despliegue-dev.md para cargar el valor real y rotarlo."
   type        = "SecureString"
-  value       = "PENDIENTE_CULQI_SANDBOX_KEY"
+  value       = "PENDIENTE_STRIPE_TEST_KEY"
 
   tags = {
-    Name = "${var.project}-${var.environment}-culqi-webhook-secret"
+    Name = "${var.project}-${var.environment}-stripe-webhook-signing-secret"
   }
 
   lifecycle {
@@ -749,7 +749,7 @@ module "endpoint_payments_create" {
 
   environment_variables = {
     DYNAMODB_TABLE_NAME          = local.dynamodb_table_name
-    CULQI_PRIVATE_KEY_PARAM_NAME = aws_ssm_parameter.culqi_private_key.name
+    STRIPE_SECRET_KEY_PARAM_NAME = aws_ssm_parameter.stripe_secret_key.name
   }
 
   iam_policy_statements = [
@@ -770,10 +770,10 @@ module "endpoint_payments_create" {
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
     {
-      # Lectura de la llave privada de Culqi (criterio de aceptación 4):
+      # Lectura de la llave secreta de Stripe (US-037, criterio 19):
       # acotado al único parámetro que esta Lambda necesita.
       actions   = ["ssm:GetParameter"]
-      resources = [aws_ssm_parameter.culqi_private_key.arn]
+      resources = [aws_ssm_parameter.stripe_secret_key.arn]
     },
     {
       # Descifrado del SecureString (ver comentario de
@@ -862,9 +862,10 @@ module "endpoint_payments_webhook" {
   source_zip_path = local.lambda_zip_path["payments-webhook"]
   http_method     = "POST"
   resource_path   = "api/payments/webhook"
-  # Público (docs/api/contratos-api.md §5, ADR-0007): la verificación de
-  # firma de Culqi la implementa US-024 dentro del handler, no el Cognito
-  # Authorizer. requires_auth = false ya es soportado tal cual por
+  # Público (docs/api/contratos-api.md §5, ADR-0011): la verificación de
+  # firma de Stripe la implementa el handler con
+  # `stripe.webhooks.constructEvent`, no el Cognito Authorizer. requires_auth
+  # = false ya es soportado tal cual por
   # modules/endpoint (mismo mecanismo que /activation/* y /registration
   # más arriba); no hizo falta ningún ajuste al módulo para esto.
   requires_auth = false
@@ -874,27 +875,29 @@ module "endpoint_payments_webhook" {
   parent_resource_id     = local.api_resource_id["payments/webhook"]
 
   environment_variables = {
-    DYNAMODB_TABLE_NAME             = local.dynamodb_table_name
-    CULQI_WEBHOOK_SECRET_PARAM_NAME = aws_ssm_parameter.culqi_webhook_secret.name
+    DYNAMODB_TABLE_NAME              = local.dynamodb_table_name
+    STRIPE_WEBHOOK_SECRET_PARAM_NAME = aws_ssm_parameter.stripe_webhook_signing_secret.name
   }
 
   iam_policy_statements = [
     {
       # Confirmación idempotente del pago + actualización de membresía
-      # (ADR-0007): converge con POST /payments sin duplicar el cargo.
+      # (ADR-0011 §D4/D5): converge con POST /payments sin duplicar el cargo.
       # dynamodb:Query cubre además la localización del Payment por
-      # paymentId sobre GSI2 (US-024, apps/api/src/payments/repository.ts,
+      # paymentId sobre GSI2 (apps/api/src/payments/repository.ts,
       # findPaymentByPaymentId): el webhook solo conoce el paymentId que este
-      # backend envió como referencia al crear el cargo, no el memberId.
+      # backend envió como metadata.paymentId al crear el PaymentIntent, no
+      # el memberId.
       actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
     {
-      # Secreto de verificación de firma (US-024, criterio 2), distinto de la
-      # llave privada de cobro (`aws_ssm_parameter.culqi_private_key`, usada
-      # solo por payments-create): este endpoint nunca cobra, solo confirma.
+      # Secreto de verificación de firma (US-037, criterio 19), distinto de
+      # la llave secreta de cobro (`aws_ssm_parameter.stripe_secret_key`,
+      # usada solo por payments-create): este endpoint nunca cobra, solo
+      # confirma.
       actions   = ["ssm:GetParameter"]
-      resources = [aws_ssm_parameter.culqi_webhook_secret.arn]
+      resources = [aws_ssm_parameter.stripe_webhook_signing_secret.arn]
     },
     {
       actions    = ["kms:Decrypt"]
