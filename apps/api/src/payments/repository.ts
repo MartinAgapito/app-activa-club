@@ -2,10 +2,10 @@
 // docs/data/modelo-dynamodb.md §3.4/3.5, patrones #1/#3; US-021 criterios
 // 3/4/5/9).
 //
-// Estrategia de dos fases (ver también ADR-0007, caso alternativo "falla de
+// Estrategia de dos fases (ver también ADR-0011, caso alternativo "falla de
 // escritura en DynamoDB después de un cargo aprobado"):
 // 1. `createPendingPayment` escribe el `Payment` como `PENDING_CONFIRMATION`
-//    **antes** de intentar el cargo en Culqi. Así, si el proceso se
+//    **antes** de intentar el cargo en Stripe. Así, si el proceso se
 //    interrumpe justo después de un cargo aprobado, el `Payment` ya existe de
 //    forma durable en `PENDING_CONFIRMATION` (nunca se pierde ni se cobra de
 //    nuevo) y queda pendiente de reconciliación (webhook, US-024).
@@ -65,7 +65,7 @@ export async function createPendingPayment(
         amount: input.amount,
         currency: input.currency,
         paymentStatus: 'PENDING_CONFIRMATION',
-        culqiChargeId: null,
+        stripePaymentIntentId: null,
         idempotencyKey: input.idempotencyKey,
         autoRenewRequested: input.autoRenewRequested,
         failureReason: null,
@@ -113,7 +113,7 @@ export interface ConfirmPaymentSuccessInput {
   paymentId: string;
   /** `createdAt` del `Payment` (parte de su SK; el mismo usado en `createPendingPayment`). */
   createdAt: string;
-  culqiChargeId: string;
+  stripePaymentIntentId: string;
   confirmedAt: string;
   membershipId: string;
   membershipType: MembershipType;
@@ -169,11 +169,11 @@ export async function confirmPaymentSuccess(
             Key: keys.payment(input.memberId, input.createdAt, input.paymentId),
             ConditionExpression: 'attribute_exists(PK) AND paymentStatus = :pending',
             UpdateExpression:
-              'SET paymentStatus = :succeeded, culqiChargeId = :chargeId, confirmedAt = :confirmedAt, GSI2PK = :paymentGsi2pk',
+              'SET paymentStatus = :succeeded, stripePaymentIntentId = :intentId, confirmedAt = :confirmedAt, GSI2PK = :paymentGsi2pk',
             ExpressionAttributeValues: {
               ':pending': 'PENDING_CONFIRMATION',
               ':succeeded': 'SUCCEEDED',
-              ':chargeId': input.culqiChargeId,
+              ':intentId': input.stripePaymentIntentId,
               ':confirmedAt': input.confirmedAt,
               ':paymentGsi2pk': keys.paymentsByStatus('SUCCEEDED').GSI2PK,
             },
@@ -245,7 +245,7 @@ export function toPaymentSummary(item: Payment | Record<string, unknown>): Payme
     amount: payment.amount,
     currency: payment.currency,
     paymentStatus: payment.paymentStatus,
-    culqiChargeId: payment.culqiChargeId,
+    stripePaymentIntentId: payment.stripePaymentIntentId,
     createdAt: payment.createdAt,
     confirmedAt: payment.confirmedAt,
   };

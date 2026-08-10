@@ -1,14 +1,12 @@
 // POST /payments — cobra la membresía del socio autenticado de forma
 // idempotente y confirmada (docs/api/contratos-api.md §5,
-// docs/scrum/historias/US-021-cobro-membresia-idempotente-culqi.md, ADR-0007).
-// Solo `member` (el titular del pago es siempre el socio autenticado, nunca
-// un `memberId` de la solicitud).
+// docs/scrum/historias/US-021-cobro-membresia-idempotente-culqi.md,
+// ADR-0011). Solo `member` (el titular del pago es siempre el socio
+// autenticado, nunca un `memberId` de la solicitud).
 //
-// Nota de alcance: este handler todavía no está cableado en Terraform
-// (`modules/endpoint`, US-019 en curso en paralelo) ni tiene un cliente real
-// de Culqi (usa el stub de `../../payments/culqi-client.ts` por defecto,
-// documentado ahí). Queda listo para que ambas piezas se conecten sin tocar
-// esta capa.
+// El cargo real se procesa contra Stripe test mode
+// (`../../payments/stripe-client.ts`, `getDefaultStripeChargeClient`,
+// ADR-0011).
 
 import type { APIGatewayProxyResult, APIGatewayProxyWithCognitoAuthorizerEvent } from 'aws-lambda';
 import type { CreatePaymentRequest } from '@activa-club/shared-types';
@@ -32,7 +30,7 @@ function toCreatePaymentRequest(
 ): CreatePaymentRequest {
   return {
     membershipType: data.membershipType,
-    culqiToken: data.culqiToken,
+    stripePaymentMethodId: data.stripePaymentMethodId,
     idempotencyKey: data.idempotencyKey,
     ...(data.autoRenew !== undefined ? { autoRenew: data.autoRenew } : {}),
   };

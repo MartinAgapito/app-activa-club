@@ -1,6 +1,10 @@
-// US-026 criterio 4: la lista de campos prohibidos del logger cubre al menos
-// `password`, `culqiToken`, `cvv`, `cardNumber`, `culqiSecretKey`, y los
-// secretos introducidos por el webhook de Culqi (US-024, ADR-0007).
+// US-026 criterio 4 / US-037 criterio 11: la lista de campos prohibidos del
+// logger cubre al menos `password`, `cvv`, `cardNumber`, los secretos
+// introducidos por el webhook de pagos (US-024), y los campos específicos de
+// Stripe (`stripePaymentMethodId`, `stripeSecretKey`, `client_secret`,
+// ADR-0011). Se conservan también las pruebas de las claves históricas de
+// Culqi (ADR-0007, reemplazado por ADR-0011): siguen en la lista de
+// prohibidos y no hacen daño.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -58,6 +62,20 @@ describe('logger', () => {
     expect(entry['signature']).toBeUndefined();
     expect(entry['signatureHeader']).toBeUndefined();
     expect(entry['rawBody']).toBeUndefined();
+  });
+
+  it('nunca emite los campos específicos de Stripe (stripePaymentMethodId, stripeSecretKey, client_secret; criterio 11, ADR-0011)', () => {
+    logger.info('intento de pago', {
+      requestId: 'req-4',
+      stripePaymentMethodId: 'pm_test_xxx',
+      stripeSecretKey: 'sk_test_xxx',
+      client_secret: 'pi_test_secret_xxx',
+    });
+
+    const entry = lastEntry();
+    expect(entry['stripePaymentMethodId']).toBeUndefined();
+    expect(entry['stripeSecretKey']).toBeUndefined();
+    expect(entry['client_secret']).toBeUndefined();
   });
 
   it('conserva los campos no sensibles del evento', () => {

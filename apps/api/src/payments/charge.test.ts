@@ -62,7 +62,7 @@ const activeMemberWithVigencia: Member = {
 
 const validRequest: CreatePaymentRequest = {
   membershipType: 'MONTHLY',
-  culqiToken: 'tkn_test_xxx',
+  stripePaymentMethodId: 'pm_test_xxx',
   idempotencyKey: 'idem-key-1',
 };
 
@@ -83,7 +83,9 @@ describe('createPayment', () => {
       throw new Error(`comando inesperado: ${ctor}`);
     });
 
-    const chargeClient = vi.fn().mockResolvedValue({ outcome: 'APPROVED', culqiChargeId: 'chr_1' });
+    const chargeClient = vi
+      .fn()
+      .mockResolvedValue({ outcome: 'APPROVED', stripePaymentIntentId: 'chr_1' });
 
     const result = await createPayment({
       cognitoSub: 'sub-1',
@@ -105,10 +107,11 @@ describe('createPayment', () => {
     });
 
     expect(chargeClient).toHaveBeenCalledWith({
-      culqiToken: 'tkn_test_xxx',
+      stripePaymentMethodId: 'pm_test_xxx',
       amount: 12_000,
       currency: 'PEN',
       reference: 'payment-1',
+      idempotencyKey: 'idem-key-1',
     });
 
     const transactCall = client.send.mock.calls.find(
@@ -135,7 +138,9 @@ describe('createPayment', () => {
       if (ctor === 'UpdateCommand') return {};
       throw new Error(`comando inesperado: ${ctor}`);
     });
-    const chargeClient = vi.fn().mockResolvedValue({ outcome: 'APPROVED', culqiChargeId: 'chr_2' });
+    const chargeClient = vi
+      .fn()
+      .mockResolvedValue({ outcome: 'APPROVED', stripePaymentIntentId: 'chr_2' });
 
     const result = await createPayment({
       cognitoSub: 'sub-1',
@@ -162,7 +167,9 @@ describe('createPayment', () => {
       if (ctor === 'UpdateCommand') return {};
       throw new Error(`comando inesperado: ${ctor}`);
     });
-    const chargeClient = vi.fn().mockResolvedValue({ outcome: 'APPROVED', culqiChargeId: 'chr_3' });
+    const chargeClient = vi
+      .fn()
+      .mockResolvedValue({ outcome: 'APPROVED', stripePaymentIntentId: 'chr_3' });
 
     await createPayment({
       cognitoSub: 'sub-1',
@@ -262,7 +269,7 @@ describe('createPayment', () => {
     );
   });
 
-  it('respuesta ambigua/perdida de Culqi: el pago queda PENDING_CONFIRMATION y la membresía no se activa (criterio 5)', async () => {
+  it('respuesta ambigua/perdida de Stripe: el pago queda PENDING_CONFIRMATION y la membresía no se activa (criterio 5)', async () => {
     const calls: string[] = [];
     const client = fakeClient(async (command) => {
       const ctor = (command as CommandLike).constructor.name;
@@ -323,7 +330,9 @@ describe('createPayment', () => {
       if (ctor === 'QueryCommand') return { Items: [debtMember] };
       return {};
     });
-    const chargeClient = vi.fn().mockResolvedValue({ outcome: 'APPROVED', culqiChargeId: 'chr_6' });
+    const chargeClient = vi
+      .fn()
+      .mockResolvedValue({ outcome: 'APPROVED', stripePaymentIntentId: 'chr_6' });
 
     const result = await createPayment({
       cognitoSub: 'sub-1',
@@ -354,7 +363,9 @@ describe('createPayment', () => {
       if (ctor === 'QueryCommand') return { Items: [approvedMember] };
       return {};
     });
-    const chargeClient = vi.fn().mockResolvedValue({ outcome: 'APPROVED', culqiChargeId: 'chr_7' });
+    const chargeClient = vi
+      .fn()
+      .mockResolvedValue({ outcome: 'APPROVED', stripePaymentIntentId: 'chr_7' });
 
     await createPayment({
       cognitoSub: 'sub-1',

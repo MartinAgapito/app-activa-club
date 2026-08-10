@@ -56,7 +56,7 @@ describe('GET /payments', () => {
             amount: 12_000,
             currency: 'PEN',
             paymentStatus: 'SUCCEEDED',
-            culqiChargeId: 'chr_test_1',
+            stripePaymentIntentId: 'pi_test_1',
             createdAt: '2026-08-01T00:00:00.000Z',
             confirmedAt: '2026-08-01T00:05:00.000Z',
           },

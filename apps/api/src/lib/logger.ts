@@ -3,7 +3,8 @@
 // Cada Lambda emite logs JSON de una línea con, como mínimo, los campos:
 // timestamp, level, requestId, route, actorSub, role, entityType, action,
 // outcome, latencyMs. Sin PII innecesaria, sin datos de tarjeta ni secretos:
-// nunca pasar `culqiToken`, contraseñas ni el body crudo de un pago como campo.
+// nunca pasar `stripePaymentMethodId`, contraseñas ni el body crudo de un
+// pago como campo.
 
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR';
 
@@ -24,11 +25,14 @@ export interface LogFields {
 
 /**
  * Claves que nunca deben aparecer en un log (defensa en profundidad; US-026
- * criterio 4). Incluye, además de los datos de tarjeta/token de cobro, los
- * secretos que EP-03 introdujo con el webhook de Culqi (US-024, ADR-0007):
- * la llave privada de cobro, el secreto de firma del webhook y el cuerpo
- * crudo del evento entrante (podría reproducir el token de la tarjeta u
- * otros datos del cargo tal como los envía Culqi).
+ * criterio 4; US-037/ADR-0011 criterio 11). Incluye, además de los datos de
+ * tarjeta/identificador de método de pago, los secretos que EP-03 introdujo
+ * con el webhook de pagos (US-024): la llave secreta de cobro, el signing
+ * secret del webhook y el cuerpo crudo del evento entrante (podría
+ * reproducir el identificador de método de pago u otros datos del cargo tal
+ * como los envía el proveedor). Se conservan las claves de Culqi (ADR-0007,
+ * ya reemplazado por Stripe según ADR-0011) aunque ya no se usen: no hacen
+ * daño y documentan la migración.
  */
 const FORBIDDEN_KEYS = new Set([
   'password',
@@ -42,6 +46,10 @@ const FORBIDDEN_KEYS = new Set([
   'signature',
   'signatureHeader',
   'rawBody',
+  // Stripe (ADR-0011; antes: Culqi, ver claves arriba).
+  'stripePaymentMethodId',
+  'stripeSecretKey',
+  'client_secret',
 ]);
 
 function sanitize(fields: LogFields): LogFields {

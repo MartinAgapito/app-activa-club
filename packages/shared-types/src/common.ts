@@ -7,7 +7,7 @@ export type Role = 'member' | 'admin';
 /** Fecha en formato ISO-8601 UTC (p. ej. "2026-07-09T15:00:00Z"). */
 export type ISODateString = string;
 
-/** Moneda soportada en el MVP (Culqi Perú). */
+/** Moneda soportada en el MVP (Stripe test mode, ADR-0011). */
 export type Currency = 'PEN';
 
 /**

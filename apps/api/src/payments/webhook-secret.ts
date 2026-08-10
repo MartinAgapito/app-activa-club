@@ -1,17 +1,18 @@
-// Resolución del secreto de verificación de firma del webhook de Culqi
-// (US-024, criterio 2/7; ADR-0007). Es un secreto **distinto** de la llave
-// privada de cobro (`aws_ssm_parameter.culqi_private_key`, US-019): solo
-// sirve para validar la autenticidad de las notificaciones entrantes de
-// Culqi, nunca para cobrar. Ver
+// Resolución del signing secret de verificación del webhook de Stripe
+// (US-024/US-037, criterio 2/7/8; ADR-0011 §D6). Es un secreto **distinto**
+// de la llave secreta de cobro (`aws_ssm_parameter.stripe_secret_key`,
+// `./stripe-secret-key.ts`): solo sirve para que
+// `stripe.webhooks.constructEvent` valide la autenticidad de las
+// notificaciones entrantes de Stripe, nunca para cobrar. Ver
 // `infrastructure/terraform/environments/dev/main.tf`,
-// `aws_ssm_parameter.culqi_webhook_secret`.
+// `aws_ssm_parameter.stripe_webhook_signing_secret`.
 //
 // Se lee de SSM Parameter Store (`SecureString`, `WithDecryption: true`) vía
 // `ssm:GetParameter`, con el mismo patrón que el resto del backend evita
 // texto plano en el repo. Se cachea en memoria del proceso (reutilizado entre
 // invocaciones cálidas de la misma Lambda, igual que `getDocumentClient` en
 // `../lib/dynamo.ts`) para no pagar una llamada a SSM en cada invocación del
-// webhook. **Nunca** se loguea este valor (RN-PAG-08, criterio 7).
+// webhook. **Nunca** se loguea este valor (RN-PAG-08, criterio 11).
 
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 
@@ -27,20 +28,20 @@ function getSsmClient(): SSMClient {
 }
 
 /**
- * Devuelve el secreto compartido de verificación del webhook de Culqi, leído
- * de SSM (`CULQI_WEBHOOK_SECRET_PARAM_NAME`) la primera vez que se necesita
- * en cada instancia cálida de la Lambda.
+ * Devuelve el signing secret (`whsec_...`) de verificación del webhook de
+ * Stripe, leído de SSM (`STRIPE_WEBHOOK_SECRET_PARAM_NAME`) la primera vez
+ * que se necesita en cada instancia cálida de la Lambda.
  */
-export async function getCulqiWebhookSecret(client: SSMClient = getSsmClient()): Promise<string> {
+export async function getStripeWebhookSecret(client: SSMClient = getSsmClient()): Promise<string> {
   if (cachedSecret !== undefined) return cachedSecret;
 
-  const paramName = requireEnv('CULQI_WEBHOOK_SECRET_PARAM_NAME');
+  const paramName = requireEnv('STRIPE_WEBHOOK_SECRET_PARAM_NAME');
   const result = await client.send(
     new GetParameterCommand({ Name: paramName, WithDecryption: true }),
   );
   const value = result.Parameter?.Value;
   if (!value) {
-    throw new Error('El secreto de verificación del webhook de Culqi no está configurado.');
+    throw new Error('El signing secret del webhook de Stripe no está configurado.');
   }
 
   cachedSecret = value;
@@ -48,6 +49,6 @@ export async function getCulqiWebhookSecret(client: SSMClient = getSsmClient()):
 }
 
 /** Solo para pruebas: limpia el secreto cacheado entre casos (evita fugas de estado entre tests). */
-export function resetCulqiWebhookSecretCacheForTests(): void {
+export function resetStripeWebhookSecretCacheForTests(): void {
   cachedSecret = undefined;
 }

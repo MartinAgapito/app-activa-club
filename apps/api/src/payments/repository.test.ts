@@ -44,7 +44,7 @@ describe('createPendingPayment', () => {
         amount: 12_000,
         currency: 'PEN',
         paymentStatus: 'PENDING_CONFIRMATION',
-        culqiChargeId: null,
+        stripePaymentIntentId: null,
         idempotencyKey: 'clave-1',
         autoRenewRequested: false,
         failureReason: null,
@@ -143,7 +143,7 @@ describe('confirmPaymentSuccess', () => {
         'attribute_exists(PK) AND paymentStatus = :pending',
       );
       expect(paymentUpdate.Update.ExpressionAttributeValues[':succeeded']).toBe('SUCCEEDED');
-      expect(paymentUpdate.Update.ExpressionAttributeValues[':chargeId']).toBe('chr_test_1');
+      expect(paymentUpdate.Update.ExpressionAttributeValues[':intentId']).toBe('pi_test_1');
       expect(paymentUpdate.Update.ExpressionAttributeValues[':paymentGsi2pk']).toBe(
         'PAYMENT#STATUS#SUCCEEDED',
       );
@@ -181,7 +181,7 @@ describe('confirmPaymentSuccess', () => {
       memberId: 'member-1',
       paymentId: 'payment-1',
       createdAt: '2026-08-09T00:00:00.000Z',
-      culqiChargeId: 'chr_test_1',
+      stripePaymentIntentId: 'pi_test_1',
       confirmedAt: '2026-08-09T00:00:00.000Z',
       membershipId: 'membership-1',
       membershipType: 'MONTHLY',
@@ -219,7 +219,7 @@ describe('confirmPaymentSuccess', () => {
       memberId: 'member-1',
       paymentId: 'payment-1',
       createdAt: '2026-08-09T00:00:00.000Z',
-      culqiChargeId: 'chr_test_1',
+      stripePaymentIntentId: 'pi_test_1',
       confirmedAt: '2026-08-09T00:00:00.000Z',
       membershipId: 'membership-1',
       membershipType: 'ANNUAL',
@@ -247,7 +247,7 @@ function buildPaymentItem(
     amount: 12_000,
     currency: 'PEN',
     paymentStatus: 'SUCCEEDED',
-    culqiChargeId: 'chr_test_1',
+    stripePaymentIntentId: 'pi_test_1',
     idempotencyKey: 'clave-secreta-interna',
     autoRenewRequested: false,
     failureReason: null,
@@ -294,7 +294,7 @@ describe('listPaymentsByMember', () => {
       amount: 12_000,
       currency: 'PEN',
       paymentStatus: 'SUCCEEDED',
-      culqiChargeId: 'chr_test_1',
+      stripePaymentIntentId: 'pi_test_1',
       createdAt: '2026-08-01T00:00:00.000Z',
       confirmedAt: '2026-08-01T00:05:00.000Z',
     });

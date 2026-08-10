@@ -15,7 +15,7 @@ export interface Payment {
   amount: number;
   currency: Currency;
   paymentStatus: PaymentStatus;
-  culqiChargeId: string | null;
+  stripePaymentIntentId: string | null;
   idempotencyKey: string;
   autoRenewRequested: boolean;
   failureReason: string | null;
@@ -28,7 +28,7 @@ export interface Payment {
  * `GET /payments/{paymentId}` (docs/api/contratos-api.md §5, US-025). Nunca
  * incluye `idempotencyKey` ni `failureReason` (campos internos de
  * orquestación, fuera del contrato público); el único identificador externo
- * es `culqiChargeId` (criterio 7, RN-PAG-08).
+ * es `stripePaymentIntentId` (criterio 7, RN-PAG-08).
  */
 export interface PaymentSummary {
   paymentId: string;
@@ -38,7 +38,7 @@ export interface PaymentSummary {
   amount: number;
   currency: Currency;
   paymentStatus: PaymentStatus;
-  culqiChargeId: string | null;
+  stripePaymentIntentId: string | null;
   createdAt: ISODateString;
   confirmedAt: ISODateString | null;
 }
@@ -59,8 +59,8 @@ export interface MembershipPlansResponse {
 
 export interface CreatePaymentRequest {
   membershipType: MembershipType;
-  /** Token generado por Culqi.js en el cliente. */
-  culqiToken: string;
+  /** `pm_...` creado por Stripe.js/Elements en el cliente (ADR-0011 §D1/§D8). */
+  stripePaymentMethodId: string;
   /** Clave de idempotencia para evitar cargos duplicados (RT-01). */
   idempotencyKey: string;
   autoRenew?: boolean;

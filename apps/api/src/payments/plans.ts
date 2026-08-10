@@ -30,9 +30,10 @@ const DEFAULT_ANNUAL_AMOUNT_CENTS = 120_000;
 
 /**
  * Facilidades de pago con tarjeta para el plan anual (RN-PAG-02): depende de
- * la capacidad real de la integración de Culqi, que hoy es un stub sin
- * conexión real (`./culqi-client.ts`). Se deja en `false` hasta que exista esa
- * integración; US-020/US-022 deben leer este valor, no inventar uno propio.
+ * si Stripe test mode soporta cuotas para el método de pago usado, algo no
+ * confirmado todavía (ver ADR-0011, "Validaciones requeridas antes de
+ * implementar"). Se deja en `false` hasta confirmarlo; US-020/US-022 deben
+ * leer este valor, no inventar uno propio.
  */
 const ANNUAL_ALLOWS_INSTALLMENTS = false;
 
