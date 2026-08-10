@@ -9,6 +9,20 @@
 | Duración sugerida | 2 semanas                                    |
 | Estado            | Planificado                                  |
 
+> **Nota posterior al cierre (2026-08-09) — cambio de pasarela de pagos.** Este
+> sprint se planificó y ejecutó contra **Culqi sandbox** (ADR-0007), y su
+> contenido **no se reescribe**: es el registro real de lo que se decidió y se
+> entregó. Después de su cierre se confirmó que Culqi exige RUC para emitir
+> credenciales incluso de sandbox, algo que este proyecto de tesis no puede
+> cumplir, por lo que el Product Owner decidió migrar a **Stripe (test mode)**
+> ([ADR-0011](../../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)).
+> El trabajo de migración es
+> [US-037](../historias/US-037-migrar-pasarela-culqi-a-stripe.md), planificada
+> en el [Sprint 3](./sprint-3.md) como deuda técnica de EP-03. En consecuencia,
+> la "Definición de éxito" de más abajo **quedó parcialmente sin verificar**: el
+> cargo real nunca se ejecutó (el cliente de Culqi quedó como stub), así que
+> RN-ACT-07 y el caso A-15 siguen abiertos hasta que US-037 se despliegue.
+
 ## Sprint Goal
 
 Cerrar el vacío que dejó el Sprint 1 (RN-ACT-07: un socio aprobado no puede operar hasta pagar): permitir que un socio consulte los planes de membresía, pague con tarjeta vía **Culqi sandbox** y quede **activo** con su vigencia correcta, que pueda renovar o regularizar su deuda autorizando explícitamente —o no— la renovación automática, y que ese pago sea **idempotente, confirmado de forma segura y consultable**, sin que ningún dato de tarjeta ni secreto de Culqi toque el backend, la base de datos o los logs.

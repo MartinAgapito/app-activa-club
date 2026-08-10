@@ -18,14 +18,14 @@ El producto se llama exactamente: **Activa Club**.
 
 ## 3. Objetivos de negocio
 
-| ID    | Objetivo                                                                       | Cómo se evidencia                                                                         |
-| ----- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| OBJ-1 | Migrar la base de socios legado hacia una fuente de datos operativa en la nube | Socios del JSON on-premise disponibles en DynamoDB con identificador legado               |
-| OBJ-2 | Dar autonomía al socio para autoservicio                                       | El socio activa cuenta, paga y reserva sin intervención presencial                        |
-| OBJ-3 | Digitalizar los pagos de membresía                                             | Pagos con tarjeta vía Culqi sandbox que actualizan el estado de membresía de forma segura |
-| OBJ-4 | Ordenar el uso de instalaciones con reglas de aforo y horarios                 | Reservas sin cruces, sin sobreaforo y con aprobación cuando corresponde                   |
-| OBJ-5 | Dar visibilidad operativa al administrador                                     | Dashboard de analítica con métricas de socios, reservas y pagos                           |
-| OBJ-6 | Mantener comunicación con el socio                                             | Notificaciones internas y correos transaccionales para eventos relevantes                 |
+| ID    | Objetivo                                                                       | Cómo se evidencia                                                                              |
+| ----- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| OBJ-1 | Migrar la base de socios legado hacia una fuente de datos operativa en la nube | Socios del JSON on-premise disponibles en DynamoDB con identificador legado                    |
+| OBJ-2 | Dar autonomía al socio para autoservicio                                       | El socio activa cuenta, paga y reserva sin intervención presencial                             |
+| OBJ-3 | Digitalizar los pagos de membresía                                             | Pagos con tarjeta vía Stripe (test mode) que actualizan el estado de membresía de forma segura |
+| OBJ-4 | Ordenar el uso de instalaciones con reglas de aforo y horarios                 | Reservas sin cruces, sin sobreaforo y con aprobación cuando corresponde                        |
+| OBJ-5 | Dar visibilidad operativa al administrador                                     | Dashboard de analítica con métricas de socios, reservas y pagos                                |
+| OBJ-6 | Mantener comunicación con el socio                                             | Notificaciones internas y correos transaccionales para eventos relevantes                      |
 
 ## 4. Usuarios y roles
 
@@ -66,7 +66,7 @@ El diseño debe permitir agregar múltiples administradores más adelante.
 - Bajo costo, seguridad, serverless y simplicidad para el MVP.
 - Ninguna regla crítica debe depender únicamente del frontend.
 - Toda infraestructura AWS debe existir en Terraform; sin cambios manuales en consola.
-- Nunca almacenar contraseñas, datos de tarjeta, CVV ni secretos de Culqi en la base de datos.
+- Nunca almacenar contraseñas, datos de tarjeta, CVV ni secretos de Stripe en la base de datos.
 
 ## 8. Referencias
 

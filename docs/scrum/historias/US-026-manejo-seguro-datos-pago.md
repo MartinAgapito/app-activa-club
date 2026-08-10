@@ -12,6 +12,21 @@
 | Estimación relativa | 3                                            |
 | Dependencias        | US-021, US-024                               |
 
+> **Nota (2026-08-09) — cambio de pasarela de pagos.** Esta historia se
+> implementó y verificó originalmente con **Culqi sandbox** (ADR-0007). El
+> proyecto migró a **Stripe (test mode)** porque Culqi exige RUC para emitir
+> credenciales incluso de sandbox, requisito que este proyecto de tesis no
+> puede cumplir. Ver
+> [ADR-0011](../../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)
+> para la decisión y la nomenclatura vigente, y
+> [US-037](./US-037-migrar-pasarela-culqi-a-stripe.md) para el trabajo de
+> migración. La verificación en vivo del webhook, que esta historia dejó pendiente por ser el cliente de Culqi un stub, se completa en US-037 (criterio 25).
+>
+> El contenido siguiente **no se reescribe**: es el registro real de lo que se
+> especificó e implementó en el Sprint 2. Donde diga `culqiToken`, léase
+> `stripePaymentMethodId`; donde diga `culqiChargeId`, léase
+> `stripePaymentIntentId`; donde diga Culqi.js, léase Stripe Elements.
+
 ## Objetivo
 
 Verificar y dejar evidencia de que toda la superficie de pagos de EP-03 cumple RN-PAG-08: **en ningún punto del sistema** existe número de tarjeta (PAN), CVV, fecha de vencimiento ni secreto de Culqi —ni en tránsito, ni en almacenamiento, ni en logs, ni en el repositorio—, y que la separación cliente/servidor de ADR-0007 se respeta tal como fue decidida.

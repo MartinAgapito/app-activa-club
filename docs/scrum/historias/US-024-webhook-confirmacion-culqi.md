@@ -12,6 +12,21 @@
 | Estimación relativa | 5                                            |
 | Dependencias        | US-019, US-021                               |
 
+> **Nota (2026-08-09) — cambio de pasarela de pagos.** Esta historia se
+> implementó y verificó originalmente con **Culqi sandbox** (ADR-0007). El
+> proyecto migró a **Stripe (test mode)** porque Culqi exige RUC para emitir
+> credenciales incluso de sandbox, requisito que este proyecto de tesis no
+> puede cumplir. Ver
+> [ADR-0011](../../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)
+> para la decisión y la nomenclatura vigente, y
+> [US-037](./US-037-migrar-pasarela-culqi-a-stripe.md) para el trabajo de
+> migración. La firma pasa a verificarse con `Stripe-Signature` y `stripe.webhooks.constructEvent` en lugar del HMAC propio; los once criterios de aceptación se mantienen sin cambio de intención.
+>
+> El contenido siguiente **no se reescribe**: es el registro real de lo que se
+> especificó e implementó en el Sprint 2. Donde diga `culqiToken`, léase
+> `stripePaymentMethodId`; donde diga `culqiChargeId`, léase
+> `stripePaymentIntentId`; donde diga Culqi.js, léase Stripe Elements.
+
 ## Historia
 
 Como **socio que pagó su membresía**, quiero **que mi membresía se active igual aunque la respuesta del pago se pierda en el camino**, para **no quedar bloqueado ni tener que reclamar por un pago que el club ya cobró**.
