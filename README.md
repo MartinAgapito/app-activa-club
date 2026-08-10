@@ -21,7 +21,7 @@ ese documento.
 - Autenticación: Amazon Cognito.
 - Datos: Amazon DynamoDB, Amazon S3 (archivos y JSON de migración).
 - Correos: Amazon SES.
-- Pagos: Culqi (sandbox).
+- Pagos: Stripe (test mode).
 - Observabilidad: Amazon CloudWatch.
 - Infraestructura como código: Terraform.
 - CI/CD: GitHub Actions con OIDC hacia AWS.

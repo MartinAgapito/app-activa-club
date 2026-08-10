@@ -23,7 +23,7 @@
 | `NotificationEvent`      | `ACCOUNT_ACTIVATED`, `MEMBER_APPROVED`, `MEMBER_REJECTED`, `PAYMENT_SUCCEEDED`, `PAYMENT_FAILED`, `RENEWAL_DUE`, `RENEWAL_OVERDUE`, `RESERVATION_CONFIRMED`, `RESERVATION_CANCELLED`, `RESERVATION_APPROVED`, `RESERVATION_REJECTED`, `RESOURCE_MAINTENANCE`, `RESERVATION_REMINDER` | Evento automático que origina la notificación                                | RN-NOT-04             |
 | `NotificationReadStatus` | `UNREAD`, `READ`                                                                                                                                                                                                                                                                     | Estado de lectura en el inbox                                                | RN-NOT-01             |
 | `AuditAction`            | `MEMBER_APPROVED`, `MEMBER_REJECTED`, `RESERVATION_APPROVED`, `RESERVATION_REJECTED`, `RESOURCE_UPDATED`, `RESOURCE_MAINTENANCE`, `NOTIFICATION_SENT`, `MIGRATION_RUN`                                                                                                               | Acción administrativa auditada                                               | RN-ADM                |
-| `Currency`               | `PEN`                                                                                                                                                                                                                                                                                | Moneda (soles)                                                               | Culqi PE              |
+| `Currency`               | `PEN`                                                                                                                                                                                                                                                                                | Moneda (soles)                                                               | Stripe (PEN)          |
 
 ## 2. Atributos por entidad
 
@@ -70,14 +70,15 @@
 | `amount`                    | number           | no    | Monto en céntimos                       |
 | `currency`                  | `Currency`       | no    | Moneda (`PEN`)                          |
 | `paymentStatus`             | `PaymentStatus`  | no    | Estado del pago                         |
-| `culqiChargeId`             | string           | sí    | Id del cargo en Culqi                   |
+| `stripePaymentIntentId`     | string           | sí    | Id del PaymentIntent en Stripe          |
 | `idempotencyKey`            | string           | no    | Clave de idempotencia (RT-01)           |
 | `autoRenewRequested`        | boolean          | no    | El socio autorizó renovación automática |
 | `failureReason`             | string           | sí    | Motivo de fallo                         |
 | `createdAt` / `confirmedAt` | string (ISO)     | no/sí | Creación / confirmación segura          |
 
-> Prohibido: número de tarjeta (PAN), CVV, fecha de tarjeta, llave privada Culqi
-> (RN-PAG-08).
+> Prohibido: número de tarjeta (PAN), CVC, fecha de tarjeta,
+> `stripePaymentMethodId`, `client_secret` y llaves de Stripe (RN-PAG-08,
+> [ADR-0011](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)).
 
 ### Resource
 

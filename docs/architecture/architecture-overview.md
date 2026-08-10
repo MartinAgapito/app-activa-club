@@ -35,7 +35,7 @@
 | Datos          | Amazon DynamoDB (single-table, on-demand)            | Fuente operativa: socios, membresías, pagos, reservas, recursos, notificaciones, auditoría | ADR-0003 |
 | Almacenamiento | Amazon S3                                            | JSON de migración on-premise y activos del sistema                                         | ADR-0005 |
 | Correo         | Amazon SES                                           | Correos transaccionales (activación, pagos, reservas, etc.)                                | ADR-0006 |
-| Pagos          | Culqi (sandbox)                                      | Cobro con tarjeta; el backend crea el cargo server-side                                    | ADR-0007 |
+| Pagos          | Stripe (test mode)                                   | Cobro con tarjeta; el backend crea el PaymentIntent server-side                            | ADR-0011 |
 | Observabilidad | Amazon CloudWatch (Logs + Metrics + Alarms)          | Logging estructurado, métricas, alarmas                                                    | ADR-0008 |
 | IaC            | Terraform                                            | Aprovisionamiento reproducible de todo lo anterior                                         | (US-004) |
 | CI/CD          | GitHub Actions (OIDC → AWS)                          | Lint, typecheck, test, build y despliegue                                                  | (US-005) |
@@ -67,7 +67,7 @@ flowchart TB
     end
 
     subgraph Externo
-        CULQI[Culqi sandbox]
+        STRIPE[Stripe test mode]
     end
 
     U -->|HTTPS| CF
@@ -79,8 +79,8 @@ flowchart TB
     L1 -->|admin User Pool| COG
     LM -->|lee JSON| S3M
     LM -->|escribe| DDB
-    L2 -->|crea cargo| CULQI
-    CULQI -->|webhook confirmación| AGW
+    L2 -->|crea PaymentIntent| STRIPE
+    STRIPE -->|webhook firmado| AGW
     L1 & L2 & L3 & L4 & L5 -->|correos| SES
     L1 & L2 & L3 & L4 & L5 & LM -->|logs/métricas| CW
 ```
@@ -112,14 +112,18 @@ flowchart TB
 3. Tras aprobación, el socio debe pagar su primera membresía para pasar a
    `ACTIVE` y poder reservar.
 
-### 4.4 Pago con Culqi (RN-PAG)
+### 4.4 Pago con Stripe (RN-PAG)
 
-1. El frontend tokeniza la tarjeta con Culqi.js (los datos de tarjeta nunca
-   tocan el backend).
-2. `POST /payments` envía el token + `idempotencyKey`. El backend crea el cargo
-   server-side, con item de idempotencia en DynamoDB (RN-PAG, ADR-0007).
+1. El frontend monta Stripe Elements con la llave publicable (`pk_test_`) y
+   obtiene un `stripePaymentMethodId` (`pm_...`). Los datos de tarjeta nunca
+   tocan el backend: viven dentro de los iframes de Stripe.
+2. `POST /payments` envía `stripePaymentMethodId` + `idempotencyKey`. El backend
+   reserva la clave de idempotencia en DynamoDB y crea el **PaymentIntent**
+   server-side con la llave secreta (`sk_test_`), reenviando la misma clave como
+   `Idempotency-Key` nativo de Stripe (ADR-0011 §D4).
 3. El estado de membresía solo se actualiza al confirmar el resultado de forma
-   segura (respuesta síncrona verificada y/o webhook firmado, RN-PAG-07).
+   segura: respuesta síncrona verificada y/o webhook firmado con
+   `Stripe-Signature` (RN-PAG-07). Ambas rutas convergen idempotentemente.
 
 ### 4.5 Reserva (RN-RES)
 
@@ -162,7 +166,7 @@ Aislados por prefijo de nombre de recurso y cuenta/variables. Ver
 - JWT de Cognito validado en API Gateway; claim de grupo (`cognito:groups`)
   determina rol.
 - IAM de mínimo privilegio por Lambda (solo las acciones DynamoDB/SES/S3 que usa).
-- Sin contraseñas, datos de tarjeta, CVV ni secretos de Culqi en DynamoDB
+- Sin contraseñas, datos de tarjeta, CVV ni secretos de Stripe en DynamoDB
   (RN-PAG-08). Secretos en AWS SSM Parameter Store / Secrets Manager, inyectados
   por variables de entorno.
 - Ver [docs/security](../security/) para el detalle de roles y permisos.

@@ -108,9 +108,9 @@ lecturas rápidas del dashboard. El índice `GSI2` de expiración habilita
 
 Atributos: `paymentId`, `memberId`, `membershipType`, `amount`, `currency`
 (`PEN`), `paymentStatus` (`PENDING_CONFIRMATION`|`SUCCEEDED`|`FAILED`),
-`culqiChargeId` (nullable), `idempotencyKey`, `autoRenewRequested` (boolean),
-`failureReason` (nullable), `createdAt`, `confirmedAt` (nullable). **Nunca** PAN,
-CVV ni secretos (RN-PAG-08). Historial por socio: `Query` PK=`MEMBER#<id>`,
+`stripePaymentIntentId` (nullable), `idempotencyKey`, `autoRenewRequested`
+(boolean), `failureReason` (nullable), `createdAt`, `confirmedAt` (nullable).
+**Nunca** PAN, CVC, `stripePaymentMethodId` ni secretos (RN-PAG-08, ADR-0011). Historial por socio: `Query` PK=`MEMBER#<id>`,
 `begins_with(SK,"PAYMENT#")`. Analytics de pagos exitosos/fallidos: `GSI2`.
 
 > **Nota (US-025, `GET /payments/{paymentId}`, rol `admin`)**: el modelo no
@@ -135,7 +135,10 @@ CVV ni secretos (RN-PAG-08). Historial por socio: `Query` PK=`MEMBER#<id>`,
 Atributos: `paymentId`, `paymentStatus`, `expiresAt` (TTL). Escrito con
 `attribute_not_exists` antes de cobrar; si existe, se devuelve el resultado
 previo (evita doble cargo, RT-01). Ver
-[ADR-0007](../architecture/adr/ADR-0007-culqi-sandbox-idempotencia-pagos.md).
+[ADR-0011 §D4](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md):
+esta clave **también** se envía como `Idempotency-Key` nativo de Stripe, de modo
+que el ítem protege el estado del dominio y el header protege contra el doble
+cargo en el proveedor.
 
 ### 3.7 Recurso — **Resource**
 
@@ -370,11 +373,11 @@ diseño está justificado en
 ## 5. Cobertura de reglas críticas
 
 | Regla                                           | Cómo la soporta el modelo                                                                                 |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | RN-ACT-03 (un DNI, una cuenta)                  | Ítems de unicidad `UNIQ#DNI#` con escritura condicional                                                   |
 | RN-PAG-06 (deuda no reserva)                    | `membershipStatus`/`outstandingBalance` en Member; validado antes de crear reserva                        |
 | RN-PAG-07 (confirmación segura)                 | Estado de pago `PENDING_CONFIRMATION`→`SUCCEEDED`; membresía se actualiza solo al confirmar               |
-| RN-PAG-08 (sin datos sensibles)                 | Payment no almacena PAN/CVV/secretos; solo `culqiChargeId`                                                |
+| RN-PAG-08 (sin datos sensibles)                 | Payment no almacena PAN/CVC/secretos; solo `stripePaymentIntentId`                                        |
 | RN-RES-03/04 (participantes socios e invitados) | Lookup por DNI (`UNIQ#DNI#` y `GUEST#<dni>`/`PROFILE`) con exposición mínima; `GuestProfile` reutilizable |
 | RN-RES-05 (invitado 2/mes)                      | `GuestMonthlyCounter` con condición `visitCount < 2`                                                      |
 | RN-RES-07 (sin cruces por recurso)              | GSI3 por recurso + rango de tiempo                                                                        |

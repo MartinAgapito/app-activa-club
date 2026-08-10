@@ -75,13 +75,14 @@ artefacto (`lambda-artifacts`) para el resto del pipeline.
 
 `npm run build --workspace apps/web` (Vite), inyectando
 `VITE_API_BASE_URL`, `VITE_COGNITO_USER_POOL_ID` y `VITE_COGNITO_CLIENT_ID`
-desde los outputs del apply anterior, más `VITE_CULQI_PUBLIC_KEY` (US-019,
-ADR-0007) desde la variable de repositorio `DEV_CULQI_PUBLIC_KEY` (o el
-placeholder `pk_test_PENDIENTE_CULQI_SANDBOX_KEY` si no está definida). Es la
-llave **pública** de Culqi: Culqi.js la usa en el navegador para tokenizar la
-tarjeta, así que no se trata como secreto (no requiere OIDC/SSM), pero sí es
-un valor configurable por entorno. Publica `apps/web/dist` como artefacto
-(`frontend-dist`).
+desde los outputs del apply anterior, más `VITE_STRIPE_PUBLISHABLE_KEY`
+(ADR-0011, US-037) desde la variable de repositorio
+`DEV_STRIPE_PUBLISHABLE_KEY` (o el placeholder
+`pk_test_PENDIENTE_STRIPE_TEST_KEY` si no está definida). Es la llave
+**publicable** de Stripe: Stripe.js la usa en el navegador para montar
+Elements y crear el `paymentMethodId`, así que no se trata como secreto (no
+requiere OIDC/SSM), pero sí es un valor configurable por entorno. Publica
+`apps/web/dist` como artefacto (`frontend-dist`).
 
 ### Etapa 4/5 — `deploy-frontend-dev`: deploy del frontend
 
@@ -109,19 +110,18 @@ falla el workflow si alguna etapa no terminó en éxito.
 
 ## Secrets y variables requeridos
 
-| Nombre                    | Tipo                        | Uso                                                                                                                                                           | Estado actual                                                                 |
-| ------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `AWS_DEPLOY_DEV_ROLE_ARN` | Secret                      | Rol IAM de escritura para `terraform apply` + deploy de frontend en dev                                                                                       | Aplicado (rol `activa-club-github-actions-deploy-dev` de `bootstrap/main.tf`) |
-| `AWS_REGION`              | Variable de repo            | Región AWS (default `us-east-1`)                                                                                                                              | Reutiliza la misma variable que `pr-quality.yml`                              |
-| `DEV_SES_SENDER_EMAIL`    | Variable de repo (opcional) | Remitente SES de dev para `terraform apply` (dato no sensible)                                                                                                | Si no se define, usa `no-reply-dev@example.com`                               |
-| `DEV_CULQI_PUBLIC_KEY`    | Variable de repo (opcional) | Llave **pública** de Culqi sandbox, inyectada como `VITE_CULQI_PUBLIC_KEY` en el build del frontend (US-019). No es secreta, pero sí configurable por entorno | Si no se define, usa el placeholder `pk_test_PENDIENTE_CULQI_SANDBOX_KEY`     |
+| Nombre                       | Tipo                        | Uso                                                                                                                                                                                      | Estado actual                                                                 |
+| ---------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `AWS_DEPLOY_DEV_ROLE_ARN`    | Secret                      | Rol IAM de escritura para `terraform apply` + deploy de frontend en dev                                                                                                                  | Aplicado (rol `activa-club-github-actions-deploy-dev` de `bootstrap/main.tf`) |
+| `AWS_REGION`                 | Variable de repo            | Región AWS (default `us-east-1`)                                                                                                                                                         | Reutiliza la misma variable que `pr-quality.yml`                              |
+| `DEV_SES_SENDER_EMAIL`       | Variable de repo (opcional) | Remitente SES de dev para `terraform apply` (dato no sensible)                                                                                                                           | Si no se define, usa `no-reply-dev@example.com`                               |
+| `DEV_STRIPE_PUBLISHABLE_KEY` | Variable de repo (opcional) | Llave **publicable** (`pk_test_`) de Stripe test mode, inyectada como `VITE_STRIPE_PUBLISHABLE_KEY` en el build del frontend (ADR-0011). No es secreta, pero sí configurable por entorno | Si no se define, usa el placeholder `pk_test_PENDIENTE_STRIPE_TEST_KEY`       |
 
 Sin claves AWS estáticas en ningún paso (OIDC exclusivamente). La llave
-**privada** de Culqi nunca pasa por GitHub Actions: vive directamente en SSM
-Parameter Store (`aws_ssm_parameter.culqi_private_key`,
+**secreta** de Stripe nunca pasa por GitHub Actions: vive directamente en SSM
+Parameter Store (`aws_ssm_parameter.stripe_secret_key`,
 `infrastructure/terraform/environments/dev/main.tf`) y solo la leen en
-runtime las Lambdas de pago (ver "Secreto de Culqi sandbox (US-019)" más
-abajo).
+runtime las Lambdas de pago (ver "Secretos de Stripe test mode" más abajo).
 
 ## Mantenimiento de permisos: cuándo hace falta un apply manual de bootstrap
 
@@ -150,72 +150,89 @@ de US-019 — los permisos de `ssm:GetParameter`/`ssm:PutParameter` y
 `kms:ViaService`) que necesitan tanto el rol de escritura (`deploy-dev`,
 para crear/leer el parámetro) como el de solo lectura (`plan`, para que
 `terraform plan` en Pull Requests pueda refrescarlo) al agregarse
-`aws_ssm_parameter.culqi_private_key`. Es esperable que vuelva a pasar
+el parámetro SSM de la llave de la pasarela de pagos. Es esperable que vuelva
+a pasar
 cuando una historia futura agregue otro servicio de AWS nuevo (p. ej. SNS
 para notificaciones o un nuevo bucket).
 
-## Secreto de Culqi sandbox (US-019): SSM Parameter Store
+## Secretos de Stripe test mode: SSM Parameter Store
+
+> **Estado (2026-08-09)** — Los nombres de esta sección son los **definitivos**
+> fijados por [ADR-0011](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md).
+> Hasta que se despliegue
+> [US-037](../scrum/historias/US-037-migrar-pasarela-culqi-a-stripe.md), el
+> ambiente `dev` todavía tiene los parámetros con los nombres anteriores de
+> Culqi (`/activa-club/dev/culqi/private-key` y
+> `/activa-club/dev/culqi/webhook-secret`). **Renombrar un `aws_ssm_parameter`
+> implica destruirlo y recrearlo**: tras el apply de US-037 hay que volver a
+> cargar los valores reales con los comandos de más abajo, y verificar que los
+> parámetros viejos hayan sido eliminados.
+
+### Llave secreta de cobro (`sk_test_`)
 
 `infrastructure/terraform/environments/dev/main.tf` declara
-`aws_ssm_parameter.culqi_private_key`
-(`/activa-club/dev/culqi/private-key`, tipo `SecureString`, cifrado con la
+`aws_ssm_parameter.stripe_secret_key`
+(`/activa-club/dev/stripe/secret-key`, tipo `SecureString`, cifrado con la
 llave administrada por defecto de la cuenta `alias/aws/ssm`, sin costo fijo
-de KMS). Guarda la llave **privada** de Culqi sandbox (RN-PAG-04/08,
-ADR-0007): la Lambda `payments-create` (`POST /payments`) la lee en runtime
+de KMS). Guarda la llave **secreta** de Stripe test mode (RN-PAG-04/08,
+ADR-0011): la Lambda `payments-create` (`POST /payments`) la lee en runtime
 vía `ssm:GetParameter` (nombre del parámetro inyectado como la variable de
-entorno `CULQI_PRIVATE_KEY_PARAM_NAME`), nunca como texto plano en el
+entorno `STRIPE_SECRET_KEY_PARAM_NAME`), nunca como texto plano en el
 código ni en variables de Terraform versionadas.
 
-`payments-webhook` (`POST /payments/webhook`, US-024) **no** lee este
-parámetro: lee uno separado, `CULQI_WEBHOOK_SECRET_PARAM_NAME` (ver
-siguiente sección) — el secreto que verifica la firma de una notificación
-entrante nunca debe ser el mismo que la llave que autoriza a cobrar.
+`payments-webhook` (`POST /payments/webhook`) **no** lee este parámetro: lee
+uno separado, `STRIPE_WEBHOOK_SECRET_PARAM_NAME` (ver más abajo) — el secreto
+que verifica la firma de una notificación entrante nunca debe ser el mismo que
+la llave que autoriza a cobrar.
 
-### Por qué no hay todavía una cuenta Culqi sandbox real
+### Placeholder mientras no exista la cuenta
 
 Terraform aplica el parámetro con un valor **placeholder** explícito
-(`"PENDIENTE_CULQI_SANDBOX_KEY"`) porque, al momento de US-019, todavía no
-existe una cuenta de Culqi sandbox asignada al proyecto (ver la propia
-historia, "casos alternativos"). El bloque `lifecycle { ignore_changes =
+(`"PENDIENTE_STRIPE_TEST_KEY"`). El bloque `lifecycle { ignore_changes =
 [value] }` del recurso es intencional: una vez cargado el valor real a
 mano, un futuro `terraform apply` de otro cambio de infraestructura **no**
 lo vuelve a pisar con el placeholder.
 
-### Cargar el valor real (cuando exista la cuenta Culqi sandbox)
+A diferencia de Culqi, obtener la cuenta **no** tiene bloqueo externo: Stripe
+entrega el par `pk_test_`/`sk_test_` al crear la cuenta, sin activarla y sin
+datos de negocio ni RUC (motivo del cambio de proveedor, ADR-0011).
+
+### Cargar el valor real
 
 Con las credenciales del rol de escritura de dev (o de una persona con
 permiso equivalente, nunca desde el repositorio):
 
 ```bash
 aws ssm put-parameter \
-  --name "/activa-club/dev/culqi/private-key" \
+  --name "/activa-club/dev/stripe/secret-key" \
   --type SecureString \
-  --value "<llave-privada-real-de-culqi-sandbox>" \
+  --value "sk_test_<llave-secreta-real-de-stripe-test-mode>" \
   --overwrite
 ```
 
 No hace falta ningún cambio de Terraform ni un nuevo despliegue: la Lambda
 `payments-create` lee el valor vigente en cada invocación (`ssm:GetParameter`
-sin caché de larga duración). La llave **pública** correspondiente se
-configura aparte, como variable de repositorio `DEV_CULQI_PUBLIC_KEY` (ver
-tabla de secrets/variables más arriba) — no es secreta, así que no pasa por
-SSM.
+sin caché de larga duración). La llave **publicable** correspondiente se
+configura aparte, como variable de repositorio `DEV_STRIPE_PUBLISHABLE_KEY`
+(ver tabla de secrets/variables más arriba) — no es secreta, así que no pasa
+por SSM.
 
-## Secreto de verificación del webhook de Culqi (US-024): SSM Parameter Store
+## Secreto de firma del webhook de Stripe (`whsec_`): SSM Parameter Store
 
-`aws_ssm_parameter.culqi_webhook_secret`
-(`/activa-club/dev/culqi/webhook-secret`, mismo tipo/cifrado que el
-parámetro anterior) guarda el secreto compartido que la Lambda
-`payments-webhook` usa para verificar la firma HMAC de cada notificación
-entrante de Culqi antes de aplicar cualquier efecto (US-024, criterio 2;
-`apps/api/src/payments/webhook-signature.ts` documenta el esquema exacto
-asumido, a confirmar contra Culqi real). Es un secreto **distinto** de la
-llave privada de cobro: nunca autoriza a cobrar, solo a validar que una
-notificación es auténtica.
+`aws_ssm_parameter.stripe_webhook_signing_secret`
+(`/activa-club/dev/stripe/webhook-signing-secret`, mismo tipo/cifrado que el
+parámetro anterior) guarda el **webhook signing secret** que la Lambda
+`payments-webhook` usa, vía `stripe.webhooks.constructEvent`, para verificar
+la firma `Stripe-Signature` de cada notificación entrante antes de aplicar
+cualquier efecto (ADR-0011 §D6). Es un secreto **distinto** de la llave
+secreta de cobro: nunca autoriza a cobrar, solo a validar que una notificación
+es auténtica. Se obtiene al registrar el endpoint
+`POST <api_base_url>/payments/webhook` en el dashboard de Stripe (test mode),
+suscrito a `payment_intent.succeeded` y `payment_intent.payment_failed`.
 
-Misma mecánica de placeholder/rotación que la llave privada (comandos
+Misma mecánica de placeholder/rotación que la llave secreta (comandos
 análogos, cambiando el nombre del parámetro a
-`/activa-club/dev/culqi/webhook-secret`). Única diferencia relevante: a
+`/activa-club/dev/stripe/webhook-signing-secret`). Única diferencia relevante: a
 diferencia de `payments-create`, la Lambda `payments-webhook` **sí** cachea
 este secreto en memoria del proceso mientras la instancia de Lambda esté
 cálida (`apps/api/src/payments/webhook-secret.ts`, evita una llamada a SSM
@@ -232,22 +249,22 @@ de rotar.
 
 ### Rotación
 
-Rotar la llave privada es el mismo comando `aws ssm put-parameter
+Rotar la llave secreta es el mismo comando `aws ssm put-parameter
 --overwrite` de arriba con el valor nuevo. Al no cachearse en el código de
 las Lambdas más allá de la propia invocación, el cambio queda efectivo de
 inmediato para invocaciones nuevas, sin necesidad de reiniciar ni
-redesplegar nada. Rotar también implica actualizar `DEV_CULQI_PUBLIC_KEY`
-en las variables del repositorio si Culqi emite un par de llaves nuevo
-(pública + privada juntas), y volver a desplegar el frontend
-(`workflow_dispatch` de `deploy-dev.yml`) para que el build recoja la
-llave pública nueva.
+redesplegar nada. Rotar también implica actualizar
+`DEV_STRIPE_PUBLISHABLE_KEY` en las variables del repositorio si Stripe emite
+un par de llaves nuevo (publicable + secreta juntas, "roll key" del
+dashboard), y volver a desplegar el frontend (`workflow_dispatch` de
+`deploy-dev.yml`) para que el build recoja la llave publicable nueva.
 
 ## Riesgos y consideraciones
 
 - **Costo**: sin recursos nuevos de costo fijo; el `terraform apply` real
   puede crear/actualizar Lambdas, API Gateway y alarmas de CloudWatch
   (dentro de la capa gratuita para el volumen de este proyecto). El
-  parámetro SSM de Culqi (US-019) no tiene costo (SSM Standard tier +
+  parámetro SSM de la pasarela de pagos no tiene costo (SSM Standard tier +
   llave KMS administrada por AWS, sin cargo). Los 6 endpoints de EP-03
   agregan 6 alarmas de CloudWatch más (16 en total con los 10 de EP-02),
   ya fuera de las 10 incluidas en la capa gratuita: costo estimado

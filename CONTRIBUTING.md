@@ -166,7 +166,7 @@ chore(repo): actualizar dependencias de eslint
   alcance del cambio (lint, typecheck, tests, y `terraform validate`/`plan`
   cuando aplique).
 - Nunca incluir secretos, archivos `.env` reales, claves de AWS, tokens de
-  Culqi ni credenciales en ningún commit.
+  Stripe ni credenciales en ningún commit.
 - Todo commit y Pull Request debe poder asociarse a una historia, tarea o bug
   del backlog (`docs/scrum/`), salvo el flujo excepcional de hotfix.
 

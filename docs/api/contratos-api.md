@@ -281,13 +281,22 @@ notificación `MEMBER_REJECTED`, auditoría.
 
 ## 5. Membresías y pagos (RN-PAG)
 
-| Método | Ruta                    | Auth            | Descripción                     |
-| ------ | ----------------------- | --------------- | ------------------------------- |
-| GET    | `/memberships/plans`    | member          | admin                           | Planes disponibles (mensual/anual)            |
-| POST   | `/payments`             | member          | Crea pago Culqi (idempotente)   |
-| GET    | `/payments`             | member          | admin                           | Historial: propio (member) o filtrado (admin) |
-| GET    | `/payments/{paymentId}` | member          | admin                           | Detalle de pago                               |
-| POST   | `/payments/webhook`     | Público (firma) | Confirmación asíncrona de Culqi |
+| Método | Ruta                    | Auth            | Descripción                                   |
+| ------ | ----------------------- | --------------- | --------------------------------------------- |
+| GET    | `/memberships/plans`    | member \| admin | Planes disponibles (mensual/anual)            |
+| POST   | `/payments`             | member          | Crea pago Stripe (idempotente)                |
+| GET    | `/payments`             | member \| admin | Historial: propio (member) o filtrado (admin) |
+| GET    | `/payments/{paymentId}` | member \| admin | Detalle de pago                               |
+| POST   | `/payments/webhook`     | Público (firma) | Confirmación asíncrona de Stripe              |
+
+> **Pasarela de pagos: Stripe (test mode)** — [ADR-0011](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md)
+> reemplaza a [ADR-0007](../architecture/adr/ADR-0007-culqi-sandbox-idempotencia-pagos.md).
+> El flujo es **Stripe.js/Elements en el cliente + PaymentIntents en el
+> servidor**. Rutas, verbos, códigos de error y semántica **no cambian**; sí
+> cambian los nombres de los campos propios del proveedor
+> (`culqiToken` → `stripePaymentMethodId`, `culqiChargeId` →
+> `stripePaymentIntentId`). El renombrado en el código es
+> [US-037](../scrum/historias/US-037-migrar-pasarela-culqi-a-stripe.md).
 
 ### GET /memberships/plans
 
@@ -315,16 +324,34 @@ Request:
 ```json
 {
   "membershipType": "ANNUAL",
-  "culqiToken": "tkn_test_xxx",
+  "stripePaymentMethodId": "pm_1P...",
   "idempotencyKey": "9b1f...-uuid",
   "autoRenew": false
 }
 ```
 
-- El backend crea el cargo server-side con la llave privada (nunca en cliente).
-  Datos de tarjeta jamás llegan al backend (tokenizados por Culqi.js).
-- Idempotencia por `idempotencyKey` (RT-01). La membresía se actualiza **solo**
-  al confirmar el resultado de forma segura (RN-PAG-07).
+| Campo                   | Tipo                  | Obligatorio | Descripción                                                                                            |
+| ----------------------- | --------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `membershipType`        | `MONTHLY` \| `ANNUAL` | Sí          | Plan a cobrar. El **monto y la moneda los resuelve el backend**, nunca el cliente.                     |
+| `stripePaymentMethodId` | string `pm_...`       | Sí          | Identificador de método de pago creado por Stripe.js en el cliente. Reemplaza al antiguo `culqiToken`. |
+| `idempotencyKey`        | string (8–128)        | Sí          | Generada una vez por intento de compra y reutilizada en los reintentos del mismo intento.              |
+| `autoRenew`             | boolean               | No          | Solicitud de renovación automática (US-023).                                                           |
+
+- El esquema es **estricto**: cualquier campo no declarado (p. ej. `cardNumber`,
+  `cvv`, `expirationDate`) devuelve 400 `VALIDATION_ERROR` en vez de
+  descartarse en silencio (US-026, criterio 1).
+- El backend crea el **PaymentIntent** server-side con la llave secreta
+  (`sk_test_`, leída de SSM; nunca en el cliente ni en el repo). Los datos de
+  tarjeta jamás llegan al backend: viven dentro de los iframes de Stripe
+  Elements (RN-PAG-08).
+- **Doble idempotencia** (ADR-0011 §D4): la misma `idempotencyKey` se envía
+  como header `Idempotency-Key` **nativo de Stripe** (evita el doble cargo del
+  lado del proveedor) y además se reserva como ítem `PaymentIdempotency` en
+  DynamoDB con `attribute_not_exists` (evita duplicar `Payment`/
+  `MembershipPeriod` del lado del dominio, y permite responder
+  `PAYMENT_DUPLICATE` sin llamar a Stripe). RT-01.
+- La membresía se actualiza **solo** al confirmar el resultado de forma segura
+  (RN-PAG-07).
 
 Response 201:
 
@@ -342,7 +369,23 @@ Response 201:
 Estados posibles de `paymentStatus`: `SUCCEEDED`, `PENDING_CONFIRMATION`,
 `FAILED`.
 Errores: 402/422 `PAYMENT_FAILED`; 409 `PAYMENT_DUPLICATE` (misma
-`idempotencyKey`, devuelve el resultado previo); 400 `VALIDATION_ERROR`.
+`idempotencyKey`, devuelve el resultado previo); 400 `VALIDATION_ERROR`;
+422 `MEMBER_NOT_APPROVED` (socio `PENDING`/`REJECTED`).
+
+**Mapeo del resultado de Stripe a `paymentStatus`** (ADR-0011 §D5; el cliente
+no ve estados de Stripe, solo estos tres):
+
+| Resultado del PaymentIntent                                                  | `paymentStatus`        | HTTP                     |
+| ---------------------------------------------------------------------------- | ---------------------- | ------------------------ |
+| `succeeded`                                                                  | `SUCCEEDED`            | 201                      |
+| `processing`, `requires_action`, `requires_confirmation`, `requires_capture` | `PENDING_CONFIRMATION` | 201                      |
+| `requires_payment_method`, `canceled`, o `StripeCardError` (rechazo)         | `FAILED`               | 402/422 `PAYMENT_FAILED` |
+| Error de red / timeout / respuesta perdida                                   | `PENDING_CONFIRMATION` | 201                      |
+
+`PENDING_CONFIRMATION` se resuelve por el webhook (`POST /payments/webhook`).
+El MVP **no** implementa el desafío 3DS/SCA: el PaymentIntent se crea con
+`automatic_payment_methods.allow_redirects = 'never'`, y un eventual
+`requires_action` se trata como pendiente, no como éxito.
 
 ### GET /payments?memberId=&status=&cursor=&limit= (US-025)
 
@@ -368,7 +411,7 @@ Response 200:
       "amount": 120000,
       "currency": "PEN",
       "paymentStatus": "SUCCEEDED",
-      "culqiChargeId": "chr_test_...",
+      "stripePaymentIntentId": "pi_3P...",
       "createdAt": "2026-07-09T05:00:00Z",
       "confirmedAt": "2026-07-09T05:00:05Z"
     }
@@ -378,8 +421,10 @@ Response 200:
 ```
 
 Nunca incluye `idempotencyKey` ni `failureReason` (campos internos de
-orquestación); el único identificador externo es `culqiChargeId`
-(criterio 7, RN-PAG-08).
+orquestación); el único identificador externo es `stripePaymentIntentId`
+(criterio 7, RN-PAG-08). Tampoco se exponen ni se persisten el
+`stripePaymentMethodId`, el `client_secret`, los últimos 4 dígitos ni la marca
+de la tarjeta.
 
 ### GET /payments/{paymentId} (US-025)
 
@@ -392,39 +437,58 @@ Response 200: mismo shape que un elemento de `items` en `GET /payments`.
 
 ### POST /payments/webhook
 
-- Ruta **pública** sin Cognito, pero con **verificación de firma** de Culqi
-  (RT-14). Confirma cargos de forma idempotente y actualiza membresía
-  (ADR-0007, US-024).
-- **Firma**: header `X-Culqi-Signature` con HMAC-SHA256 del cuerpo crudo
-  (hex, opcionalmente prefijado `sha256=`) usando un secreto compartido
-  (`CULQI_WEBHOOK_SECRET_PARAM_NAME`, distinto de la llave privada de cobro).
-  Firma inválida o ausente → 401 `UNAUTHENTICATED`, sin ningún efecto.
-- **Cuerpo** (forma asumida — sin cuenta Culqi sandbox real todavía, ver
-  US-024; a confirmar contra la documentación real de Culqi):
+- Ruta **pública** sin Cognito, pero con **verificación de firma** de Stripe
+  (RT-14). Confirma pagos de forma idempotente y actualiza membresía
+  (ADR-0011, US-024, US-037).
+- **Firma**: header **`Stripe-Signature`**, con el esquema
+  `t=<timestamp>,v1=<hmac-sha256>` de Stripe. Se verifica con
+  `stripe.webhooks.constructEvent(rawBody, signatureHeader, webhookSigningSecret)`
+  del SDK oficial —**no** con una implementación manual de HMAC—, porque el
+  esquema incluye tolerancia de timestamp (anti-replay) y comparación en tiempo
+  constante. El secreto de firma (`whsec_...`) se lee de
+  `STRIPE_WEBHOOK_SECRET_PARAM_NAME`, **distinto** de la llave secreta de cobro
+  (`STRIPE_SECRET_KEY_PARAM_NAME`).
+- **Cuerpo crudo obligatorio**: la firma se calcula sobre los bytes exactos del
+  cuerpo. En API Gateway REST + Lambda se debe usar `event.body` sin parsear y
+  decodificarlo si `event.isBase64Encoded` es `true`. Parsear a JSON y volver a
+  serializar invalida la firma.
+- Firma inválida, ausente o fuera de tolerancia → 401 `UNAUTHENTICATED`, sin
+  ningún efecto, registrada como intento sospechoso.
+- **Cuerpo** (evento de Stripe; solo se leen los campos listados):
 
   ```json
   {
-    "id": "evt_test_xxx",
-    "type": "charge.succeeded",
+    "id": "evt_3P...",
+    "type": "payment_intent.succeeded",
     "data": {
       "object": {
-        "id": "chr_test_xxx",
-        "metadata": { "reference": "<paymentId>" },
-        "outcome": { "type": "declined", "user_message": "Tarjeta rechazada por el emisor." }
+        "id": "pi_3P...",
+        "status": "succeeded",
+        "amount": 120000,
+        "currency": "pen",
+        "metadata": { "paymentId": "01J..." },
+        "last_payment_error": { "code": "card_declined", "decline_code": "generic_decline" }
       }
     }
   }
   ```
 
-  `type` es `charge.succeeded` o `charge.failed`; `data.object.metadata.reference`
-  correlaciona con el `paymentId` propio de este backend (enviado como
-  `reference` al crear el cargo, ADR-0007); `outcome` solo se usa para
-  `charge.failed` (nunca incluye datos de tarjeta/CVV, RN-PAG-08).
+  | Campo                            | Uso                                                                                                                                                                                            |
+  | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `type`                           | `payment_intent.succeeded` → `SUCCEEDED`; `payment_intent.payment_failed` → `FAILED`. Cualquier otro tipo se responde 202 sin efectos.                                                         |
+  | `data.object.id`                 | Se persiste como `stripePaymentIntentId`.                                                                                                                                                      |
+  | `data.object.metadata.paymentId` | **Único correlacionador** con el `paymentId` propio (enviado como `metadata.paymentId` al crear el PaymentIntent, ADR-0011 §D3).                                                               |
+  | `data.object.last_payment_error` | Solo en `payment_intent.payment_failed`. Se usa `code`/`decline_code` para mapear un `failureReason` del **catálogo propio**; nunca se persiste ni se registra el mensaje crudo del proveedor. |
+
+  El evento nunca contiene PAN, CVC ni secretos (RN-PAG-08).
 
 - Response 202 siempre que la firma sea válida, sin importar el desenlace de
   negocio (pago confirmado, ya resuelto, fallo registrado o `paymentId` no
   reconocido): evita que el emisor distinga por el código HTTP si un pago
   existe en este sistema.
+- El procesamiento es **idempotente**: recibir N veces el mismo evento produce
+  el mismo estado final que recibirlo una vez, y converge con la ruta síncrona
+  de `POST /payments` sin importar cuál llegue primero.
 
 ## 6. Recursos y disponibilidad (RN-RES, RN-ADM-04)
 
