@@ -210,15 +210,16 @@ jobs:
           VITE_API_BASE_URL: ${{ needs.terraform-apply-dev.outputs.api_base_url }}
           VITE_COGNITO_USER_POOL_ID: ${{ needs.terraform-apply-dev.outputs.cognito_user_pool_id }}
           VITE_COGNITO_CLIENT_ID: ${{ needs.terraform-apply-dev.outputs.cognito_web_client_id }}
-          # Llave PÚBLICA de Culqi sandbox (US-019, ADR-0007, criterio de
-          # aceptación 5): no es secreta (Culqi.js la usa en el cliente para
-          # tokenizar la tarjeta), por eso viaja como variable de repositorio
-          # (vars), no como secret. Sin variable definida en el repo, usa el
-          # mismo placeholder que la llave privada en SSM (ver
-          # aws_ssm_parameter.culqi_private_key en
+          # Llave PUBLICABLE de Stripe test mode (US-037, ADR-0011, criterio
+          # de aceptación 20): no es secreta (Stripe.js/Elements la usa en el
+          # cliente para tokenizar la tarjeta y obtener un
+          # `stripePaymentMethodId`), por eso viaja como variable de
+          # repositorio (vars), no como secret. Sin variable definida en el
+          # repo, usa el mismo placeholder que la llave secreta en SSM (ver
+          # aws_ssm_parameter.stripe_secret_key en
           # infrastructure/terraform/environments/dev/main.tf) hasta contar
-          # con una cuenta Culqi sandbox real.
-          VITE_CULQI_PUBLIC_KEY: ${{ vars.DEV_CULQI_PUBLIC_KEY || 'pk_test_PENDIENTE_CULQI_SANDBOX_KEY' }}
+          # con una cuenta Stripe real.
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.DEV_STRIPE_PUBLISHABLE_KEY || 'pk_test_PENDIENTE_STRIPE_TEST_KEY' }}
         run: npm run build --workspace apps/web
 
       - name: Publicar build de apps/web
