@@ -66,11 +66,11 @@ const HANDLERS = {
   'payments-webhook': 'handlers/payments/webhook.ts', // US-024 (implementado)
   'members-update-auto-renew': 'handlers/members/patch-me-auto-renew.ts', // US-023 (implementado)
   // EP-04 (US-027 infra ya desplegada; logica de negocio por historia,
-  // US-028..US-036). Las 13 funciones sin logica propia todavia apuntan al
-  // placeholder compartido (ver handlers/not-implemented.ts) -- cada
-  // historia lo reemplaza por su handler real al implementarse, una funcion
-  // a la vez (mismo patron ya usado para EP-03).
-  'resources-list': 'handlers/not-implemented.ts', // US-028
+  // US-028..US-036). Las funciones restantes sin logica propia todavia
+  // apuntan al placeholder compartido (ver handlers/not-implemented.ts) --
+  // cada historia lo reemplaza por su handler real al implementarse, una
+  // funcion a la vez (mismo patron ya usado para EP-03).
+  'resources-list': 'handlers/resources/list.ts', // US-028 (implementado)
   'resources-availability': 'handlers/not-implemented.ts', // US-029
   'resources-update': 'handlers/not-implemented.ts', // US-036
   'resources-maintenance-create': 'handlers/not-implemented.ts', // US-035
