@@ -1,6 +1,7 @@
-// Handler placeholder compartido por los endpoints de EP-03 cuya historia de
-// backend todavía no se implementó (US-020, US-023, US-024, US-025), pero
-// cuya infraestructura ya existe en Terraform (US-019, PR #45).
+// Handler placeholder compartido por los endpoints cuya historia de backend
+// todavía no se implementó, pero cuya infraestructura ya existe en Terraform
+// (usado primero por EP-03/US-019, PR #45; reutilizado por los trece
+// endpoints de EP-04/US-027).
 //
 // Necesario porque, a diferencia de PRs/`terraform plan` (donde
 // `var.lambda_artifacts_dir == null` hace que `modules/endpoint` caiga en su
@@ -30,7 +31,7 @@ async function handleNotImplemented(
   return jsonResponse(501, {
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'Endpoint aun no implementado (infraestructura US-019, logica pendiente).',
+      message: 'Endpoint aun no implementado (infraestructura provisionada, logica pendiente).',
     },
   });
 }

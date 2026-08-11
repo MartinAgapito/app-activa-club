@@ -120,14 +120,28 @@ locals {
   # en un recurso `for_each` distinto que depende únicamente del nivel
   # anterior.
   # "memberships" y "payments": EP-03/US-019 (docs/api/contratos-api.md §5).
-  api_resource_level1 = ["activation", "registration", "members", "admin", "memberships", "payments"]
+  # "resources", "reservations" y "guests": EP-04/US-027
+  # (docs/api/contratos-api.md §6 y §7).
+  api_resource_level1 = ["activation", "registration", "members", "admin", "memberships", "payments", "resources", "reservations", "guests"]
 
   api_resource_level2 = {
     "activation/verify"   = { parent = "activation", part = "verify" }
     "activation/complete" = { parent = "activation", part = "complete" }
     "members/me"          = { parent = "members", part = "me" }
     "members/{memberId}"  = { parent = "members", part = "{memberId}" }
-    "admin/migration"     = { parent = "admin", part = "migration" }
+    # GET /members/lookup (EP-04, US-027, ADR-0009): nodo estático hermano
+    # de "members/{memberId}", mismo patrón ya probado con "members/me".
+    # API Gateway prioriza el segmento literal ("lookup") sobre el
+    # parámetro de ruta cuando ambos cuelgan del mismo padre, así que no
+    # colisiona con GET /members/{memberId} (admin).
+    "members/lookup"  = { parent = "members", part = "lookup" }
+    "admin/migration" = { parent = "admin", part = "migration" }
+    # EP-04, US-027 (docs/api/contratos-api.md §6 y §7).
+    "resources/{resourceId}"       = { parent = "resources", part = "{resourceId}" }
+    "reservations/{reservationId}" = { parent = "reservations", part = "{reservationId}" }
+    # GET /guests/lookup (EP-04, US-027, ADR-0009): nodo de primer nivel
+    # nuevo ("guests"), sin hermanos de path param en el MVP.
+    "guests/lookup" = { parent = "guests", part = "lookup" }
     # POST /payments y GET /payments (US-019) cuelgan directo del nodo
     # level1 "payments" (igual que POST/GET /members con "members"), sin
     # nodo level2 propio: solo "payments/webhook" y "payments/{paymentId}"
@@ -143,6 +157,24 @@ locals {
     "admin/migration/run"        = { parent = "admin/migration", part = "run" }
     # PATCH /members/me/auto-renew (US-019, docs/api/contratos-api.md §4).
     "members/me/auto-renew" = { parent = "members/me", part = "auto-renew" }
+    # EP-04, US-027 (docs/api/contratos-api.md §6 y §7).
+    "resources/{resourceId}/availability"  = { parent = "resources/{resourceId}", part = "availability" }
+    "resources/{resourceId}/maintenance"   = { parent = "resources/{resourceId}", part = "maintenance" }
+    "reservations/{reservationId}/cancel"  = { parent = "reservations/{reservationId}", part = "cancel" }
+    "reservations/{reservationId}/approve" = { parent = "reservations/{reservationId}", part = "approve" }
+    "reservations/{reservationId}/reject"  = { parent = "reservations/{reservationId}", part = "reject" }
+  }
+
+  # Único nodo de profundidad 4 del árbol (EP-04, US-027): primera ruta con
+  # dos parámetros de ruta anidados. modules/endpoint ya soporta varios
+  # parámetros de ruta en resource_path (regexall sobre "{...}" en
+  # modules/endpoint/main.tf), así que no hizo falta ajustar el módulo;
+  # solo agregar este nivel extra al árbol de aws_api_gateway_resource, que
+  # se declara aparte por la misma razón que level1/level2/level3 (una
+  # instancia de aws_api_gateway_resource no puede depender de otra
+  # instancia del mismo recurso, formaría un ciclo).
+  api_resource_level4 = {
+    "resources/{resourceId}/maintenance/{blockId}" = { parent = "resources/{resourceId}/maintenance", part = "{blockId}" }
   }
 
   # Mapa combinado ruta completa -> ID de aws_api_gateway_resource, para que
@@ -152,6 +184,7 @@ locals {
     { for k, v in aws_api_gateway_resource.level1 : k => v.id },
     { for k, v in aws_api_gateway_resource.level2 : k => v.id },
     { for k, v in aws_api_gateway_resource.level3 : k => v.id },
+    { for k, v in aws_api_gateway_resource.level4 : k => v.id },
   )
 
   # Artefacto real por función (US-009 backend + este pipeline de deploy-dev):
@@ -179,6 +212,23 @@ locals {
       "payments-get-by-id",
       "payments-webhook",
       "members-update-auto-renew",
+      # EP-04, US-027 (docs/api/contratos-api.md §6 y §7): sin lógica de
+      # negocio en esta historia (criterio 15), las 13 apuntan al placeholder
+      # compartido de scripts/package-lambdas.mjs (handlers/not-implemented.ts)
+      # hasta que cada historia funcional (US-028..US-036) las reemplace.
+      "resources-list",
+      "resources-availability",
+      "resources-update",
+      "resources-maintenance-create",
+      "resources-maintenance-delete",
+      "reservations-create",
+      "reservations-list",
+      "reservations-get-by-id",
+      "reservations-cancel",
+      "reservations-approve",
+      "reservations-reject",
+      "members-lookup",
+      "guests-lookup",
       ] : function_name => (
       var.lambda_artifacts_dir == null ? null : "${var.lambda_artifacts_dir}/${function_name}.zip"
     )
@@ -198,6 +248,7 @@ locals {
     [for r in aws_api_gateway_resource.level1 : "${r.id}:${r.parent_id}:${r.path_part}"],
     [for r in aws_api_gateway_resource.level2 : "${r.id}:${r.parent_id}:${r.path_part}"],
     [for r in aws_api_gateway_resource.level3 : "${r.id}:${r.parent_id}:${r.path_part}"],
+    [for r in aws_api_gateway_resource.level4 : "${r.id}:${r.parent_id}:${r.path_part}"],
   )
 
   # IDs de método/integración de todos los endpoints, usados como trigger de
@@ -236,6 +287,33 @@ locals {
     module.endpoint_payments_webhook.integration_id,
     module.endpoint_members_update_auto_renew.method_id,
     module.endpoint_members_update_auto_renew.integration_id,
+    # EP-04, US-027 (docs/api/contratos-api.md §6 y §7).
+    module.endpoint_resources_list.method_id,
+    module.endpoint_resources_list.integration_id,
+    module.endpoint_resources_availability.method_id,
+    module.endpoint_resources_availability.integration_id,
+    module.endpoint_resources_update.method_id,
+    module.endpoint_resources_update.integration_id,
+    module.endpoint_resources_maintenance_create.method_id,
+    module.endpoint_resources_maintenance_create.integration_id,
+    module.endpoint_resources_maintenance_delete.method_id,
+    module.endpoint_resources_maintenance_delete.integration_id,
+    module.endpoint_reservations_create.method_id,
+    module.endpoint_reservations_create.integration_id,
+    module.endpoint_reservations_list.method_id,
+    module.endpoint_reservations_list.integration_id,
+    module.endpoint_reservations_get_by_id.method_id,
+    module.endpoint_reservations_get_by_id.integration_id,
+    module.endpoint_reservations_cancel.method_id,
+    module.endpoint_reservations_cancel.integration_id,
+    module.endpoint_reservations_approve.method_id,
+    module.endpoint_reservations_approve.integration_id,
+    module.endpoint_reservations_reject.method_id,
+    module.endpoint_reservations_reject.integration_id,
+    module.endpoint_members_lookup.method_id,
+    module.endpoint_members_lookup.integration_id,
+    module.endpoint_guests_lookup.method_id,
+    module.endpoint_guests_lookup.integration_id,
   ]
 }
 
@@ -288,6 +366,16 @@ resource "aws_api_gateway_resource" "level3" {
 
   rest_api_id = aws_api_gateway_rest_api.this.id
   parent_id   = aws_api_gateway_resource.level2[each.value.parent].id
+  path_part   = each.value.part
+}
+
+# Único nodo de profundidad 4 (EP-04, US-027): DELETE
+# /resources/{resourceId}/maintenance/{blockId} (docs/api/contratos-api.md §6).
+resource "aws_api_gateway_resource" "level4" {
+  for_each = local.api_resource_level4
+
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.level3[each.value.parent].id
   path_part   = each.value.part
 }
 
@@ -941,6 +1029,495 @@ module "endpoint_members_update_auto_renew" {
   ]
 }
 
+# ---------------------------------------------------------------------------
+# EP-04 (US-027): trece endpoints de recursos, disponibilidad, reservas y
+# resolución de participantes por DNI (docs/api/contratos-api.md §4, §6 y §7).
+# Sin lógica de negocio en esta historia (criterio 15): todas apuntan al
+# placeholder compartido de scripts/package-lambdas.mjs
+# (handlers/not-implemented.ts) hasta que las historias funcionales
+# (US-028..US-036) las reemplacen una por una, igual que se hizo con EP-03.
+#
+# Permisos IAM (criterios 5/6/7 de US-027):
+# - local.dynamodb_index_arn ("${table_arn}/index/*") ya cubre GSI1, GSI2 y
+#   GSI3: es el primer sprint que consulta GSI3 (disponibilidad, creación de
+#   reserva, consulta por recurso) y el ARN de índices de este entorno no
+#   distingue por índice concreto desde EP-02 (mismo patrón que
+#   members-list/payments-list ya usan sobre GSI2), así que no hizo falta
+#   ningún cambio en ese ARN para cubrirlo.
+# - members-lookup y guests-lookup son la única excepción deliberada: reciben
+#   solo local.dynamodb_table_arn (sin índice), porque son lecturas puntuales
+#   por clave (GetItem) y su superficie debe quedar acotada al mínimo
+#   (ADR-0009).
+# ---------------------------------------------------------------------------
+
+# --- Recursos y disponibilidad (docs/api/contratos-api.md §6) -------------
+
+module "endpoint_resources_list" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "resources-list"
+  source_zip_path = local.lambda_zip_path["resources-list"]
+  http_method     = "GET"
+  resource_path   = "api/resources"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["resources"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Resource (PK=RESOURCE#<id>, SK=METADATA, modelo §3.7) no tiene GSI
+      # propio: son solo diez ítems fijos (ADR-0010), así que listarlos
+      # completos es un Scan acotado a la tabla, sin acceso a ningún índice
+      # (más barato y más simple que mantener un GSI dedicado para 10 filas).
+      actions   = ["dynamodb:Scan"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+module "endpoint_resources_availability" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "resources-availability"
+  source_zip_path = local.lambda_zip_path["resources-availability"]
+  http_method     = "GET"
+  resource_path   = "api/resources/{resourceId}/availability"
+  requires_auth   = true
+  allowed_groups  = ["member"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["resources/{resourceId}/availability"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem: horario/aforo/estado vigentes del recurso (modelo §3.7).
+      # Query sobre GSI3: reservas activas y bloqueos de mantenimiento del
+      # recurso en el rango del día (consulta 20 del modelo de datos,
+      # RN-RES-01/07/11) -- comparten el mismo índice (modelo §3.11).
+      actions   = ["dynamodb:GetItem", "dynamodb:Query"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_resources_update" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "resources-update"
+  source_zip_path = local.lambda_zip_path["resources-update"]
+  http_method     = "PATCH"
+  resource_path   = "api/resources/{resourceId}"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["resources/{resourceId}"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem + UpdateItem sobre el recurso (capacity/opensAt/closesAt/
+      # resourceStatus, RN-ADM-04) + PutItem del AuditLog "RESOURCE_UPDATED"
+      # (US-036, ADR-0008). Sin índice: el recurso se referencia por su PK
+      # exacta (resourceId) y el AuditLog se escribe por PK=AUDIT#<fecha>.
+      actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+module "endpoint_resources_maintenance_create" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "resources-maintenance-create"
+  source_zip_path = local.lambda_zip_path["resources-maintenance-create"]
+  http_method     = "POST"
+  resource_path   = "api/resources/{resourceId}/maintenance"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["resources/{resourceId}/maintenance"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem (el recurso existe) + Query sobre GSI3 (reservas activas
+      # dentro de la ventana bloqueada, para calcular
+      # "affectedReservationCount", RN-RES-11) + PutItem del MaintenanceBlock
+      # (modelo §3.11) y del AuditLog "RESOURCE_MAINTENANCE" (US-035,
+      # ADR-0008).
+      actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_resources_maintenance_delete" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "resources-maintenance-delete"
+  source_zip_path = local.lambda_zip_path["resources-maintenance-delete"]
+  http_method     = "DELETE"
+  resource_path   = "api/resources/{resourceId}/maintenance/{blockId}"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["resources/{resourceId}/maintenance/{blockId}"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem (el bloqueo existe) + DeleteItem del MaintenanceBlock +
+      # PutItem del AuditLog "RESOURCE_MAINTENANCE" (US-035, ADR-0008). Sin
+      # índice: el bloqueo se referencia por su PK/SK exactas
+      # (RESOURCE#<id> / MAINT#<startsAt>#<blockId>, modelo §3.11).
+      actions   = ["dynamodb:GetItem", "dynamodb:DeleteItem", "dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+# --- Reservas (docs/api/contratos-api.md §7) -------------------------------
+
+module "endpoint_reservations_create" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "reservations-create"
+  source_zip_path = local.lambda_zip_path["reservations-create"]
+  http_method     = "POST"
+  resource_path   = "api/reservations"
+  requires_auth   = true
+  allowed_groups  = ["member"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["reservations"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # La Lambda más permisiva de EP-04 (US-030/US-031): Query sobre GSI1
+      # (resolver al titular por su cognitoSub, patrón 11, y superposición de
+      # cada participante por sujeto, RN-RES-08, patrón 13) + Query sobre
+      # GSI3 (cruces por recurso/mantenimiento, RN-RES-07/11, patrón 19) +
+      # GetItem (recurso, socios participantes por memberId) + PutItem/
+      # UpdateItem (cada acción concreta dentro de la transacción: Reservation
+      # y ReservationParticipant son PutItem; GuestMonthlyCounter y
+      # GuestProfile son UpdateItem condicional/idempotente, modelo §3.10 y
+      # §3.15) + TransactWriteItems (cabecera + participantes + contadores +
+      # perfiles de invitado en una sola operación atómica, criterio 6 de
+      # US-027). AWS exige el permiso de la acción de ítem concreta además de
+      # TransactWriteItems para cada operación dentro de la transacción
+      # (mismo hallazgo ya documentado en activation-complete/registration).
+      actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_reservations_list" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "reservations-list"
+  source_zip_path = local.lambda_zip_path["reservations-list"]
+  http_method     = "GET"
+  resource_path   = "api/reservations"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["reservations"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # scope=me (US-033): Query sobre GSI1 (reservas del socio, patrón 12,
+      # más la resolución del propio socio por cognitoSub, patrón 11).
+      # scope=all (US-036, admin): Query sobre GSI2 al filtrar por status
+      # (pendientes de aprobación, patrón 17) o sobre GSI3 al filtrar por
+      # resourceId (patrón 21). Una sola Lambda cubre los tres patrones de
+      # Query, todos de solo lectura.
+      actions   = ["dynamodb:Query"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_reservations_get_by_id" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "reservations-get-by-id"
+  source_zip_path = local.lambda_zip_path["reservations-get-by-id"]
+  http_method     = "GET"
+  resource_path   = "api/reservations/{reservationId}"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["reservations/{reservationId}"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem (cabecera de la reserva) + Query sobre la tabla base
+      # (participantes, PK=RESERVATION#<id>, begins_with(SK,"PARTICIPANT#"),
+      # patrón 8) + Query sobre GSI1 (resolver al socio autenticado por
+      # cognitoSub para el chequeo de titularidad de US-033, patrón 11).
+      actions   = ["dynamodb:GetItem", "dynamodb:Query"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_reservations_cancel" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "reservations-cancel"
+  source_zip_path = local.lambda_zip_path["reservations-cancel"]
+  http_method     = "POST"
+  resource_path   = "api/reservations/{reservationId}/cancel"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["reservations/{reservationId}/cancel"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem (cabecera) + Query sobre GSI1 (resolver al socio autenticado
+      # por cognitoSub, titularidad, patrón 11) + Query sobre la tabla base
+      # (participantes invitados a decrementar, patrón 8) + UpdateItem
+      # (estado -> CANCELLED) + TransactWriteItems (cambio de estado y
+      # decremento de cada GuestMonthlyCounter en una sola operación atómica,
+      # criterio 10 de US-033).
+      actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
+      resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+  ]
+}
+
+module "endpoint_reservations_approve" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "reservations-approve"
+  source_zip_path = local.lambda_zip_path["reservations-approve"]
+  http_method     = "POST"
+  resource_path   = "api/reservations/{reservationId}/approve"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["reservations/{reservationId}/approve"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem + UpdateItem (PENDING_APPROVAL -> APPROVED, RN-RES-02) +
+      # PutItem del AuditLog "RESERVATION_APPROVED" (US-034, ADR-0008). El
+      # actor admin sale del claim `sub` del JWT (mismo patrón que
+      # members-approve/reject), no requiere resolverse por GSI1: sin
+      # contadores que tocar, sin índice.
+      actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+module "endpoint_reservations_reject" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "reservations-reject"
+  source_zip_path = local.lambda_zip_path["reservations-reject"]
+  http_method     = "POST"
+  resource_path   = "api/reservations/{reservationId}/reject"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["reservations/{reservationId}/reject"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem (cabecera) + Query sobre la tabla base (participantes
+      # invitados a decrementar, patrón 8, sin índice: PK=RESERVATION#<id>) +
+      # UpdateItem (PENDING_APPROVAL -> REJECTED con rejectionReason) +
+      # PutItem del AuditLog "RESERVATION_REJECTED" (US-034, ADR-0008) +
+      # TransactWriteItems (rechazo y devolución del cupo mensual de cada
+      # invitado externo en una sola operación atómica, criterio 10 de
+      # US-034 / caso R-29).
+      actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:PutItem", "dynamodb:TransactWriteItems"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+# --- Resolución de participantes por DNI (docs/api/contratos-api.md §4 y §7,
+#     ADR-0009) -------------------------------------------------------------
+
+module "endpoint_members_lookup" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "members-lookup"
+  source_zip_path = local.lambda_zip_path["members-lookup"]
+  http_method     = "GET"
+  resource_path   = "api/members/lookup"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["members/lookup"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Solo GetItem, sin ningún índice (criterio 7 de US-027, ADR-0009):
+      # GetItem PK=UNIQ#DNI#<dni> -> memberId (patrón 2), luego GetItem
+      # PK=MEMBER#<id>, SK=PROFILE, proyectando solo firstName/lastName en el
+      # handler (patrón 23). Superficie mínima deliberada: una lectura
+      # puntual por clave, nunca un Query/Scan que pueda enumerar socios.
+      actions   = ["dynamodb:GetItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+module "endpoint_guests_lookup" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "guests-lookup"
+  source_zip_path = local.lambda_zip_path["guests-lookup"]
+  http_method     = "GET"
+  resource_path   = "api/guests/lookup"
+  requires_auth   = true
+  allowed_groups  = ["member", "admin"]
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["guests/lookup"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Solo GetItem, sin ningún índice (criterio 7 de US-027, ADR-0009):
+      # GetItem PK=GUEST#<dni>, SK=PROFILE (patrón 24). Nunca expone el
+      # GuestMonthlyCounter (ítem hermano de la misma partición): el handler
+      # solo pide este ítem puntual, no un Query de la partición completa.
+      actions   = ["dynamodb:GetItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
 # --- Deployment + stage -----------------------------------------------------
 
 resource "aws_api_gateway_deployment" "this" {
@@ -964,4 +1541,36 @@ resource "aws_api_gateway_stage" "this" {
   stage_name    = var.environment
 
   tags = { Name = "${var.project}-${var.environment}-api-stage" }
+}
+
+# ---------------------------------------------------------------------------
+# Throttling por método (criterio 8 de US-027, ADR-0009): mitigación del
+# sondeo de DNIs contra GET /members/lookup y GET /guests/lookup (un atacante
+# autenticado podría, sin este límite, probar DNIs en secuencia para
+# averiguar quién es socio o quién fue invitado). Límites acotados solo a
+# estos dos métodos (method_path exacto, no "*/*"): el resto de la API sigue
+# con los límites por defecto de la cuenta/stage. El contrato ya prevé
+# 429 "RATE_LIMITED" para cuando se superan.
+# ---------------------------------------------------------------------------
+
+resource "aws_api_gateway_method_settings" "members_lookup_throttle" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  stage_name  = aws_api_gateway_stage.this.stage_name
+  method_path = "api/members/lookup/GET"
+
+  settings {
+    throttling_rate_limit  = 5
+    throttling_burst_limit = 10
+  }
+}
+
+resource "aws_api_gateway_method_settings" "guests_lookup_throttle" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  stage_name  = aws_api_gateway_stage.this.stage_name
+  method_path = "api/guests/lookup/GET"
+
+  settings {
+    throttling_rate_limit  = 5
+    throttling_burst_limit = 10
+  }
 }

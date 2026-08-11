@@ -299,9 +299,10 @@ dinero real ni algo que haya que reponer.
   (dentro de la capa gratuita para el volumen de este proyecto). El
   parámetro SSM de la pasarela de pagos no tiene costo (SSM Standard tier +
   llave KMS administrada por AWS, sin cargo). Los 6 endpoints de EP-03
-  agregan 6 alarmas de CloudWatch más (16 en total con los 10 de EP-02),
-  ya fuera de las 10 incluidas en la capa gratuita: costo estimado
-  ~US$0.60/mes adicionales (ver `modules/endpoint/README.md`).
+  agregan 6 alarmas de CloudWatch más (16 en total con los 10 de EP-02), y
+  los 13 endpoints de EP-04 (US-027) suman 13 alarmas más (29 en total), ya
+  bien fuera de las 10 incluidas en la capa gratuita: costo estimado
+  ~US$1.90/mes adicionales (ver `modules/endpoint/README.md`).
 - **Seguridad**: el rol de escritura solo es asumible por push a `main`
   (nunca `pull_request`) y está acotado por prefijo de nombre a los recursos
   de `dev` (ver comentarios de `bootstrap/main.tf`); no tiene permisos sobre

@@ -85,7 +85,8 @@ Cada instancia crea, por defecto, una alarma de CloudWatch sobre `Errors`
 (`enable_error_alarm = true`), sin acciones asociadas (sin SNS) para no
 incurrir en costo por notificación. Con 10 endpoints de EP-02 esto usa 10 de
 las 10 alarmas incluidas en la capa gratuita de CloudWatch; los 6 endpoints
-de EP-03 (US-019) suman 6 alarmas más, ya fuera de la capa gratuita
+de EP-03 (US-019) suman 6 alarmas más, y los 13 endpoints de EP-04 (US-027)
+suman 13 más (29 en total), ya bien fuera de la capa gratuita
 (~US$0.10/mes cada una tras superarla). Si un futuro entorno (p. ej. `prd`)
 necesita desactivarlas para no exceder ese límite, pasar
 `enable_error_alarm = false` en las instancias menos críticas.
