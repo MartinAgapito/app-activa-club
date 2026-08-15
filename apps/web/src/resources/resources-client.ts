@@ -1,26 +1,26 @@
 // Cliente de catálogo y disponibilidad de instalaciones — Ola 1 del Sprint 3
 // (US-028, US-029), preparación de US-032.
 //
-// `GET /resources` y `GET /resources/{resourceId}/availability?date=`
-// (docs/api/contratos-api.md §6) todavía no están desplegados: US-027
-// (endpoints) y US-028/US-029 (backend) corren en paralelo en esta misma
-// ola. Este módulo simula la respuesta exacta del contrato —incluida una
-// latencia de red realista y los mismos `ApiRequestError` que lanzaría
-// `apiRequest`— para que las pantallas y sus pruebas ya se escriban contra
-// la forma final.
+// `GET /resources` ya está desplegado y real desde US-028: `fetchResources`
+// usa `apiRequest` (mismo patrón que `members/plans-client.ts`).
 //
-// Reconciliación pendiente cuando el backend esté listo (US-032): reemplazar
-// el cuerpo de `fetchResources`/`fetchResourceAvailability` por
-// `apiRequest<Resource[]>('/resources')` y
-// `apiRequest<AvailabilityResponse>('/resources/{id}/availability?date=')`
-// (mismo patrón que `members/plans-client.ts`). Ningún componente que
-// consuma estas funciones debería cambiar: la forma de los datos ya es la
-// del contrato.
+// `GET /resources/{resourceId}/availability?date=` (docs/api/contratos-api.md
+// §6) todavía no tiene handler real (US-029, backend en curso en esta misma
+// ola): `fetchResourceAvailability` sigue simulando la respuesta exacta del
+// contrato —incluida una latencia de red realista y los mismos
+// `ApiRequestError` que lanzaría `apiRequest`— para que la pantalla y sus
+// pruebas ya se escriban contra la forma final.
+//
+// Reconciliación pendiente cuando el backend de US-029 esté listo: reemplazar
+// el cuerpo de `fetchResourceAvailability` por
+// `apiRequest<AvailabilityResponse>('/resources/{id}/availability?date=')`.
+// Ningún componente que consuma esta función debería cambiar: la forma de
+// los datos ya es la del contrato.
 
 import type { AvailabilityResponse, Resource } from '@activa-club/shared-types';
-import { ApiRequestError } from '../lib/api/http-client';
-import { RESOURCE_CATALOG } from './catalog-mock-data';
+import { apiRequest, ApiRequestError } from '../lib/api/http-client';
 import { generateMockAvailability } from './availability-mock';
+import { RESOURCE_CATALOG } from './catalog-mock-data';
 
 const MOCK_NETWORK_DELAY_MS = 250;
 
@@ -32,9 +32,8 @@ function wait(): Promise<void> {
 
 /** `GET /resources` (member, admin). Catálogo completo, incluidos los
  * recursos en mantenimiento (US-028, criterio 8). */
-export async function fetchResources(): Promise<Resource[]> {
-  await wait();
-  return RESOURCE_CATALOG;
+export function fetchResources(): Promise<Resource[]> {
+  return apiRequest<Resource[]>('/resources');
 }
 
 export interface FetchResourceAvailabilityParams {
