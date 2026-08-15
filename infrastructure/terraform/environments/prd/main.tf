@@ -13,6 +13,19 @@ module "dynamodb_table" {
   environment = var.environment
 }
 
+# Catálogo de instalaciones del club (US-028, ADR-0010): mismos diez
+# aws_dynamodb_table_item de modules/resource-catalog que environments/dev,
+# para que ambos ambientes no diverjan (criterio 1 de US-028: aplicable
+# tanto en dev como en prd). El rol de despliegue de CI para prd todavía no
+# existe (ver bootstrap/main.tf, comentario sobre github_actions_deploy_prd,
+# "historia posterior"); este módulo queda listo para cuando ese pipeline se
+# cree, igual que el resto de environments/prd hoy.
+module "resource_catalog" {
+  source = "../../modules/resource-catalog"
+
+  table_name = module.dynamodb_table.table_name
+}
+
 module "cognito" {
   source = "../../modules/cognito-user-pool"
 

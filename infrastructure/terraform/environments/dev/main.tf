@@ -11,6 +11,19 @@ module "dynamodb_table" {
   environment = var.environment
 }
 
+# Catálogo de instalaciones del club (US-028, ADR-0010): diez
+# aws_dynamodb_table_item, definidos una única vez en
+# modules/resource-catalog e instanciados igual desde environments/prd, para
+# que ambos ambientes no diverjan. `endpoint_resources_list` (más abajo, ya
+# desplegado por US-027) los lee con dynamodb:Scan; ver la nota de DevOps de
+# US-028 sobre el permiso IAM adicional que necesita el rol de despliegue de
+# CI para poder escribir estos ítems (infrastructure/terraform/bootstrap).
+module "resource_catalog" {
+  source = "../../modules/resource-catalog"
+
+  table_name = module.dynamodb_table.table_name
+}
+
 module "cognito" {
   source = "../../modules/cognito-user-pool"
 

@@ -225,6 +225,17 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       "dynamodb:DescribeTimeToLive",
       "dynamodb:DescribeContinuousBackups",
       "dynamodb:ListTagsOfResource",
+      # dynamodb:GetItem (US-028, ADR-0010): el catálogo de instalaciones se
+      # carga como diez aws_dynamodb_table_item (modules/resource-catalog),
+      # cada uno con `lifecycle { ignore_changes = [item] }`. Para decidir si
+      # un ítem existe o cambió, `terraform plan` necesita LEER ese ítem
+      # puntual de la tabla de la aplicación además de describir la tabla en
+      # sí; sin este permiso el `plan` de un PR que toque
+      # modules/resource-catalog falla con AccessDenied al refrescar el
+      # estado de cada aws_dynamodb_table_item.resource[...]. Sigue siendo de
+      # solo lectura (este rol nunca hace `apply`) y usa el mismo patrón de
+      # ARN ya acotado al proyecto que el resto de este statement.
+      "dynamodb:GetItem",
     ]
     resources = [
       "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/${var.project}-*",
@@ -480,6 +491,31 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
       # Sin dynamodb:DeleteTable: defensa adicional contra destrucción
       # accidental de datos de socios, más allá de prevent_destroy en el
       # propio recurso Terraform (modules/dynamodb-table).
+      #
+      # dynamodb:PutItem / GetItem / DeleteItem (US-028, ADR-0010): hasta
+      # esta historia, este rol solo tenía operaciones de NIVEL TABLA sobre
+      # activa-club-dev (crear/actualizar la tabla en sí, nunca sus filas).
+      # El catálogo de instalaciones (modules/resource-catalog,
+      # aws_dynamodb_table_item, uno por recurso) es el primer recurso de
+      # Terraform que escribe FILAS de esta tabla, así que hace falta el
+      # permiso de nivel ítem correspondiente:
+      # - PutItem: crear cada ítem del catálogo si todavía no existe (primer
+      #   `apply` de un ambiente nuevo, o el ítem fue borrado a mano).
+      # - GetItem: `terraform plan`/`apply` necesita leer el ítem existente
+      #   para decidir si hace falta crearlo (con `ignore_changes = [item]`,
+      #   nunca lo sobrescribe si ya existe, pero igual debe poder leerlo).
+      # - DeleteItem: soporta `terraform destroy`/reemplazo de un ítem
+      #   concreto (p. ej. `apply -replace=...` para cambiar blockMinutes o
+      #   requiresApproval, ver ADR-0010); no habilita ningún flujo nuevo de
+      #   borrado en tiempo de ejecución (eso lo sigue haciendo únicamente el
+      #   propio backend, con sus propios permisos de endpoint_resources_*).
+      # Acotado a activa-club-dev (mismo ARN de tabla que el resto de este
+      # statement), nunca a la tabla de locks de Terraform
+      # (aws_dynamodb_table.terraform_locks, statement
+      # "TerraformStateLockDev" más abajo, con su propio alcance).
+      "dynamodb:PutItem",
+      "dynamodb:GetItem",
+      "dynamodb:DeleteItem",
     ]
     resources = [
       "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/${local.dev_name_prefix}",
