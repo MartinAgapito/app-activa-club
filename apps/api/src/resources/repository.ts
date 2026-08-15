@@ -9,10 +9,10 @@
 // prefijo `RESOURCE#` en su `PK` (p. ej. `MaintenanceBlock`, §3.11, cuya
 // `SK` empieza con `MAINT#`).
 
-import { ScanCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, ScanCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type { Resource } from '@activa-club/shared-types';
 
-import { tableName } from '../lib/dynamo';
+import { keys, tableName } from '../lib/dynamo';
 
 /**
  * Lista el catálogo completo de recursos, sin filtrar por `resourceStatus`
@@ -40,4 +40,25 @@ export async function listResources(client: DynamoDBDocumentClient): Promise<Res
   // la forma del ítem leído contra un esquema propio de acceso a datos antes
   // de confiar en el cast.
   return (result.Items ?? []).map((item) => item as unknown as Resource);
+}
+
+/**
+ * Resuelve un único recurso por `resourceId` (patrón de acceso #1, análogo a
+ * `getMemberById`), necesario para validar existencia y leer
+ * `capacity`/`opensAt`/`closesAt`/`blockMinutes`/`requiresApproval`/
+ * `resourceStatus` al crear una reserva (US-030). A diferencia de
+ * `listResources`, esto es un `GetItem` directo por clave (`keys.resource`),
+ * no un `Scan`: no hace falta filtrar por `SK` porque la clave ya es exacta.
+ */
+export async function getResourceById(
+  client: DynamoDBDocumentClient,
+  resourceId: string,
+): Promise<Resource | undefined> {
+  const result = await client.send(
+    new GetCommand({ TableName: tableName(), Key: keys.resource(resourceId) }),
+  );
+  // TODO(Sprint 1): mismo riesgo señalado arriba — validar la forma del ítem
+  // leído contra un esquema propio de acceso a datos antes de confiar en el
+  // cast.
+  return result.Item ? (result.Item as unknown as Resource) : undefined;
 }

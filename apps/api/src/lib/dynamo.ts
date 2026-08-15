@@ -83,6 +83,15 @@ export const keys = {
   }),
   reservationsByResource: (resourceId: string) => ({ GSI3PK: `RESOURCE#${resourceId}` }),
 
+  // 3.16 ReservationSlotLock (US-030, modelo-dynamodb.md §3.16): ítem interno
+  // de control de concurrencia, no expuesto por la API ni por ningún GSI. Ver
+  // el comentario de cabecera de `reservations/repository.ts` (`writeReservation`)
+  // para la justificación completa de por qué hace falta.
+  reservationSlotLock: (resourceId: string, startsAt: string) => ({
+    PK: `RESOURCE#${resourceId}`,
+    SK: `SLOTLOCK#${startsAt}`,
+  }),
+
   // 3.9 ReservationParticipant
   reservationParticipant: (reservationId: string, participantId: string) => ({
     PK: `RESERVATION#${reservationId}`,
