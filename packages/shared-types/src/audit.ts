@@ -6,6 +6,7 @@ import type { ISODateString, Role } from './common';
 export type AuditAction =
   | 'MEMBER_APPROVED'
   | 'MEMBER_REJECTED'
+  | 'RESERVATION_CREATED'
   | 'RESERVATION_APPROVED'
   | 'RESERVATION_REJECTED'
   | 'RESOURCE_UPDATED'

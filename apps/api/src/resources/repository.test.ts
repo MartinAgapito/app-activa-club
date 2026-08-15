@@ -7,7 +7,7 @@ vi.mock('../lib/dynamo', async () => {
   return { ...actual, tableName: () => 'activa-club-test' };
 });
 
-const { listResources } = await import('./repository');
+const { listResources, getResourceById } = await import('./repository');
 
 function fakeClient(
   send: (command: unknown) => Promise<unknown>,
@@ -86,5 +86,25 @@ describe('listResources', () => {
     const result = await listResources(client);
 
     expect(result).toEqual([piscina1]);
+  });
+});
+
+describe('getResourceById', () => {
+  it('resuelve un recurso existente con GetItem por PK/SK exactos', async () => {
+    const client = fakeClient(async (command) => {
+      const input = (command as { input: { TableName?: string; Key?: { PK: string; SK: string } } })
+        .input;
+      expect(input.TableName).toBe('activa-club-test');
+      expect(input.Key).toEqual({ PK: 'RESOURCE#futbol-1', SK: 'METADATA' });
+      return { Item: futbol1 };
+    });
+
+    await expect(getResourceById(client, 'futbol-1')).resolves.toEqual(futbol1);
+  });
+
+  it('devuelve undefined si el recurso no existe (para que el llamante responda NOT_FOUND)', async () => {
+    const client = fakeClient(async () => ({}));
+
+    await expect(getResourceById(client, 'no-existe')).resolves.toBeUndefined();
   });
 });

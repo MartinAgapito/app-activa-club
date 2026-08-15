@@ -75,7 +75,7 @@ const HANDLERS = {
   'resources-update': 'handlers/not-implemented.ts', // US-036
   'resources-maintenance-create': 'handlers/not-implemented.ts', // US-035
   'resources-maintenance-delete': 'handlers/not-implemented.ts', // US-035
-  'reservations-create': 'handlers/not-implemented.ts', // US-030/US-031
+  'reservations-create': 'handlers/reservations/create.ts', // US-030 (implementado; US-031 sumará participantes)
   'reservations-list': 'handlers/not-implemented.ts', // US-033/US-036
   'reservations-get-by-id': 'handlers/not-implemented.ts', // US-033
   'reservations-cancel': 'handlers/not-implemented.ts', // US-033
