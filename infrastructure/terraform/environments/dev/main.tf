@@ -467,6 +467,11 @@ module "endpoint_activation_verify" {
   resource_path   = "api/activation/verify"
   requires_auth   = false
 
+  # Sin alarma de errores: endpoint de lectura/verificación, fuera del
+  # conjunto crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["activation/verify"]
@@ -535,6 +540,12 @@ module "endpoint_registration" {
   resource_path   = "api/registration"
   requires_auth   = false
 
+  # Sin alarma de errores: alta de socio ya cubierta por la alarma de
+  # activation-complete (el mismo flujo de alta, más crítica al crear el
+  # usuario Cognito); fuera del conjunto crítico monitoreado (gestión de la
+  # capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["registration"]
@@ -579,6 +590,10 @@ module "endpoint_members_get_me" {
   requires_auth   = true
   allowed_groups  = ["member"]
 
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["members/me"]
@@ -608,6 +623,11 @@ module "endpoint_members_update_me" {
   resource_path   = "api/members/me"
   requires_auth   = true
   allowed_groups  = ["member"]
+
+  # Sin alarma de errores: actualización de datos de contacto propios, bajo
+  # riesgo, fuera del conjunto crítico monitoreado (gestión de la capa
+  # gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -639,6 +659,10 @@ module "endpoint_members_list" {
   requires_auth   = true
   allowed_groups  = ["admin"]
 
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["members"]
@@ -668,6 +692,10 @@ module "endpoint_members_get_by_id" {
   resource_path   = "api/members/{memberId}"
   requires_auth   = true
   allowed_groups  = ["admin"]
+
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -820,6 +848,11 @@ module "endpoint_memberships_plans" {
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
 
+  # Sin alarma de errores: catálogo de solo lectura, fuera del conjunto
+  # crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["memberships/plans"]
@@ -900,6 +933,10 @@ module "endpoint_payments_list" {
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
 
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["payments"]
@@ -932,6 +969,10 @@ module "endpoint_payments_get_by_id" {
   resource_path   = "api/payments/{paymentId}"
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
+
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -1023,6 +1064,10 @@ module "endpoint_members_update_auto_renew" {
   requires_auth   = true
   allowed_groups  = ["member"]
 
+  # Sin alarma de errores: toggle de bajo riesgo, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["members/me/auto-renew"]
@@ -1078,6 +1123,11 @@ module "endpoint_resources_list" {
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
 
+  # Sin alarma de errores: catálogo de solo lectura, fuera del conjunto
+  # crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["resources"]
@@ -1111,6 +1161,10 @@ module "endpoint_resources_availability" {
   resource_path   = "api/resources/{resourceId}/availability"
   requires_auth   = true
   allowed_groups  = ["member"]
+
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -1146,6 +1200,11 @@ module "endpoint_resources_update" {
   requires_auth   = true
   allowed_groups  = ["admin"]
 
+  # Sin alarma de errores: edición administrativa de bajo riesgo (sin impacto
+  # en dinero ni en el candado de reservas), fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["resources/{resourceId}"]
@@ -1179,6 +1238,11 @@ module "endpoint_resources_maintenance_create" {
   resource_path   = "api/resources/{resourceId}/maintenance"
   requires_auth   = true
   allowed_groups  = ["admin"]
+
+  # Sin alarma de errores: uso administrativo puntual, fuera del conjunto
+  # crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -1214,6 +1278,11 @@ module "endpoint_resources_maintenance_delete" {
   resource_path   = "api/resources/{resourceId}/maintenance/{blockId}"
   requires_auth   = true
   allowed_groups  = ["admin"]
+
+  # Sin alarma de errores: uso administrativo puntual, fuera del conjunto
+  # crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -1294,6 +1363,10 @@ module "endpoint_reservations_list" {
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
 
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["reservations"]
@@ -1329,6 +1402,10 @@ module "endpoint_reservations_get_by_id" {
   resource_path   = "api/reservations/{reservationId}"
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
+
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
@@ -1475,6 +1552,11 @@ module "endpoint_members_lookup" {
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
 
+  # Sin alarma de errores: lectura puntual por clave, fuera del conjunto
+  # crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
+
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["members/lookup"]
@@ -1509,6 +1591,11 @@ module "endpoint_guests_lookup" {
   resource_path   = "api/guests/lookup"
   requires_auth   = true
   allowed_groups  = ["member", "admin"]
+
+  # Sin alarma de errores: lectura puntual por clave, fuera del conjunto
+  # crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
 
   rest_api_id            = aws_api_gateway_rest_api.this.id
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
