@@ -1,28 +1,16 @@
-// Orquestador de `POST /reservations` (US-030, docs/api/contratos-api.md §7,
-// RN-RES-01/02/06/07/09/11/12, RN-PAG-06): resuelve el socio autenticado y
-// valida su elegibilidad (activo, sin deuda), resuelve el recurso, calcula
-// `endsAt` en el servidor, valida horario/alineación de franja, valida
-// mantenimiento (del recurso completo y de la franja puntual), valida
-// cruces con otras reservas activas, valida aforo, decide el estado inicial
+// Orquestador de `POST /reservations` (US-030/US-031, docs/api/contratos-api.md
+// §7, RN-RES-01/02/03/04/05/06/07/08/09/11/12, RN-PAG-06): resuelve el socio
+// autenticado y valida su elegibilidad (activo, sin deuda), resuelve el
+// recurso, calcula `endsAt` en el servidor, valida horario/alineación de
+// franja, valida mantenimiento (del recurso completo y de la franja
+// puntual), valida cruces con otras reservas activas del recurso, resuelve
+// cada participante adicional (`participants[]`: socios por `memberId`,
+// invitados externos por DNI), valida superposición por sujeto y cupo
+// mensual de invitado, valida aforo, decide el estado inicial
 // (`CONFIRMED`/`PENDING_APPROVAL`) y escribe todo de forma atómica
 // (`./repository.ts`). Deja auditoría (`AuditLog`) como rastro para disparar
 // más adelante el evento de notificación `RESERVATION_CONFIRMED` (criterio
-// 16; el envío en sí es EP-05, fuera de alcance).
-//
-// Alcance explícito fuera de esta historia (US-031, "Reglas de resolución"
-// de US-030): la reserva solo registra al titular (`HOLDER`). El contenido
-// de `request.participants` (socios adicionales e invitados externos,
-// resolución por DNI, `GuestProfile`, contador mensual) se ignora
-// deliberadamente aquí — `participantCount` es siempre 1 y `guestCount`
-// siempre 0. Cuando se implemente US-031, este archivo es el punto de
-// extensión: hay que (a) resolver cada entrada de `participants` a un
-// `ReservationParticipant` adicional (MEMBER/GUEST), (b) validar
-// superposición por sujeto (RN-RES-08, GSI1 `SUBJECT#`), (c) validar el
-// límite mensual de invitado (RN-RES-05, `GuestMonthlyCounter`), (d) sumar
-// esos participantes al aforo (`participantCount`/`guestCount` reales) antes
-// del chequeo de `CAPACITY_EXCEEDED` de más abajo, y (e) extender
-// `./repository.ts` (`writeReservation`) para incluir esos ítems adicionales
-// en la misma `TransactWriteItems`.
+// 16 de US-030; el envío en sí es EP-05, fuera de alcance).
 
 import { ulid } from 'ulid';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
@@ -32,15 +20,24 @@ import type {
   Member,
   Reservation,
   ReservationParticipant,
+  ReservationParticipantInput,
 } from '@activa-club/shared-types';
 
 import { recordAuditLog } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
-import { findMemberByCognitoSub } from '../members/repository';
+import { findMemberByCognitoSub, getMemberById } from '../members/repository';
 import { getResourceById } from '../resources/repository';
+import { guestMonthlyCounterMonth } from './guest-month';
 import { resolveReservationEndsAt } from './reservation-window';
-import { findResourceOccupancy, writeReservation } from './repository';
+import type { GuestProfileUpsertInput } from './repository';
+import {
+  findResourceOccupancy,
+  getGuestMonthlyCounter,
+  getGuestProfile,
+  hasActiveSubjectOverlap,
+  writeReservation,
+} from './repository';
 import { limaCalendarDate, limaWallTimeToUtc } from './time';
 
 export interface CreateReservationInput {
@@ -63,12 +60,15 @@ const NON_RESERVABLE_MEMBERSHIP_STATUSES: ReadonlySet<Member['membershipStatus']
 ]);
 
 /**
- * RN-RES-12/RN-PAG-06 (criterios 10/11; cierra A-11, A-15, P-10): solo un
- * socio `ACTIVE`, sin deuda (`membershipStatus` fuera de `DEBT`/`EXPIRED`) y
- * sin saldo pendiente, puede confirmar una reserva. A diferencia de
- * `payments/eligibility.ts` (que acepta `APPROVED` para el primer pago), aquí
- * el único `memberStatus` habilitado es `ACTIVE`: un socio `APPROVED` sin
- * pagar su primera membresía todavía no puede reservar (RN-ACT-07).
+ * RN-RES-12/RN-PAG-06 (criterios 10/11 de US-030; cierra A-11, A-15, P-10):
+ * solo un socio `ACTIVE`, sin deuda (`membershipStatus` fuera de
+ * `DEBT`/`EXPIRED`) y sin saldo pendiente, puede confirmar una reserva. A
+ * diferencia de `payments/eligibility.ts` (que acepta `APPROVED` para el
+ * primer pago), aquí el único `memberStatus` habilitado es `ACTIVE`: un socio
+ * `APPROVED` sin pagar su primera membresía todavía no puede reservar
+ * (RN-ACT-07). Esta exigencia recae solo en el **titular** (RN-RES-06); un
+ * socio participante (US-031) no se valida por este camino (caso alternativo
+ * documentado en la historia).
  */
 export function assertMemberCanReserve(member: Member): void {
   if (member.memberStatus !== 'ACTIVE') {
@@ -134,9 +134,111 @@ export function isWithinResourceSchedule(input: ScheduleWindowInput): boolean {
 }
 
 /**
- * Procesa `POST /reservations` de punta a punta (criterios 1-16). Ver
- * cabecera del módulo para el resumen del flujo y el alcance excluido
- * (US-031).
+ * RN-RES-03 (criterio 9 de US-031): un participante repetido dentro de la
+ * misma solicitud (mismo `memberId`, o mismo `dni` de invitado, dos veces) se
+ * rechaza antes de tocar DynamoDB — comparación en memoria, sin ninguna
+ * lectura previa.
+ */
+export function assertNoDuplicateParticipants(participants: ReservationParticipantInput[]): void {
+  const seenMemberIds = new Set<string>();
+  const seenGuestDnis = new Set<string>();
+
+  for (const participant of participants) {
+    if (participant.type === 'MEMBER' && participant.memberId) {
+      if (seenMemberIds.has(participant.memberId)) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'Un socio participante está repetido en la solicitud.',
+        );
+      }
+      seenMemberIds.add(participant.memberId);
+    }
+    if (participant.type === 'GUEST' && participant.dni) {
+      if (seenGuestDnis.has(participant.dni)) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'Un invitado externo está repetido en la solicitud.',
+        );
+      }
+      seenGuestDnis.add(participant.dni);
+    }
+  }
+}
+
+interface ResolvedMemberParticipant {
+  participantType: 'MEMBER';
+  memberId: string;
+}
+
+interface ResolvedGuestParticipant {
+  participantType: 'GUEST';
+  guestDni: string;
+  /** Nombre resuelto: el del `GuestProfile` existente si ya había uno (gana el primer registro), o el enviado si es nuevo. */
+  firstName: string;
+  lastName: string;
+}
+
+type ResolvedParticipant = ResolvedMemberParticipant | ResolvedGuestParticipant;
+
+function isResolvedGuest(
+  participant: ResolvedParticipant,
+): participant is ResolvedGuestParticipant {
+  return participant.participantType === 'GUEST';
+}
+
+function subjectKeyOf(participant: ResolvedParticipant): string {
+  return participant.participantType === 'MEMBER'
+    ? `MEMBER#${participant.memberId}`
+    : `GUEST#${participant.guestDni}`;
+}
+
+/**
+ * Resuelve cada entrada de `participants[]` (RN-RES-03/04, US-031, "Reglas de
+ * resolución"):
+ * - `MEMBER`: `GetItem` por `memberId` (patrón de acceso #1) — 404
+ *   `NOT_FOUND` si no corresponde a ningún socio (criterio 10). No valida su
+ *   `memberStatus`: esa exigencia (RN-RES-12) recae solo en el titular.
+ * - `GUEST`: `GetItem` de su `GuestProfile` si ya existe (§3.15), para
+ *   resolver el nombre que prevalece (gana el primer registro, ADR-0009). No
+ *   se escribe nada todavía: el upsert ocurre recién dentro de la transacción
+ *   final (`./repository.ts`, `writeReservation`).
+ *
+ * Todas las resoluciones se hacen en paralelo (`Promise.all`): son lecturas
+ * independientes entre sí.
+ */
+async function resolveParticipants(
+  client: DynamoDBDocumentClient,
+  participants: ReservationParticipantInput[],
+): Promise<ResolvedParticipant[]> {
+  return Promise.all(
+    participants.map(async (participant): Promise<ResolvedParticipant> => {
+      if (participant.type === 'MEMBER') {
+        const memberId = participant.memberId as string; // garantizado por reservationParticipantInputSchema
+        const resolvedMember = await getMemberById(client, memberId);
+        if (!resolvedMember) {
+          throw new AppError(
+            'NOT_FOUND',
+            'Uno de los socios participantes no corresponde a ningún socio del club.',
+          );
+        }
+        return { participantType: 'MEMBER', memberId };
+      }
+
+      const guestDni = participant.dni as string; // garantizado por reservationParticipantInputSchema
+      const existingProfile = await getGuestProfile(client, guestDni);
+      return {
+        participantType: 'GUEST',
+        guestDni,
+        firstName: existingProfile?.firstName ?? (participant.firstName as string),
+        lastName: existingProfile?.lastName ?? (participant.lastName as string),
+      };
+    }),
+  );
+}
+
+/**
+ * Procesa `POST /reservations` de punta a punta (criterios 1-18 de US-030 y
+ * US-031). Ver cabecera del módulo para el resumen del flujo.
  */
 export async function createReservation(
   input: CreateReservationInput,
@@ -144,6 +246,9 @@ export async function createReservation(
   const client = input.client ?? getDocumentClient();
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
+
+  // Criterio 9 (US-031): en memoria, antes de cualquier lectura o escritura.
+  assertNoDuplicateParticipants(input.request.participants);
 
   const member = await findMemberByCognitoSub(client, input.cognitoSub);
   if (!member) {
@@ -214,11 +319,51 @@ export async function createReservation(
     );
   }
 
-  // Alcance de esta historia (US-030, ver cabecera del módulo): la reserva
-  // solo tiene al titular. US-031 sumará aquí los participantes adicionales
-  // resueltos desde `input.request.participants` antes de este chequeo.
-  const participantCount = 1;
-  const guestCount = 0;
+  // US-031 (a): resuelve cada participante adicional (MEMBER por memberId,
+  // GUEST por DNI + su GuestProfile existente, si lo hay).
+  const resolvedParticipants = await resolveParticipants(client, input.request.participants);
+
+  // US-031 (b), RN-RES-08 (criterios 2/3/4): sin superposición de ningún
+  // sujeto (titular incluido) con otra reserva activa suya, sin importar el
+  // recurso.
+  const window = { from: startsAt, to: endsAt };
+  const subjectKeysToCheck = [
+    `MEMBER#${member.memberId}`,
+    ...resolvedParticipants.map(subjectKeyOf),
+  ];
+  const overlapResults = await Promise.all(
+    subjectKeysToCheck.map((subjectKey) => hasActiveSubjectOverlap(client, subjectKey, window)),
+  );
+  if (overlapResults.some(Boolean)) {
+    throw new AppError(
+      'PARTICIPANT_OVERLAP',
+      'Uno de los participantes ya tiene una reserva activa en un horario que se superpone.',
+    );
+  }
+
+  // US-031 (c), RN-RES-05 (criterio 5): rechazo "en frío" del cupo mensual ya
+  // agotado, antes de intentar escribir nada. La garantía real contra la
+  // carrera de concurrencia (criterio 6) es el `Update` condicional dentro de
+  // la transacción (`./repository.ts`).
+  const guestParticipants = resolvedParticipants.filter(isResolvedGuest);
+  const month = guestMonthlyCounterMonth(startsAt);
+  if (guestParticipants.length > 0) {
+    const counters = await Promise.all(
+      guestParticipants.map((guest) => getGuestMonthlyCounter(client, guest.guestDni, month)),
+    );
+    const anyGuestAtLimit = counters.some((counter) => (counter?.visitCount ?? 0) >= 2);
+    if (anyGuestAtLimit) {
+      throw new AppError(
+        'GUEST_MONTHLY_LIMIT',
+        'Un invitado externo ya alcanzó su límite de dos visitas este mes.',
+      );
+    }
+  }
+
+  // US-031 (d), RN-RES-09 (criterio 8): aforo real, titular + todos los
+  // participantes (socios e invitados). `guestCount` cuenta solo los `GUEST`.
+  const participantCount = 1 + resolvedParticipants.length;
+  const guestCount = guestParticipants.length;
   if (participantCount > resource.capacity) {
     throw new AppError(
       'CAPACITY_EXCEEDED',
@@ -259,18 +404,69 @@ export async function createReservation(
     endsAt,
   };
 
-  const outcome = await writeReservation(client, { reservation, holderParticipant });
+  // US-031 (e): un `ReservationParticipant` adicional por cada socio o
+  // invitado resuelto, más un upsert de `GuestProfile` por cada invitado
+  // distinto (el `guestName` que queda en cada participante es copia del
+  // perfil resuelto, no del texto enviado — criterio 17).
+  const additionalParticipants: ReservationParticipant[] = resolvedParticipants.map(
+    (participant) =>
+      participant.participantType === 'MEMBER'
+        ? {
+            participantId: ulid(),
+            reservationId,
+            participantType: 'MEMBER',
+            memberId: participant.memberId,
+            guestDni: null,
+            guestName: null,
+            startsAt,
+            endsAt,
+          }
+        : {
+            participantId: ulid(),
+            reservationId,
+            participantType: 'GUEST',
+            memberId: null,
+            guestDni: participant.guestDni,
+            guestName: `${participant.firstName} ${participant.lastName}`,
+            startsAt,
+            endsAt,
+          },
+  );
+
+  const guestProfileUpserts: GuestProfileUpsertInput[] = guestParticipants.map((guest) => ({
+    guestDni: guest.guestDni,
+    firstName: guest.firstName,
+    lastName: guest.lastName,
+    createdByMemberId: member.memberId,
+  }));
+
+  const outcome = await writeReservation(client, {
+    reservation,
+    holderParticipant,
+    additionalParticipants,
+    guestProfileUpserts,
+  });
   if (outcome === 'SLOT_TAKEN') {
     // Cierra la ventana de carrera de dos peticiones concurrentes por la
-    // misma franja exacta (criterio 14): ver el candado `ReservationSlotLock`
-    // documentado en `./repository.ts` (`writeReservation`).
+    // misma franja exacta (criterio 14 de US-030): ver el candado
+    // `ReservationSlotLock` documentado en `./repository.ts` (`writeReservation`).
     throw new AppError(
       'RESERVATION_OVERLAP',
       'La franja solicitada se cruza con otra reserva activa del recurso.',
     );
   }
+  if (outcome === 'GUEST_LIMIT_EXCEEDED') {
+    // Cierra la ventana de carrera de dos reservas concurrentes con el mismo
+    // invitado en su segunda/tercera visita del mes (criterio 6 de US-031):
+    // ver el `Update` condicional documentado en `./repository.ts`
+    // (`buildGuestMonthlyCounterTransactItem`).
+    throw new AppError(
+      'GUEST_MONTHLY_LIMIT',
+      'Un invitado externo ya alcanzó su límite de dos visitas este mes.',
+    );
+  }
 
-  // Rastro de auditoría (criterio 16): no envía la notificación
+  // Rastro de auditoría (criterio 16 de US-030): no envía la notificación
   // `RESERVATION_CONFIRMED` (EP-05, fuera de alcance), pero deja registrado
   // qué se creó y con qué estado, suficiente para que ese módulo la dispare
   // más adelante sin rediseñar este flujo.

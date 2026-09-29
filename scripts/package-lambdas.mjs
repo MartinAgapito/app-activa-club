@@ -75,14 +75,14 @@ const HANDLERS = {
   'resources-update': 'handlers/not-implemented.ts', // US-036
   'resources-maintenance-create': 'handlers/not-implemented.ts', // US-035
   'resources-maintenance-delete': 'handlers/not-implemented.ts', // US-035
-  'reservations-create': 'handlers/reservations/create.ts', // US-030 (implementado; US-031 sumará participantes)
+  'reservations-create': 'handlers/reservations/create.ts', // US-030/US-031 (implementado)
   'reservations-list': 'handlers/not-implemented.ts', // US-033/US-036
   'reservations-get-by-id': 'handlers/not-implemented.ts', // US-033
   'reservations-cancel': 'handlers/not-implemented.ts', // US-033
   'reservations-approve': 'handlers/not-implemented.ts', // US-034
   'reservations-reject': 'handlers/not-implemented.ts', // US-034
-  'members-lookup': 'handlers/not-implemented.ts', // US-031
-  'guests-lookup': 'handlers/not-implemented.ts', // US-031
+  'members-lookup': 'handlers/members/lookup.ts', // US-031 (implementado)
+  'guests-lookup': 'handlers/guests/lookup.ts', // US-031 (implementado)
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');

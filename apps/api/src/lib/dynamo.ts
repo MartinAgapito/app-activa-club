@@ -105,6 +105,11 @@ export const keys = {
     SK: `MONTH#${month}`,
   }),
 
+  // 3.15 GuestProfile (US-031): ítem hermano del contador mensual bajo la
+  // misma partición del invitado (`GUEST#<dni>`), con el mismo patrón que
+  // `Member` (`PK=MEMBER#<id>` / `SK=PROFILE`).
+  guestProfile: (guestDni: string) => ({ PK: `GUEST#${guestDni}`, SK: 'PROFILE' }),
+
   // 3.11 MaintenanceBlock
   maintenanceBlock: (resourceId: string, startsAt: string, blockId: string) => ({
     PK: `RESOURCE#${resourceId}`,
