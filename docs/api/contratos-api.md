@@ -719,12 +719,66 @@ Response 201:
 `PENDING_APPROVAL` (parrilla/salón). Notificación `RESERVATION_CONFIRMED` cuando
 aplica.
 
+### GET /reservations?scope=me|all&status=&resourceId=&from=&to=
+
+Listado paginado por cursor (§1), ordenado ascendente por `startsAt` (agrupa
+pasado y futuro; el cliente distingue "próximas" de "pasadas" comparando cada
+`startsAt` contra la hora actual, US-033 criterio 2). Cada ítem es la entidad
+`Reservation` completa (sin envoltura adicional).
+
+- `scope=me` (default): únicamente las reservas donde el socio autenticado es
+  el **titular** (RN-RES-06). Rol `member`.
+- `scope=all`: sin restricción de titular. Rol `admin` — un `member` que pide
+  `scope=all` recibe 403 `FORBIDDEN`. Requiere al menos `status` o
+  `resourceId` (el modelo de datos no define un patrón de acceso "todas sin
+  filtro"; ver docs/data/modelo-dynamodb.md §4); sin ninguno de los dos, 400
+  `VALIDATION_ERROR`. `status=PENDING_APPROVAL` es la bandeja de aprobación
+  que reutiliza US-034.
+
+Response 200:
+
+```json
+{
+  "items": [
+    {
+      "reservationId": "01J...",
+      "resourceId": "futbol-1",
+      "resourceType": "FUTBOL",
+      "holderMemberId": "01J...",
+      "startsAt": "2026-07-20T11:00:00Z",
+      "endsAt": "2026-07-20T12:30:00Z",
+      "reservationStatus": "CONFIRMED",
+      "participantCount": 2,
+      "guestCount": 0,
+      "requiresApproval": false,
+      "rejectionReason": null,
+      "cancelledAt": null,
+      "createdAt": "2026-07-10T00:00:00Z",
+      "updatedAt": "2026-07-10T00:00:00Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+### GET /reservations/{reservationId}
+
+Detalle de una reserva: la cabecera completa (`Reservation`) más sus
+`participants` (`HOLDER`/`MEMBER`/`GUEST`, US-031). `member`: solo su propia
+reserva (titular); una reserva ajena responde igual que una inexistente, 404
+`NOT_FOUND` (mismo criterio de privacidad que `GET /payments/{paymentId}`,
+§5: no confirmar que ese id existe y es de otro socio). `admin`: cualquiera.
+
 ### POST /reservations/{reservationId}/cancel
 
-- Socio: solo su propia reserva y hasta **24h** antes (RN-RES-10) → 422
-  `CANCELLATION_TOO_LATE`. Admin: sin restricción de 24h.
-- Decrementa contadores de invitado del mes. Estado → `CANCELLED`. Notificación
-  `RESERVATION_CANCELLED`.
+- Socio: solo su propia reserva (una reserva ajena o inexistente responde 404
+  `NOT_FOUND`, mismo criterio que el detalle) y hasta **24h** antes
+  (RN-RES-10) → 422 `CANCELLATION_TOO_LATE`. Aplica también a
+  `PENDING_APPROVAL` (el socio no espera la decisión del administrador).
+  Admin: sin restricción de 24h (US-036, implementación posterior).
+- Ya `CANCELLED`/`REJECTED` → 409 `CONFLICT`, sin tocar nada.
+- Decrementa contadores de invitado del mes (RN-RES-05) y quita la reserva de
+  `reservationIds`. Estado → `CANCELLED`. Notificación `RESERVATION_CANCELLED`.
 
 Response 200: `{ "reservationId": "...", "reservationStatus": "CANCELLED" }`.
 

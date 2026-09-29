@@ -129,6 +129,19 @@ export interface CancelReservationResponse {
   reservationStatus: ReservationStatus;
 }
 
+// --- Consulta de reservas (US-033) ---
+
+/**
+ * Detalle de una reserva (`GET /reservations/{reservationId}`, criterio 3 de
+ * US-033): la cabecera completa más sus participantes (socios e invitados,
+ * `HOLDER` incluido). A diferencia del listado (`Reservation` a secas, sin
+ * envoltura adicional: ninguno de sus campos es sensible), el detalle sí
+ * necesita una vista propia porque agrega datos que no viven en la cabecera.
+ */
+export interface ReservationDetail extends Reservation {
+  participants: ReservationParticipant[];
+}
+
 export interface RejectReservationRequest {
   reason: string;
 }

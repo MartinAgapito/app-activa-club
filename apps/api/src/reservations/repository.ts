@@ -33,14 +33,17 @@ import {
 import type {
   GuestProfile,
   MaintenanceBlock,
+  Paginated,
   Reservation,
   ReservationParticipant,
+  ReservationStatus,
 } from '@activa-club/shared-types';
 
+import { decodeCursor, encodeCursor } from '../lib/cursor';
 import { keys, tableName } from '../lib/dynamo';
 import { guestMonthlyCounterMonth } from './guest-month';
 import { intervalsOverlap } from './overlap';
-import { isActiveReservationStatus } from './reservation-status';
+import { ACTIVE_RESERVATION_STATUSES, isActiveReservationStatus } from './reservation-status';
 
 export interface ResourceOccupancyWindow {
   /** Instante UTC ISO-8601 inclusivo de inicio de la ventana consultada. */
@@ -219,6 +222,256 @@ export async function getGuestMonthlyCounter(
     new GetCommand({ TableName: tableName(), Key: keys.guestMonthlyCounter(guestDni, month) }),
   );
   return result.Item ? (result.Item as unknown as GuestMonthlyCounterRecord) : undefined;
+}
+
+// --- Lectura: listado y detalle de reservas (US-033, docs/api/contratos-api.md
+// §7, docs/data/modelo-dynamodb.md patrones #8/#12/#17/#19) ---
+//
+// `toReservation`/`toReservationParticipant` recortan el ítem crudo a la
+// entidad pública (mismo criterio que `toPaymentSummary` en
+// `../payments/repository.ts`): hoy ninguno de sus campos es sensible, pero
+// tampoco se filtran `PK`/`SK`/`GSI*`/`entityType` al llamante — higiene
+// consistente con el resto del repositorio, no una necesidad de negocio
+// puntual.
+
+/** Tamaño de página por defecto del listado de reservas (US-033, mismo valor que `../payments/repository.ts`). */
+const DEFAULT_RESERVATION_PAGE_SIZE = 20;
+
+function toReservation(item: Record<string, unknown>): Reservation {
+  const raw = item as unknown as Reservation;
+  return {
+    reservationId: raw.reservationId,
+    resourceId: raw.resourceId,
+    resourceType: raw.resourceType,
+    holderMemberId: raw.holderMemberId,
+    startsAt: raw.startsAt,
+    endsAt: raw.endsAt,
+    reservationStatus: raw.reservationStatus,
+    participantCount: raw.participantCount,
+    guestCount: raw.guestCount,
+    requiresApproval: raw.requiresApproval,
+    rejectionReason: raw.rejectionReason,
+    cancelledAt: raw.cancelledAt,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+function toReservationParticipant(item: Record<string, unknown>): ReservationParticipant {
+  const raw = item as unknown as ReservationParticipant;
+  return {
+    participantId: raw.participantId,
+    reservationId: raw.reservationId,
+    participantType: raw.participantType,
+    memberId: raw.memberId,
+    guestDni: raw.guestDni,
+    guestName: raw.guestName,
+    startsAt: raw.startsAt,
+    endsAt: raw.endsAt,
+  };
+}
+
+/** `GetItem` de la cabecera de una reserva por su id (§3.8). `undefined` si no existe. */
+export async function getReservationById(
+  client: DynamoDBDocumentClient,
+  reservationId: string,
+): Promise<Reservation | undefined> {
+  const result = await client.send(
+    new GetCommand({ TableName: tableName(), Key: keys.reservation(reservationId) }),
+  );
+  return result.Item ? toReservation(result.Item) : undefined;
+}
+
+/**
+ * Participantes de una reserva (patrón de acceso #8, tabla base): `Query`
+ * PK=`RESERVATION#<id>`, `begins_with(SK,"PARTICIPANT#")`. Sin paginación:
+ * una reserva tiene como máximo 31 participantes (titular + 30, límite del
+ * esquema Zod de creación, docs/data/modelo-dynamodb.md §3.15), muy por
+ * debajo del límite de 1MB de una `Query`. Usado tanto por el detalle
+ * (criterio 3 de US-033) como por la cancelación, para resolver qué
+ * invitados externos hay que devolver al contador mensual (criterio 10).
+ */
+export async function getReservationParticipants(
+  client: DynamoDBDocumentClient,
+  reservationId: string,
+): Promise<ReservationParticipant[]> {
+  const reservationKey = keys.reservation(reservationId);
+  const result = await client.send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: { ':pk': reservationKey.PK, ':prefix': 'PARTICIPANT#' },
+    }),
+  );
+  return (result.Items ?? []).map(toReservationParticipant);
+}
+
+export interface ReservationListFilters {
+  status?: ReservationStatus;
+  resourceId?: string;
+  /** Instante ISO-8601 inclusivo: `startsAt >= from`. */
+  from?: string;
+  /** Instante ISO-8601 inclusivo: `startsAt <= to`. */
+  to?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+/**
+ * Arma la porción común de `FilterExpression`/`ExpressionAttributeValues`
+ * para los tres listados de reservas (por titular, por estado, por recurso):
+ * cada uno cubre con su clave de índice una parte de los filtros posibles del
+ * contrato (`status`, `resourceId`, `from`, `to`) y el resto se aplica aquí,
+ * como filtro sobre la misma `Query` (mismo patrón que
+ * `listPaymentsByMember` en `../payments/repository.ts`, que ya filtra
+ * `status` así dentro de la partición del socio). `skip` excluye el/los
+ * campos que el llamante ya cubrió con la clave del índice (filtrarlos de
+ * nuevo no sería incorrecto, solo redundante).
+ */
+function buildReservationFilter(
+  filters: Pick<ReservationListFilters, 'status' | 'resourceId' | 'from' | 'to'>,
+  skip: { status?: boolean; resourceId?: boolean } = {},
+): { filterExpression: string | undefined; values: Record<string, unknown> } {
+  const clauses: string[] = [];
+  const values: Record<string, unknown> = {};
+
+  if (filters.status !== undefined && !skip.status) {
+    clauses.push('reservationStatus = :status');
+    values[':status'] = filters.status;
+  }
+  if (filters.resourceId !== undefined && !skip.resourceId) {
+    clauses.push('resourceId = :resourceId');
+    values[':resourceId'] = filters.resourceId;
+  }
+  if (filters.from !== undefined) {
+    clauses.push('startsAt >= :from');
+    values[':from'] = filters.from;
+  }
+  if (filters.to !== undefined) {
+    clauses.push('startsAt <= :to');
+    values[':to'] = filters.to;
+  }
+
+  return { filterExpression: clauses.length > 0 ? clauses.join(' AND ') : undefined, values };
+}
+
+/**
+ * Reservas de un socio titular (consulta 12, GSI1): `Query`
+ * GSI1PK=`MEMBER#<id>`, `begins_with(GSI1SK,"RES#")` — únicamente reservas
+ * donde ese socio es el **titular** (criterio 1 de US-033, RN-RES-06): un
+ * socio invitado como `MEMBER` participante de la reserva de otro no aparece
+ * aquí (caso alternativo documentado en la historia; ese acceso usaría GSI1
+ * `SUBJECT#`, no este). Orden ascendente por `startsAt` (`ScanIndexForward:
+ * true`): agrupa cronológicamente pasado y futuro en una sola lista, y el
+ * cliente distingue "próximas" de "pasadas" comparando cada `startsAt` contra
+ * la hora actual (criterio 2) sin depender de un orden distinto por sección.
+ */
+export async function listReservationsByHolder(
+  client: DynamoDBDocumentClient,
+  holderMemberId: string,
+  filters: ReservationListFilters = {},
+): Promise<Paginated<Reservation>> {
+  const gsi1Key = keys.reservationsByHolder(holderMemberId);
+  const filter = buildReservationFilter(filters);
+  const result = await client.send(
+    new QueryCommand({
+      TableName: tableName(),
+      IndexName: 'GSI1',
+      KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :prefix)',
+      ...(filter.filterExpression ? { FilterExpression: filter.filterExpression } : {}),
+      ExpressionAttributeValues: {
+        ':pk': gsi1Key.GSI1PK,
+        ':prefix': 'RES#',
+        ...filter.values,
+      },
+      ScanIndexForward: true,
+      Limit: filters.limit ?? DEFAULT_RESERVATION_PAGE_SIZE,
+      ExclusiveStartKey: decodeCursor(filters.cursor),
+    }),
+  );
+
+  return {
+    items: (result.Items ?? []).map(toReservation),
+    nextCursor: encodeCursor(result.LastEvaluatedKey),
+  };
+}
+
+/**
+ * Reservas por estado (consulta 17, GSI2), sin restricción de titular: `Query`
+ * GSI2PK=`RESERVATION#STATUS#<status>`. Uso administrativo (`scope=all`,
+ * criterio 1): tanto la bandeja de pendientes de aprobación
+ * (`status=PENDING_APPROVAL`, que US-034 reutiliza tal cual) como cualquier
+ * otro estado. `resourceId`/`from`/`to` se aplican como filtro adicional
+ * (`status` ya lo cubre la clave del índice, se excluye con `skip`).
+ */
+export async function listReservationsByStatus(
+  client: DynamoDBDocumentClient,
+  status: ReservationStatus,
+  filters: Omit<ReservationListFilters, 'status'> = {},
+): Promise<Paginated<Reservation>> {
+  const gsi2Key = keys.reservationsByStatus(status);
+  const filter = buildReservationFilter({ ...filters, status }, { status: true });
+  const result = await client.send(
+    new QueryCommand({
+      TableName: tableName(),
+      IndexName: 'GSI2',
+      KeyConditionExpression: 'GSI2PK = :pk',
+      ...(filter.filterExpression ? { FilterExpression: filter.filterExpression } : {}),
+      ExpressionAttributeValues: { ':pk': gsi2Key.GSI2PK, ...filter.values },
+      ScanIndexForward: true,
+      Limit: filters.limit ?? DEFAULT_RESERVATION_PAGE_SIZE,
+      ExclusiveStartKey: decodeCursor(filters.cursor),
+    }),
+  );
+
+  return {
+    items: (result.Items ?? []).map(toReservation),
+    nextCursor: encodeCursor(result.LastEvaluatedKey),
+  };
+}
+
+/**
+ * Reservas por recurso (consulta 19, GSI3), sin restricción de titular:
+ * `Query` GSI3PK=`RESOURCE#<id>`. Uso administrativo (`scope=all` sin
+ * `status`, criterio 1): a diferencia de `findResourceOccupancy` (que lee
+ * esta misma partición para decidir cruces al crear una reserva), este
+ * listado expone el resultado por la API, así que filtra `entityType =
+ * 'Reservation'` explícitamente — la partición comparte espacio con
+ * `MaintenanceBlock` (§3.11) y ese ítem nunca debe aparecer disfrazado de
+ * reserva.
+ */
+export async function listReservationsByResource(
+  client: DynamoDBDocumentClient,
+  resourceId: string,
+  filters: Omit<ReservationListFilters, 'resourceId'> = {},
+): Promise<Paginated<Reservation>> {
+  const gsi3Key = keys.reservationsByResource(resourceId);
+  const filter = buildReservationFilter(filters);
+  const clauses = [
+    'entityType = :entityType',
+    ...(filter.filterExpression ? [filter.filterExpression] : []),
+  ];
+  const result = await client.send(
+    new QueryCommand({
+      TableName: tableName(),
+      IndexName: 'GSI3',
+      KeyConditionExpression: 'GSI3PK = :pk',
+      FilterExpression: clauses.join(' AND '),
+      ExpressionAttributeValues: {
+        ':pk': gsi3Key.GSI3PK,
+        ':entityType': 'Reservation',
+        ...filter.values,
+      },
+      ScanIndexForward: true,
+      Limit: filters.limit ?? DEFAULT_RESERVATION_PAGE_SIZE,
+      ExclusiveStartKey: decodeCursor(filters.cursor),
+    }),
+  );
+
+  return {
+    items: (result.Items ?? []).map(toReservation),
+    nextCursor: encodeCursor(result.LastEvaluatedKey),
+  };
 }
 
 interface ReservationItem extends Reservation {
@@ -552,6 +805,161 @@ export async function writeReservation(
     for (let index = guestCounterStartIndex; index < guestCounterEndIndex; index += 1) {
       if (conditionFailedAt(error, index)) return 'GUEST_LIMIT_EXCEEDED';
     }
+    throw error;
+  }
+}
+
+// --- Devolución del cupo de invitado (RN-RES-05) ---
+//
+// Pieza simétrica al incremento de más arriba
+// (`buildGuestMonthlyCounterTransactItem`), pero deliberadamente **genérica**:
+// no se llama "...cancelación..." ni vive en un módulo de cancelación porque
+// la misma necesidad de negocio ("esta reserva deja de ocupar el cupo
+// mensual del invitado") se repite en dos flujos distintos que solo difieren
+// en qué le pasa a la cabecera de la `Reservation` — US-033 la cancela, y
+// US-034 (rechazo administrativo) la rechaza. Ambos deben poder llamar
+// exactamente a esta misma función dentro de su propia `TransactWriteItems`.
+
+/**
+ * `Update` de `GuestMonthlyCounter` que revierte el incremento hecho al crear
+ * la reserva (§3.10, RN-RES-05): resta 1 a `visitCount` y quita
+ * `reservationId` de `reservationIds`.
+ *
+ * Recibe el contador ya leído (`counter`, vía `getGuestMonthlyCounter`, hecho
+ * por el llamante **antes** de construir la transacción) en vez de
+ * `guestDni`/`month` sueltos: el llamante ya necesita esa lectura para saber
+ * qué invitados tenía la reserva, y de paso evita reconstruir `reservationIds`
+ * a ciegas.
+ *
+ * Dos asimetrías deliberadas frente al incremento:
+ *
+ * 1. **Sin condición de negocio.** El incremento (`buildGuestMonthlyCounterTransactItem`)
+ *    lleva `ConditionExpression: attribute_not_exists(visitCount) OR
+ *    visitCount < 2` porque *sí* hay un tope superior que cuidar bajo
+ *    concurrencia (RN-RES-05, criterio 6 de US-031). El decremento no tiene
+ *    tope inferior que cuidar de la misma forma: el llamante solo decrementa
+ *    invitados que él mismo confirmó (vía `getReservationParticipants`) que
+ *    participaban de **esta** reserva, así que `visitCount` nunca puede haber
+ *    quedado en 0 para ese invitado antes de esta resta (como mucho hay una
+ *    reserva más en danza con el mismo invitado, ya contada aparte). La única
+ *    condición (`attribute_exists(PK)`) es puramente defensiva: el contador
+ *    debería existir siempre en este punto (fue incrementado al crear la
+ *    reserva que ahora se cancela/rechaza); si no existiera sería un error de
+ *    datos, no una carrera de negocio esperada, y se prefiere que la
+ *    transacción falle a que silenciosamente no reste nada.
+ *
+ * 2. **`reservationIds` se reescribe completo, no se ajusta por índice.**
+ *    DynamoDB no tiene una operación nativa "quitar este valor de la lista"
+ *    (solo `REMOVE lista[índice]`, que exigiría conocer la posición exacta y
+ *    condicionarla contra corrimientos concurrentes de la lista). En cambio,
+ *    `visitCount = visitCount - :one` es una expresión aritmética que
+ *    DynamoDB evalúa sobre el valor **almacenado en el momento de la
+ *    escritura** (no sobre el leído antes), así que ese número siempre queda
+ *    correcto sin importar el orden de llegada de incrementos y decrementos
+ *    concurrentes del mismo invitado — la única pieza que sí se calcula a
+ *    partir de una lectura previa (potencialmente desactualizada al momento
+ *    de escribir) es `reservationIds`, y se acepta porque es un campo
+ *    puramente diagnóstico (§3.10: "este ítem solo cuenta visitas"; ninguna
+ *    regla de negocio lo lee, solo `visitCount`). En el peor caso (una
+ *    reserva nueva del mismo invitado en el mismo mes se confirma justo entre
+ *    la lectura y esta escritura), el listado podría no reflejar esa alta
+ *    más reciente — nunca corrompe el conteo real ni permite que el invitado
+ *    exceda o quede por debajo de sus visitas reales.
+ */
+export function buildGuestMonthlyCounterDecrementTransactItem(
+  table: string,
+  counter: GuestMonthlyCounterRecord,
+  reservationId: string,
+  now: string,
+): NonNullable<ConstructorParameters<typeof TransactWriteCommand>[0]['TransactItems']>[number] {
+  const newReservationIds = counter.reservationIds.filter((id) => id !== reservationId);
+  return {
+    Update: {
+      TableName: table,
+      Key: keys.guestMonthlyCounter(counter.guestDni, counter.month),
+      ConditionExpression: 'attribute_exists(PK)',
+      UpdateExpression:
+        'SET visitCount = visitCount - :one, reservationIds = :newReservationIds, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':one': 1,
+        ':newReservationIds': newReservationIds,
+        ':now': now,
+      },
+    },
+  };
+}
+
+export type CancelReservationOutcome = 'CANCELLED' | 'ALREADY_DECIDED';
+
+export interface WriteCancellationInput {
+  reservationId: string;
+  /** `cancelledAt`/`updatedAt` de la cabecera y `updatedAt` de cada contador tocado. */
+  cancelledAt: string;
+  /** Un contador por cada invitado externo distinto entre los participantes de la reserva (ya leídos por el llamante, `./cancel.ts`). */
+  guestCounters: GuestMonthlyCounterRecord[];
+}
+
+/**
+ * Cancela una reserva de forma atómica (criterio 10 de US-033, RN-RES-05/10):
+ * en una única `TransactWriteItems`, (a) `Update` de la cabecera a
+ * `CANCELLED` con `cancelledAt` y `GSI2PK` recalculado (mismo patrón que
+ * `confirmPaymentSuccess` en `../payments/repository.ts`, que también
+ * mantiene `GSI2PK` sincronizado con el nuevo estado), condicionado a que la
+ * reserva siga en un estado activo (`ACTIVE_RESERVATION_STATUSES`,
+ * `./reservation-status.ts`) — defensivo contra la carrera de que alguien más
+ * (otra cancelación duplicada, o el administrador decidiéndola, US-034/036)
+ * la haya cambiado de estado justo antes (criterio 8); y (b) un `Update` de
+ * decremento (`buildGuestMonthlyCounterDecrementTransactItem`) por cada
+ * `GuestMonthlyCounter` en `guestCounters`.
+ *
+ * Devuelve `'ALREADY_DECIDED'` si falla específicamente la condición de la
+ * cabecera (índice 0) — el llamante lo traduce a 409 `CONFLICT`. Cualquier
+ * otro error se propaga.
+ */
+export async function writeCancellation(
+  client: DynamoDBDocumentClient,
+  input: WriteCancellationInput,
+): Promise<CancelReservationOutcome> {
+  const table = tableName();
+  const activeStatuses = [...ACTIVE_RESERVATION_STATUSES];
+  const statusPlaceholders = activeStatuses.map((_, index) => `:status${index}`);
+  const statusValues = Object.fromEntries(
+    activeStatuses.map((status, index) => [`:status${index}`, status]),
+  );
+
+  const transactItems: NonNullable<
+    ConstructorParameters<typeof TransactWriteCommand>[0]['TransactItems']
+  > = [
+    {
+      Update: {
+        TableName: table,
+        Key: keys.reservation(input.reservationId),
+        ConditionExpression: `attribute_exists(PK) AND reservationStatus IN (${statusPlaceholders.join(', ')})`,
+        UpdateExpression:
+          'SET reservationStatus = :cancelled, cancelledAt = :now, updatedAt = :now, GSI2PK = :gsi2pk',
+        ExpressionAttributeValues: {
+          ...statusValues,
+          ':cancelled': 'CANCELLED',
+          ':now': input.cancelledAt,
+          ':gsi2pk': keys.reservationsByStatus('CANCELLED').GSI2PK,
+        },
+      },
+    },
+    ...input.guestCounters.map((counter) =>
+      buildGuestMonthlyCounterDecrementTransactItem(
+        table,
+        counter,
+        input.reservationId,
+        input.cancelledAt,
+      ),
+    ),
+  ];
+
+  try {
+    await client.send(new TransactWriteCommand({ TransactItems: transactItems }));
+    return 'CANCELLED';
+  } catch (error) {
+    if (conditionFailedAt(error, 0)) return 'ALREADY_DECIDED';
     throw error;
   }
 }
