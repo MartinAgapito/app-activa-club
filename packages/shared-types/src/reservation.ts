@@ -146,6 +146,28 @@ export interface RejectReservationRequest {
   reason: string;
 }
 
+/**
+ * Respuesta de `POST /reservations/{reservationId}/approve` (US-034, criterio
+ * 2): aprobar solo cambia el estado de la cabecera (`PENDING_APPROVAL` ->
+ * `APPROVED`), la franja ya estaba ocupada desde la creación de la reserva
+ * (US-030), así que no hay más campos que informar.
+ */
+export interface ApproveReservationResponse {
+  reservationId: string;
+  reservationStatus: ReservationStatus;
+}
+
+/**
+ * Respuesta de `POST /reservations/{reservationId}/reject` (US-034, criterio
+ * 3): incluye `rejectionReason` para que el cliente administrativo confirme
+ * de inmediato el motivo que quedó persistido, sin una segunda consulta.
+ */
+export interface RejectReservationResponse {
+  reservationId: string;
+  reservationStatus: ReservationStatus;
+  rejectionReason: string;
+}
+
 // --- Administración de recursos ---
 
 export interface UpdateResourceRequest {

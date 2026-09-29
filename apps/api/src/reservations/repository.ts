@@ -28,6 +28,7 @@ import {
   GetCommand,
   QueryCommand,
   TransactWriteCommand,
+  UpdateCommand,
   type DynamoDBDocumentClient,
 } from '@aws-sdk/lib-dynamodb';
 import type {
@@ -960,6 +961,138 @@ export async function writeCancellation(
     return 'CANCELLED';
   } catch (error) {
     if (conditionFailedAt(error, 0)) return 'ALREADY_DECIDED';
+    throw error;
+  }
+}
+
+// --- Decisión administrativa: aprobación y rechazo (US-034, RN-RES-02) ---
+
+/** Indica si una `UpdateItem` (no `TransactWriteItems`) falló por su `ConditionExpression` (mismo patrón que `../members/repository.ts`). */
+function isConditionalCheckFailure(error: unknown): boolean {
+  return error instanceof Error && error.name === 'ConditionalCheckFailedException';
+}
+
+export type ApproveReservationOutcome = Reservation | 'NOT_PENDING';
+
+/**
+ * Transiciona `PENDING_APPROVAL -> APPROVED` (US-034, criterios 2/5/8,
+ * RN-RES-02) con una única `UpdateItem` condicionada a `reservationStatus =
+ * PENDING_APPROVAL` — misma estrategia que `transitionMemberStatus`
+ * (`../members/repository.ts`): la propia condición atómica decide la carrera
+ * entre dos administradores actuando sobre la misma solicitud, sin
+ * lectura-luego-escritura para la transición en sí.
+ *
+ * A diferencia del rechazo, aprobar no necesita `TransactWriteItems`: la
+ * franja ya estaba ocupada desde la creación de la reserva (`PENDING_APPROVAL`
+ * ya cuenta como activa a efectos de cruces, `./reservation-status.ts`), y no
+ * hay ningún `GuestMonthlyCounter` que tocar (el cupo del invitado ya se
+ * incrementó al crear la reserva, `writeReservation`) — aprobar solo cambia el
+ * estado de la cabecera y su `GSI2PK` (consulta 17).
+ *
+ * Devuelve `'NOT_PENDING'` si la condición falla (el ítem no existe o ya no
+ * está en `PENDING_APPROVAL`); el llamante ya resolvió el caso "no existe" con
+ * una lectura previa (`getReservationById`), así que aquí siempre se traduce a
+ * 409 `RESERVATION_NOT_PENDING`.
+ */
+export async function approveReservation(
+  client: DynamoDBDocumentClient,
+  reservationId: string,
+  now: string,
+): Promise<ApproveReservationOutcome> {
+  try {
+    const result = await client.send(
+      new UpdateCommand({
+        TableName: tableName(),
+        Key: keys.reservation(reservationId),
+        ConditionExpression: 'attribute_exists(PK) AND reservationStatus = :pending',
+        UpdateExpression: 'SET reservationStatus = :approved, GSI2PK = :gsi2pk, updatedAt = :now',
+        ExpressionAttributeValues: {
+          ':pending': 'PENDING_APPROVAL',
+          ':approved': 'APPROVED',
+          ':gsi2pk': keys.reservationsByStatus('APPROVED').GSI2PK,
+          ':now': now,
+        },
+        ReturnValues: 'ALL_NEW',
+      }),
+    );
+    return toReservation(result.Attributes as Record<string, unknown>);
+  } catch (error) {
+    if (isConditionalCheckFailure(error)) return 'NOT_PENDING';
+    throw error;
+  }
+}
+
+export type RejectReservationOutcome = 'REJECTED' | 'NOT_PENDING';
+
+export interface WriteRejectionInput {
+  reservationId: string;
+  rejectionReason: string;
+  /** `updatedAt` de la cabecera y `updatedAt` de cada contador tocado. */
+  rejectedAt: string;
+  /** Un contador por cada invitado externo distinto entre los participantes de la reserva (ya leídos por el llamante, `./reject.ts`). */
+  guestCounters: GuestMonthlyCounterRecord[];
+}
+
+/**
+ * Rechaza una reserva de forma atómica (US-034, criterios 3/5/9/10,
+ * RN-RES-02/05): en una única `TransactWriteItems`, (a) `Update` de la
+ * cabecera a `REJECTED` con `rejectionReason` y `GSI2PK` recalculado,
+ * condicionado a que siga `PENDING_APPROVAL` — mismo patrón que
+ * `writeCancellation`, pero condicionado específicamente a
+ * `PENDING_APPROVAL` (no al conjunto completo de estados activos: solo esa
+ * transición puede rechazarse, a diferencia de la cancelación del socio que
+ * aplica también sobre `CONFIRMED`/`APPROVED`) — cierra la carrera de dos
+ * administradores decidiendo a la vez sobre la misma solicitud (criterio 5,
+ * caso alternativo "Dos administradores deciden a la vez"); y (b) un `Update`
+ * de decremento (`buildGuestMonthlyCounterDecrementTransactItem`) por cada
+ * `GuestMonthlyCounter` en `guestCounters` (criterio 10, caso R-29: el club
+ * nunca aprobó esta reserva, así que el invitado no pierde una de sus visitas
+ * del mes).
+ *
+ * Devuelve `'NOT_PENDING'` si falla específicamente la condición de la
+ * cabecera (índice 0); el llamante lo traduce a 409 `RESERVATION_NOT_PENDING`.
+ * Cualquier otro error se propaga.
+ */
+export async function writeRejection(
+  client: DynamoDBDocumentClient,
+  input: WriteRejectionInput,
+): Promise<RejectReservationOutcome> {
+  const table = tableName();
+
+  const transactItems: NonNullable<
+    ConstructorParameters<typeof TransactWriteCommand>[0]['TransactItems']
+  > = [
+    {
+      Update: {
+        TableName: table,
+        Key: keys.reservation(input.reservationId),
+        ConditionExpression: 'attribute_exists(PK) AND reservationStatus = :pending',
+        UpdateExpression:
+          'SET reservationStatus = :rejected, rejectionReason = :reason, updatedAt = :now, GSI2PK = :gsi2pk',
+        ExpressionAttributeValues: {
+          ':pending': 'PENDING_APPROVAL',
+          ':rejected': 'REJECTED',
+          ':reason': input.rejectionReason,
+          ':now': input.rejectedAt,
+          ':gsi2pk': keys.reservationsByStatus('REJECTED').GSI2PK,
+        },
+      },
+    },
+    ...input.guestCounters.map((counter) =>
+      buildGuestMonthlyCounterDecrementTransactItem(
+        table,
+        counter,
+        input.reservationId,
+        input.rejectedAt,
+      ),
+    ),
+  ];
+
+  try {
+    await client.send(new TransactWriteCommand({ TransactItems: transactItems }));
+    return 'REJECTED';
+  } catch (error) {
+    if (conditionFailedAt(error, 0)) return 'NOT_PENDING';
     throw error;
   }
 }
