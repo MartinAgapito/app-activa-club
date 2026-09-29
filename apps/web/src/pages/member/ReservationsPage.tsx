@@ -1,22 +1,14 @@
 // Reservas — catálogo de instalaciones y selector de franjas horarias.
 //
-// Ola 1 del Sprint 3 (EP-04): construye el catálogo (US-028) y el selector
-// de disponibilidad por día (US-029) contra la forma exacta del contrato
-// (docs/api/contratos-api.md §6), con datos simulados
-// (../../resources/resources-client.ts) porque US-027/US-028/US-029 corren
-// en paralelo del lado de Backend/DevOps y el endpoint real todavía no está
-// desplegado. Es preparación de US-032 (flujo completo de reserva: elegir
+// EP-04 (US-028, US-029): construye el catálogo y el selector de
+// disponibilidad por día contra la forma exacta del contrato
+// (docs/api/contratos-api.md §6). Ambos endpoints ya están desplegados y
+// reales (../../resources/resources-client.ts delega en `apiRequest`, sin
+// mocks). Es preparación de US-032 (flujo completo de reserva: elegir
 // instalación + día + horario + participantes y confirmar), que todavía no
 // se implementa acá — no hay selección de participantes ni `POST
 // /reservations`, y tampoco el bloqueo por deuda (`canReserve` de `GET
 // /dashboard/member`, EP-07, fuera de este sprint).
-//
-// Reconciliación pendiente cuando el backend esté listo: cambiar
-// `resources-client.ts` para llamar a `apiRequest` en vez de a los mocks de
-// `resources/catalog-mock-data.ts` y `resources/availability-mock.ts`
-// (ver comentarios en ese módulo). Ningún componente de este archivo debería
-// cambiar de forma: ya consume el tipo `Resource`/`AvailabilityResponse` del
-// contrato tal cual.
 
 import { useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
