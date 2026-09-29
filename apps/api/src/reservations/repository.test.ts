@@ -13,6 +13,13 @@ const {
   hasActiveSubjectOverlap,
   getGuestProfile,
   getGuestMonthlyCounter,
+  getReservationById,
+  getReservationParticipants,
+  listReservationsByHolder,
+  listReservationsByStatus,
+  listReservationsByResource,
+  buildGuestMonthlyCounterDecrementTransactItem,
+  writeCancellation,
 } = await import('./repository');
 
 function fakeClient(
@@ -618,5 +625,308 @@ describe('writeReservation', () => {
 
     const outcomes = [first, second].sort();
     expect(outcomes).toEqual(['CREATED', 'GUEST_LIMIT_EXCEEDED']);
+  });
+});
+
+// --- US-033: listado, detalle y cancelación ---
+
+describe('getReservationById', () => {
+  it('lee RESERVATION#<id>/METADATA y recorta el ítem a la entidad pública', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike;
+      expect(cmd.input.Key).toEqual({ PK: 'RESERVATION#res-1', SK: 'METADATA' });
+      return { Item: reservationRaw };
+    });
+
+    const found = await getReservationById(client, 'res-1');
+    expect(found).toEqual(reservation);
+  });
+
+  it('devuelve undefined si la reserva no existe', async () => {
+    const client = fakeClient(async () => ({}));
+    await expect(getReservationById(client, 'res-x')).resolves.toBeUndefined();
+  });
+});
+
+describe('getReservationParticipants', () => {
+  it('consulta PK=RESERVATION#<id>, begins_with(SK,"PARTICIPANT#") en la tabla base (patrón #8)', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike;
+      expect(cmd.input.IndexName).toBeUndefined();
+      const input = cmd.input as unknown as {
+        KeyConditionExpression?: string;
+        ExpressionAttributeValues?: Record<string, unknown>;
+      };
+      expect(input.KeyConditionExpression).toBe('PK = :pk AND begins_with(SK, :prefix)');
+      expect(input.ExpressionAttributeValues).toEqual({
+        ':pk': 'RESERVATION#res-1',
+        ':prefix': 'PARTICIPANT#',
+      });
+      return { Items: [holderParticipant] };
+    });
+
+    const participants = await getReservationParticipants(client, 'res-1');
+    expect(participants).toEqual([holderParticipant]);
+  });
+
+  it('devuelve lista vacía si la reserva no tiene participantes (defensivo)', async () => {
+    const client = fakeClient(async () => ({}));
+    await expect(getReservationParticipants(client, 'res-1')).resolves.toEqual([]);
+  });
+});
+
+describe('listReservationsByHolder', () => {
+  it('consulta GSI1 PK=MEMBER#<id>, begins_with(GSI1SK,"RES#") (consulta 12)', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike & {
+        input: { KeyConditionExpression?: string; ScanIndexForward?: boolean };
+      };
+      expect(cmd.input.IndexName).toBe('GSI1');
+      expect(cmd.input.KeyConditionExpression).toBe(
+        'GSI1PK = :pk AND begins_with(GSI1SK, :prefix)',
+      );
+      expect(cmd.input.ExpressionAttributeValues).toEqual({
+        ':pk': 'MEMBER#member-1',
+        ':prefix': 'RES#',
+      });
+      expect(cmd.input.ScanIndexForward).toBe(true);
+      return { Items: [reservationRaw] };
+    });
+
+    const result = await listReservationsByHolder(client, 'member-1');
+    expect(result.items).toEqual([reservation]);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('aplica status/resourceId/from/to como FilterExpression adicional', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike & { input: { FilterExpression?: string } };
+      expect(cmd.input.FilterExpression).toBe(
+        'reservationStatus = :status AND resourceId = :resourceId AND startsAt >= :from AND startsAt <= :to',
+      );
+      expect(cmd.input.ExpressionAttributeValues).toEqual({
+        ':pk': 'MEMBER#member-1',
+        ':prefix': 'RES#',
+        ':status': 'CONFIRMED',
+        ':resourceId': 'futbol-1',
+        ':from': '2026-07-01T00:00:00.000Z',
+        ':to': '2026-07-31T23:59:59.000Z',
+      });
+      return { Items: [] };
+    });
+
+    await listReservationsByHolder(client, 'member-1', {
+      status: 'CONFIRMED',
+      resourceId: 'futbol-1',
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-07-31T23:59:59.000Z',
+    });
+  });
+
+  it('codifica LastEvaluatedKey como nextCursor opaco', async () => {
+    const client = fakeClient(async () => ({
+      Items: [reservationRaw],
+      LastEvaluatedKey: { PK: 'RESERVATION#res-1', SK: 'METADATA' },
+    }));
+
+    const result = await listReservationsByHolder(client, 'member-1');
+    expect(result.nextCursor).not.toBeNull();
+  });
+});
+
+describe('listReservationsByStatus', () => {
+  it('consulta GSI2 PK=RESERVATION#STATUS#<status> (consulta 17), sin volver a filtrar status', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike & {
+        input: { KeyConditionExpression?: string; FilterExpression?: string };
+      };
+      expect(cmd.input.IndexName).toBe('GSI2');
+      expect(cmd.input.KeyConditionExpression).toBe('GSI2PK = :pk');
+      expect(cmd.input.ExpressionAttributeValues).toEqual({
+        ':pk': 'RESERVATION#STATUS#PENDING_APPROVAL',
+      });
+      expect(cmd.input.FilterExpression).toBeUndefined();
+      return { Items: [{ ...reservationRaw, reservationStatus: 'PENDING_APPROVAL' }] };
+    });
+
+    const result = await listReservationsByStatus(client, 'PENDING_APPROVAL');
+    expect(result.items).toHaveLength(1);
+  });
+
+  it('aplica resourceId/from/to como FilterExpression adicional', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike & { input: { FilterExpression?: string } };
+      expect(cmd.input.FilterExpression).toBe('resourceId = :resourceId');
+      return { Items: [] };
+    });
+
+    await listReservationsByStatus(client, 'CONFIRMED', { resourceId: 'futbol-1' });
+  });
+});
+
+describe('listReservationsByResource', () => {
+  it('consulta GSI3 PK=RESOURCE#<id> (consulta 19) y filtra entityType=Reservation', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike & { input: { FilterExpression?: string } };
+      expect(cmd.input.IndexName).toBe('GSI3');
+      expect(cmd.input.FilterExpression).toBe('entityType = :entityType');
+      expect(cmd.input.ExpressionAttributeValues).toEqual({
+        ':pk': 'RESOURCE#futbol-1',
+        ':entityType': 'Reservation',
+      });
+      return { Items: [reservationRaw, maintenanceBlockRaw] };
+    });
+
+    const result = await listReservationsByResource(client, 'futbol-1');
+    // El fake client no aplica el FilterExpression de verdad (eso lo hace
+    // DynamoDB); esta prueba solo verifica que la Query se arma con el filtro
+    // correcto para que DynamoDB lo aplique.
+    expect(result.items.map((item) => item.reservationId)).toContain('res-1');
+  });
+
+  it('combina el filtro de status con el de entityType', async () => {
+    const client = fakeClient(async (command) => {
+      const cmd = command as CommandLike & { input: { FilterExpression?: string } };
+      expect(cmd.input.FilterExpression).toBe(
+        'entityType = :entityType AND reservationStatus = :status',
+      );
+      return { Items: [] };
+    });
+
+    await listReservationsByResource(client, 'futbol-1', { status: 'CONFIRMED' });
+  });
+});
+
+describe('buildGuestMonthlyCounterDecrementTransactItem', () => {
+  const counter = {
+    guestDni: '70605040',
+    month: '2026-07',
+    visitCount: 1,
+    reservationIds: ['res-1', 'res-2'],
+    updatedAt: '2026-07-01T00:00:00.000Z',
+  };
+
+  it('resta 1 a visitCount y quita reservationId de reservationIds', () => {
+    const item = buildGuestMonthlyCounterDecrementTransactItem(
+      'activa-club-test',
+      counter,
+      'res-1',
+      '2026-07-15T00:00:00.000Z',
+    );
+    expect(item.Update?.Key).toEqual({ PK: 'GUEST#70605040', SK: 'MONTH#2026-07' });
+    expect(item.Update?.ConditionExpression).toBe('attribute_exists(PK)');
+    expect(item.Update?.UpdateExpression).toBe(
+      'SET visitCount = visitCount - :one, reservationIds = :newReservationIds, updatedAt = :now',
+    );
+    expect(item.Update?.ExpressionAttributeValues).toEqual({
+      ':one': 1,
+      ':newReservationIds': ['res-2'],
+      ':now': '2026-07-15T00:00:00.000Z',
+    });
+  });
+
+  it('no falla (ni deja rastro) si reservationId ya no estaba en la lista (defensivo)', () => {
+    const item = buildGuestMonthlyCounterDecrementTransactItem(
+      'activa-club-test',
+      counter,
+      'res-ajena',
+      '2026-07-15T00:00:00.000Z',
+    );
+    expect(item.Update?.ExpressionAttributeValues?.[':newReservationIds']).toEqual([
+      'res-1',
+      'res-2',
+    ]);
+  });
+});
+
+describe('writeCancellation', () => {
+  const guestCounter = {
+    guestDni: '70605040',
+    month: '2026-07',
+    visitCount: 1,
+    reservationIds: ['res-1'],
+    updatedAt: '2026-07-01T00:00:00.000Z',
+  };
+
+  it('escribe una única TransactWriteCommand: Update de la cabecera + un decremento por cada contador', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const outcome = await writeCancellation(fakeClient(send), {
+      reservationId: 'res-1',
+      cancelledAt: '2026-07-11T00:00:00.000Z',
+      guestCounters: [guestCounter],
+    });
+
+    expect(outcome).toBe('CANCELLED');
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0]?.[0] as {
+      input: {
+        TransactItems: {
+          Update?: {
+            Key: Record<string, unknown>;
+            ConditionExpression?: string;
+            UpdateExpression: string;
+            ExpressionAttributeValues?: Record<string, unknown>;
+          };
+        }[];
+      };
+    };
+    const items = command.input.TransactItems;
+    expect(items).toHaveLength(2);
+
+    const headerUpdate = items[0]?.Update;
+    expect(headerUpdate?.Key).toEqual({ PK: 'RESERVATION#res-1', SK: 'METADATA' });
+    expect(headerUpdate?.ConditionExpression).toContain(
+      'attribute_exists(PK) AND reservationStatus IN',
+    );
+    expect(headerUpdate?.UpdateExpression).toBe(
+      'SET reservationStatus = :cancelled, cancelledAt = :now, updatedAt = :now, GSI2PK = :gsi2pk',
+    );
+    expect(headerUpdate?.ExpressionAttributeValues?.[':cancelled']).toBe('CANCELLED');
+    expect(headerUpdate?.ExpressionAttributeValues?.[':gsi2pk']).toBe(
+      'RESERVATION#STATUS#CANCELLED',
+    );
+
+    const counterUpdate = items[1]?.Update;
+    expect(counterUpdate?.Key).toEqual({ PK: 'GUEST#70605040', SK: 'MONTH#2026-07' });
+  });
+
+  it('no agrega ningún Update de contador si la reserva no tenía invitados', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    await writeCancellation(fakeClient(send), {
+      reservationId: 'res-1',
+      cancelledAt: '2026-07-11T00:00:00.000Z',
+      guestCounters: [],
+    });
+
+    const command = send.mock.calls[0]?.[0] as { input: { TransactItems: unknown[] } };
+    expect(command.input.TransactItems).toHaveLength(1);
+  });
+
+  it('devuelve ALREADY_DECIDED si falla la condición de la cabecera (criterio 8: ya CANCELLED/REJECTED)', async () => {
+    const conditionalError = Object.assign(new Error('cancelled'), {
+      name: 'TransactionCanceledException',
+      CancellationReasons: [{ Code: 'ConditionalCheckFailed' }, { Code: 'None' }],
+    });
+    const send = vi.fn().mockRejectedValue(conditionalError);
+
+    const outcome = await writeCancellation(fakeClient(send), {
+      reservationId: 'res-1',
+      cancelledAt: '2026-07-11T00:00:00.000Z',
+      guestCounters: [guestCounter],
+    });
+
+    expect(outcome).toBe('ALREADY_DECIDED');
+  });
+
+  it('propaga cualquier otro error (no relacionado con el estado de la cabecera)', async () => {
+    const send = vi.fn().mockRejectedValue(new Error('network error'));
+
+    await expect(
+      writeCancellation(fakeClient(send), {
+        reservationId: 'res-1',
+        cancelledAt: '2026-07-11T00:00:00.000Z',
+        guestCounters: [],
+      }),
+    ).rejects.toThrow('network error');
   });
 });
