@@ -1,6 +1,8 @@
-// POST /reservations — crea una reserva con validación completa en servidor
-// (docs/api/contratos-api.md §7,
-// docs/scrum/historias/US-030-crear-reserva-confirmacion-automatica.md).
+// POST /reservations — crea una reserva con validación completa en servidor,
+// incluidos los participantes adicionales (socios e invitados externos,
+// US-031) (docs/api/contratos-api.md §7,
+// docs/scrum/historias/US-030-crear-reserva-confirmacion-automatica.md,
+// docs/scrum/historias/US-031-participantes-socios-invitados.md).
 // Solo `member`: el titular es siempre el socio autenticado (RN-RES-06),
 // nunca un `memberId`/`holderMemberId` de la solicitud (que ni siquiera
 // existe en el contrato de entrada).
@@ -22,11 +24,7 @@ type ParsedParticipant = ReturnType<typeof createReservationSchema.parse>['parti
 /**
  * Adapta un participante parseado por Zod (campos opcionales tipados como
  * `string | undefined`) a `ReservationParticipantInput` (`exactOptionalPropertyTypes`,
- * mismo ajuste que `toCreateReservationRequest` de más abajo). Esta historia
- * (US-030) no usa el contenido de `participants` — se ignora deliberadamente
- * en `../../reservations/create.ts` (alcance de US-031) — pero el body debe
- * seguir adaptándose al tipo del contrato para que el handler compile y para
- * que, cuando US-031 lo consuma, ya llegue con la forma correcta.
+ * mismo ajuste que `toCreateReservationRequest` de más abajo).
  */
 function toReservationParticipantInput(data: ParsedParticipant): ReservationParticipantInput {
   return {
