@@ -20,6 +20,8 @@ const {
   listReservationsByResource,
   buildGuestMonthlyCounterDecrementTransactItem,
   writeCancellation,
+  approveReservation,
+  writeRejection,
 } = await import('./repository');
 
 function fakeClient(
@@ -928,5 +930,220 @@ describe('writeCancellation', () => {
         guestCounters: [],
       }),
     ).rejects.toThrow('network error');
+  });
+});
+
+describe('approveReservation (US-034, criterios 2/5/8)', () => {
+  const pendingReservationRaw = {
+    ...reservationRaw,
+    reservationId: 'res-parrilla',
+    resourceType: 'PARRILLA',
+    reservationStatus: 'PENDING_APPROVAL',
+    requiresApproval: true,
+  };
+
+  it('transiciona PENDING_APPROVAL -> APPROVED con una única UpdateItem condicionada', async () => {
+    const send = vi.fn(async (command: unknown) => {
+      const input = (
+        command as {
+          input: {
+            Key: Record<string, unknown>;
+            ConditionExpression?: string;
+            UpdateExpression?: string;
+            ExpressionAttributeValues?: Record<string, unknown>;
+          };
+        }
+      ).input;
+      expect(input.Key).toEqual({ PK: 'RESERVATION#res-parrilla', SK: 'METADATA' });
+      expect(input.ConditionExpression).toBe(
+        'attribute_exists(PK) AND reservationStatus = :pending',
+      );
+      expect(input.UpdateExpression).toBe(
+        'SET reservationStatus = :approved, GSI2PK = :gsi2pk, updatedAt = :now',
+      );
+      expect(input.ExpressionAttributeValues?.[':gsi2pk']).toBe('RESERVATION#STATUS#APPROVED');
+      return { Attributes: { ...pendingReservationRaw, reservationStatus: 'APPROVED' } };
+    });
+
+    const outcome = await approveReservation(
+      fakeClient(send),
+      'res-parrilla',
+      '2026-07-11T00:00:00.000Z',
+    );
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect((outcome as Reservation).reservationStatus).toBe('APPROVED');
+  });
+
+  it('devuelve NOT_PENDING si la condición falla (ya no está PENDING_APPROVAL, o carrera de dos admins)', async () => {
+    const conditionalError = Object.assign(new Error('condition failed'), {
+      name: 'ConditionalCheckFailedException',
+    });
+    const send = vi.fn().mockRejectedValue(conditionalError);
+
+    await expect(
+      approveReservation(fakeClient(send), 'res-parrilla', '2026-07-11T00:00:00.000Z'),
+    ).resolves.toBe('NOT_PENDING');
+  });
+
+  it('propaga cualquier otro error (no relacionado con la condición)', async () => {
+    const send = vi.fn().mockRejectedValue(new Error('network error'));
+
+    await expect(
+      approveReservation(fakeClient(send), 'res-parrilla', '2026-07-11T00:00:00.000Z'),
+    ).rejects.toThrow('network error');
+  });
+
+  it('simula dos administradores aprobando la misma solicitud a la vez: solo uno tiene éxito', async () => {
+    let decided = false;
+    const send = vi.fn(async () => {
+      if (decided) {
+        throw Object.assign(new Error('condition failed'), {
+          name: 'ConditionalCheckFailedException',
+        });
+      }
+      decided = true;
+      return { Attributes: { ...pendingReservationRaw, reservationStatus: 'APPROVED' } };
+    });
+    const client = fakeClient(send);
+
+    const [first, second] = await Promise.all([
+      approveReservation(client, 'res-parrilla', '2026-07-11T00:00:00.000Z'),
+      approveReservation(client, 'res-parrilla', '2026-07-11T00:00:00.000Z'),
+    ]);
+
+    const outcomes = [first, second].map((outcome) =>
+      outcome === 'NOT_PENDING' ? 'NOT_PENDING' : (outcome as Reservation).reservationStatus,
+    );
+    expect(outcomes.sort()).toEqual(['APPROVED', 'NOT_PENDING']);
+  });
+});
+
+describe('writeRejection (US-034, criterios 3/5/9/10)', () => {
+  const guestCounter = {
+    guestDni: '70605040',
+    month: '2026-07',
+    visitCount: 1,
+    reservationIds: ['res-parrilla'],
+    updatedAt: '2026-07-01T00:00:00.000Z',
+  };
+
+  it('escribe una única TransactWriteCommand: Update de la cabecera a REJECTED + un decremento por cada contador', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const outcome = await writeRejection(fakeClient(send), {
+      reservationId: 'res-parrilla',
+      rejectionReason: 'Recurso en mantenimiento',
+      rejectedAt: '2026-07-11T00:00:00.000Z',
+      guestCounters: [guestCounter],
+    });
+
+    expect(outcome).toBe('REJECTED');
+    expect(send).toHaveBeenCalledTimes(1);
+    const command = send.mock.calls[0]?.[0] as {
+      input: {
+        TransactItems: {
+          Update?: {
+            Key: Record<string, unknown>;
+            ConditionExpression?: string;
+            UpdateExpression: string;
+            ExpressionAttributeValues?: Record<string, unknown>;
+          };
+        }[];
+      };
+    };
+    const items = command.input.TransactItems;
+    expect(items).toHaveLength(2);
+
+    const headerUpdate = items[0]?.Update;
+    expect(headerUpdate?.Key).toEqual({ PK: 'RESERVATION#res-parrilla', SK: 'METADATA' });
+    expect(headerUpdate?.ConditionExpression).toBe(
+      'attribute_exists(PK) AND reservationStatus = :pending',
+    );
+    expect(headerUpdate?.UpdateExpression).toBe(
+      'SET reservationStatus = :rejected, rejectionReason = :reason, updatedAt = :now, GSI2PK = :gsi2pk',
+    );
+    expect(headerUpdate?.ExpressionAttributeValues?.[':rejected']).toBe('REJECTED');
+    expect(headerUpdate?.ExpressionAttributeValues?.[':reason']).toBe('Recurso en mantenimiento');
+    expect(headerUpdate?.ExpressionAttributeValues?.[':gsi2pk']).toBe(
+      'RESERVATION#STATUS#REJECTED',
+    );
+
+    const counterUpdate = items[1]?.Update;
+    expect(counterUpdate?.Key).toEqual({ PK: 'GUEST#70605040', SK: 'MONTH#2026-07' });
+  });
+
+  it('no agrega ningún Update de contador si la reserva no tenía invitados', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    await writeRejection(fakeClient(send), {
+      reservationId: 'res-parrilla',
+      rejectionReason: 'Recurso en mantenimiento',
+      rejectedAt: '2026-07-11T00:00:00.000Z',
+      guestCounters: [],
+    });
+
+    const command = send.mock.calls[0]?.[0] as { input: { TransactItems: unknown[] } };
+    expect(command.input.TransactItems).toHaveLength(1);
+  });
+
+  it('devuelve NOT_PENDING si falla la condición de la cabecera (ya decidida, o carrera de dos admins)', async () => {
+    const conditionalError = Object.assign(new Error('cancelled'), {
+      name: 'TransactionCanceledException',
+      CancellationReasons: [{ Code: 'ConditionalCheckFailed' }, { Code: 'None' }],
+    });
+    const send = vi.fn().mockRejectedValue(conditionalError);
+
+    const outcome = await writeRejection(fakeClient(send), {
+      reservationId: 'res-parrilla',
+      rejectionReason: 'Recurso en mantenimiento',
+      rejectedAt: '2026-07-11T00:00:00.000Z',
+      guestCounters: [guestCounter],
+    });
+
+    expect(outcome).toBe('NOT_PENDING');
+  });
+
+  it('propaga cualquier otro error (no relacionado con el estado de la cabecera)', async () => {
+    const send = vi.fn().mockRejectedValue(new Error('network error'));
+
+    await expect(
+      writeRejection(fakeClient(send), {
+        reservationId: 'res-parrilla',
+        rejectionReason: 'Recurso en mantenimiento',
+        rejectedAt: '2026-07-11T00:00:00.000Z',
+        guestCounters: [],
+      }),
+    ).rejects.toThrow('network error');
+  });
+
+  it('simula dos administradores decidiendo la misma solicitud a la vez: solo uno tiene éxito', async () => {
+    let decided = false;
+    const send = vi.fn(async () => {
+      if (decided) {
+        throw Object.assign(new Error('cancelled'), {
+          name: 'TransactionCanceledException',
+          CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+        });
+      }
+      decided = true;
+      return {};
+    });
+    const client = fakeClient(send);
+
+    const [first, second] = await Promise.all([
+      writeRejection(client, {
+        reservationId: 'res-parrilla',
+        rejectionReason: 'Recurso en mantenimiento',
+        rejectedAt: '2026-07-11T00:00:00.000Z',
+        guestCounters: [],
+      }),
+      writeRejection(client, {
+        reservationId: 'res-parrilla',
+        rejectionReason: 'Otro motivo',
+        rejectedAt: '2026-07-11T00:00:00.000Z',
+        guestCounters: [],
+      }),
+    ]);
+
+    expect([first, second].sort()).toEqual(['NOT_PENDING', 'REJECTED']);
   });
 });
