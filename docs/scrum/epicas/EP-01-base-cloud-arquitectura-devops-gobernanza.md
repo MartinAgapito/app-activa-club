@@ -5,7 +5,7 @@
 | ID               | EP-01           |
 | Tipo             | Épica           |
 | Fase             | MVP — Fundación |
-| Estado           | En progreso     |
+| Estado           | Cerrada         |
 | Dependencias     | Ninguna         |
 | Sprint principal | Sprint 0        |
 

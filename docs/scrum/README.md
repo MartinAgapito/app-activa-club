@@ -21,20 +21,20 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | -------------------------------------------------------------------- | ---------------------------------------------------------- | --------------- | ----------- |
 | [EP-01](./epicas/EP-01-base-cloud-arquitectura-devops-gobernanza.md) | Base cloud, arquitectura, DevOps y gobernanza del proyecto | MVP — Fundación | Cerrada     |
 | [EP-02](./epicas/EP-02-migracion-activacion-acceso.md)               | Migración de socios, activación y acceso                   | MVP             | Cerrada     |
-| [EP-03](./epicas/EP-03-membresias-pagos.md)                          | Membresías y pagos                                         | MVP             | Planificada |
-| [EP-04](./epicas/EP-04-reservas-instalaciones.md)                    | Reservas de instalaciones                                  | MVP             | Planificada |
+| [EP-03](./epicas/EP-03-membresias-pagos.md)                          | Membresías y pagos                                         | MVP             | Cerrada     |
+| [EP-04](./epicas/EP-04-reservas-instalaciones.md)                    | Reservas de instalaciones                                  | MVP             | En progreso |
 | EP-05                                                                | Notificaciones                                             | MVP             | Planificada |
 | EP-06                                                                | Administración                                             | MVP             | Planificada |
 | EP-07                                                                | Dashboards y analytics                                     | MVP             | Planificada |
 
 ## Sprints
 
-| Sprint                            | Nombre                                   | Épica | Estado      |
-| --------------------------------- | ---------------------------------------- | ----- | ----------- |
-| [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01 | Cerrado     |
-| [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02 | Cerrado     |
-| [Sprint 2](./sprints/sprint-2.md) | Membresías y pagos                       | EP-03 | Planificado |
-| [Sprint 3](./sprints/sprint-3.md) | Reservas de instalaciones                | EP-04 | Planificado |
+| Sprint                            | Nombre                                   | Épica | Estado   |
+| --------------------------------- | ---------------------------------------- | ----- | -------- |
+| [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01 | Cerrado  |
+| [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02 | Cerrado  |
+| [Sprint 2](./sprints/sprint-2.md) | Membresías y pagos                       | EP-03 | Cerrado  |
+| [Sprint 3](./sprints/sprint-3.md) | Reservas de instalaciones                | EP-04 | En curso |
 
 ## Historias del Sprint 0 (EP-01)
 
@@ -109,3 +109,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 - 2026-07-16: Creación de EP-02 y Sprint 1 con las historias US-011..US-018; renumeración de las épicas funcionales siguientes.
 - 2026-08-09: Creación de EP-03 y Sprint 2 con las historias US-019..US-026 (membresías y pagos); actualización de los estados de Sprint 0/1 y EP-01/EP-02 a cerrados.
 - 2026-08-09: Creación de EP-04 y Sprint 3 con las historias US-027..US-036 (reservas de instalaciones).
+- 2026-10-10: Cierre documental de EP-01..EP-03 (Cerradas) y avance de EP-04 / Sprint 3 (en curso): implementadas en backend US-027..US-031, US-033 y US-034 (más US-037 Stripe); pendientes US-032 (flujo de reserva en la interfaz), US-035, US-036 y la verificación E2E.

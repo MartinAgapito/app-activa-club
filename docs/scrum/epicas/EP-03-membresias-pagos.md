@@ -5,7 +5,7 @@
 | ID               | EP-03        |
 | Tipo             | Épica        |
 | Fase             | MVP          |
-| Estado           | Planificada  |
+| Estado           | Cerrada      |
 | Dependencias     | EP-01, EP-02 |
 | Sprint principal | Sprint 2     |
 
