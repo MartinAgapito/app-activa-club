@@ -65,15 +65,14 @@ export function ReservationsPage() {
       <PageHeader
         title="Reservas"
         description="Elige una instalación y un día para ver sus franjas horarias disponibles."
-        actions={<Badge variant="warning">Vista previa — datos simulados</Badge>}
+        actions={<Badge variant="warning">Consulta de disponibilidad</Badge>}
       />
 
       <Card compact className="border-brand-200 bg-brand-50">
         <p className="text-sm text-brand-900">
           Estamos preparando la reserva completa (elegir horario, agregar participantes y
           confirmar). Por ahora esta pantalla muestra el catálogo de instalaciones y su
-          disponibilidad con datos de ejemplo, mientras el backend de reservas (US-027..US-029)
-          termina de desplegarse.
+          disponibilidad real por día.
         </p>
       </Card>
 
