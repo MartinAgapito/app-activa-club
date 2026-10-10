@@ -5,7 +5,7 @@
 | ID               | EP-04               |
 | Tipo             | Épica               |
 | Fase             | MVP                 |
-| Estado           | Planificada         |
+| Estado           | En progreso         |
 | Dependencias     | EP-01, EP-02, EP-03 |
 | Sprint principal | Sprint 3            |
 

@@ -1,13 +1,13 @@
 # EP-02 — Migración de socios, activación y acceso
 
-| Campo            | Valor       |
-| ---------------- | ----------- |
-| ID               | EP-02       |
-| Tipo             | Épica       |
-| Fase             | MVP         |
-| Estado           | Planificada |
-| Dependencias     | EP-01       |
-| Sprint principal | Sprint 1    |
+| Campo            | Valor    |
+| ---------------- | -------- |
+| ID               | EP-02    |
+| Tipo             | Épica    |
+| Fase             | MVP      |
+| Estado           | Cerrada  |
+| Dependencias     | EP-01    |
+| Sprint principal | Sprint 1 |
 
 ## Descripción
 
