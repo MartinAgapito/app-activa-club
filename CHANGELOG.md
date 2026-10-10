@@ -17,6 +17,17 @@ backlog en `docs/scrum/`.
   documentación de producto y Scrum, y gobierno Git (Conventional Commits,
   estrategia de ramas, plantilla de Pull Request, CODEOWNERS). Ver
   `docs/scrum/sprints/sprint-0.md` para el detalle de historias en curso.
+- Sprint 1 (EP-02): migración on-premise → DynamoDB, activación por DNI,
+  registro de socio nuevo, login con Cognito, aprobación/rechazo de socios y
+  perfil.
+- Sprint 2 (EP-03): planes de membresía, cobro idempotente, checkout,
+  renovación automática, webhook de confirmación e historial de pagos; pasarela
+  migrada a Stripe test mode (ADR-0011).
+- Sprint 3 (EP-04, en curso): catálogo de instalaciones, disponibilidad por
+  día, creación de reserva con candado de concurrencia, participantes
+  (socios e invitados), consulta/cancelación y aprobación/rechazo admin.
+  Pendientes: pantalla de reserva (US-032), mantenimiento (US-035) y gestión
+  admin (US-036).
 
 <!--
 Convenciones para nuevas entradas:
