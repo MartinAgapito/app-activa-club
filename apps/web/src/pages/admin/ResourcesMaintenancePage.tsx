@@ -3,6 +3,7 @@
 // componente propio compuesto por esta página.
 
 import { PageHeader } from '@activa-club/ui';
+import { MaintenanceSection } from '../../admin/maintenance/MaintenanceSection';
 import { ResourceManagementSection } from '../../admin/resources/ResourceManagementSection';
 
 export function ResourcesMaintenancePage() {
@@ -10,9 +11,10 @@ export function ResourcesMaintenancePage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Recursos y mantenimiento"
-        description="Gestiona el aforo, el horario y el estado de las instalaciones del club."
+        description="Gestiona el aforo, el horario y el estado de las instalaciones, y programa bloqueos por mantenimiento."
       />
       <ResourceManagementSection />
+      <MaintenanceSection />
     </div>
   );
 }

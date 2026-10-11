@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import type { Resource } from '@activa-club/shared-types';
 import { ResourcesMaintenancePage } from './ResourcesMaintenancePage';
 import { ApiRequestError } from '../../lib/api/http-client';
@@ -23,6 +24,14 @@ vi.mock('../../resources/resources-client', () => ({
 
 vi.mock('../../admin/resources/admin-resources-client', () => ({
   updateResource: updateResourceMock,
+}));
+
+// La sección de mantenimiento tiene sus propias pruebas
+// (`admin/maintenance/MaintenanceSection.test.tsx`); aquí solo se compone.
+vi.mock('../../admin/maintenance/admin-maintenance-client', () => ({
+  createMaintenanceBlock: vi.fn(),
+  listMaintenanceBlocks: () => Promise.resolve({ items: [] }),
+  releaseMaintenanceBlock: vi.fn(),
 }));
 
 vi.mock('../../auth/AuthContext', () => ({
@@ -59,7 +68,9 @@ function renderPage() {
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <ResourcesMaintenancePage />
+      <MemoryRouter>
+        <ResourcesMaintenancePage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
