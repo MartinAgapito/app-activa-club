@@ -57,3 +57,6 @@ Thumbs.db
 
 # ---- Artefactos de empaquetado de Lambdas (scripts/package-lambdas.mjs) ----
 .lambda-artifacts/
+
+# ---- Datos locales de carga/reinicio de dev (DNI y correos reales: no se versionan) ----
+mock-data/local/

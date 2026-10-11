@@ -123,18 +123,42 @@ existe su usuario en Cognito. Los casos de prueba están en la
 
 ## Reiniciar el entorno (solo `dev`)
 
-1. Borrar primero los ítems de DynamoDB de socios, pagos, períodos,
-   transiciones, auditoría, reservas y participantes. **Conservar** los 10
-   ítems `RESOURCE#<id> / METADATA` (catálogo de Terraform).
-2. Después borrar los usuarios de Cognito (nunca al revés: quedarían cuentas
-   apuntando a una ficha inexistente). Conservar el usuario admin.
-3. No tocar el bucket de estado de Terraform, los parámetros SSM de Stripe ni
-   el bucket `web`.
-4. Repetir desde el paso 1.
+Script versionado: [`scripts/dev-reset.mjs`](../../scripts/dev-reset.mjs).
+
+```bash
+node scripts/dev-reset.mjs            # simulacro: muestra qué borraría
+node scripts/dev-reset.mjs --apply    # respalda y borra (pide escribir BORRAR)
+node scripts/dev-reset.mjs --apply --keep-cognito   # sin tocar Cognito
+```
+
+Qué hace, en este orden:
+
+1. **DynamoDB:** borra todos los ítems **excepto** el catálogo (`RESOURCE#<id>`
+   con `SK = METADATA`, gestionado por Terraform).
+2. **Cognito:** borra todos los usuarios **excepto** `admin@activaclub.test`.
+   Va después de DynamoDB a propósito: borrar al revés dejaría cuentas
+   apuntando a una ficha inexistente.
+
+Salvaguardas: verifica la cuenta AWS `463310123916`, exige que el catálogo tenga
+exactamente 10 ítems, y pide escribir `BORRAR`. Guarda un respaldo en
+`mock-data/local/` (ignorada por git).
+
+No toca la tabla ni los índices, los buckets, los parámetros SSM de Stripe ni el
+estado de Terraform.
+
+Después de reiniciar, repetir desde el paso 1.
+
+## Datos reales de personas del equipo
+
+El JSON versionado (`mock-data/legacy-export.json`) es solo de datos
+ficticios. Para que el equipo pruebe con sus propios correos y DNI se usa una
+copia **local** en `mock-data/local/legacy-export.json`, que está en
+`.gitignore` y **nunca se commitea**. Se sube a S3 con el mismo nombre
+(`legacy-export.json`) siguiendo el paso 1.
 
 ## Qué NO hacer
 
-- No subir datos reales de socios: el entorno `dev` usa solo datos ficticios.
+- No versionar DNI ni correos reales: van en `mock-data/local/` (ignorada por git).
 - No versionar tokens ni contraseñas. El JSON del repo es solo de datos ficticios.
 - No ejecutar este procedimiento contra `prd` sin la aprobación del GitHub
   Environment `prd`.
