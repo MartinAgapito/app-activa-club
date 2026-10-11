@@ -98,6 +98,11 @@ Atributos: `membershipId`, `type` (`MONTHLY`|`ANNUAL`), `startedAt`, `endsAt`,
 lecturas rápidas del dashboard. El índice `GSI2` de expiración habilita
 "próximas a vencer / vencidas" (RN-ANL-02).
 
+> **Mantenimiento del índice (US-038)**: un período reemplazado por una
+> renovación, o que pasó a `EXPIRED`, se retira de GSI2 (`REMOVE GSI2PK,
+GSI2SK`) para que `MEMBERSHIP#ACTIVE` contenga solo períodos vigentes. Lo
+> hace el proceso diario de vencimiento (`apps/api/src/memberships/`).
+
 ### 3.5 Pago — **Payment**
 
 | Campo           | Valor                                                                             |
@@ -350,6 +355,29 @@ alineada a `blockMinutes`) se sigue resolviendo con la lectura previa de GSI3
 (consulta 19): no es el caso que este candado cubre, ver
 `apps/api/src/reservations/repository.ts`.
 
+### 3.17 Transición de vigencia de membresía — **MembershipTransition**
+
+| Campo           | Valor                                                                 |
+| --------------- | --------------------------------------------------------------------- |
+| PK              | `MEMBER#<memberId>`                                                   |
+| SK              | `MEMBERSHIP_TRANSITION#<membershipEndsAt>#<EXPIRING_SOON or EXPIRED>` |
+| GSI2PK / GSI2SK | `MEMBERSHIP#TRANSITION#PENDING` / `<occurredAt>#<memberId>`           |
+
+Atributos: `memberId`, `fromStatus`, `toStatus` (`EXPIRING_SOON`|`EXPIRED`),
+`membershipEndsAt` (la vigencia que originó la transición), `event`
+(`RENEWAL_DUE` para `EXPIRING_SOON`, `RENEWAL_OVERDUE` para `EXPIRED`),
+`occurredAt`.
+
+**Rastro para US-047** (US-038, criterio 11): lo escribe el proceso diario de
+vencimiento en la **misma `TransactWriteItems`** que cambia el
+`membershipStatus` del `Member`, de modo que una transición sin rastro (o un
+rastro sin transición) no puede existir. La clave es determinista por ciclo y
+destino, y el `Put` lleva `attribute_not_exists(PK)`: una segunda ejecución,
+o un reintento, no duplica el aviso. El consumidor (US-047) lee
+`GSI2PK=MEMBERSHIP#TRANSITION#PENDING` (patrón #27), emite la notificación y
+retira `GSI2PK/GSI2SK` del ítem al procesarlo (queda como historial). Esta
+historia **no** emite notificaciones.
+
 ## 4. Índices y patrones de acceso (resumen)
 
 ### Tabla base (PK/SK)
@@ -370,6 +398,7 @@ alineada a `blockMinutes`) se sigue resolviendo con la lectura previa de GSI3
 | 24  | Resolver perfil de invitado por DNI                        | `GetItem` PK=`GUEST#<dni>`, SK=`PROFILE`                                                                                            | RN-RES-03/04            |
 | 25  | Alta idempotente de invitado                               | `Update` con `if_not_exists` PK=`GUEST#<dni>`, SK=`PROFILE`, dentro del `TransactWrite` de la reserva                               | RN-RES-03/04            |
 | 26  | Candado de concurrencia por franja exacta (§3.16)          | `Put condicional` `attribute_not_exists(PK)` PK=`RESOURCE#<id>`, SK=`SLOTLOCK#<startsAt>`, dentro del `TransactWrite` de la reserva | RN-RES-07 (criterio 14) |
+| 27  | Transiciones de vigencia pendientes de avisar (§3.17)      | `Query` GSI2PK=`MEMBERSHIP#TRANSITION#PENDING`, rango `occurredAt` (las escribe el proceso con `Put condicional`)                   | RN-NOT-04 (US-047)      |
 
 > La numeración de patrones es incremental y global (no se reinicia por
 > sección): los patrones 23–26, aunque son de la tabla base, se agregaron

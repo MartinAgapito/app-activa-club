@@ -128,3 +128,4 @@ La verificación extremo a extremo de EP-04 (Ola 6 del Sprint 3) sigue pendiente
 ## Historial de cambios
 
 - 2026-10-11: Creación del Sprint 4 con las historias de EP-05 (US-039..US-049) y la deuda técnica US-038 de EP-03.
+- 2026-10-12: US-038 implementada (Ola 1), pendiente verificación en `dev`. Primer proceso programado del proyecto: módulo Terraform `scheduled-job` reutilizable para US-046.

@@ -86,3 +86,7 @@ Cierra un hueco que hoy deja reservar a socios con la membresía vencida, que es
 - Casos de prueba: P-10 (refuerzo), DA-02 y DA-04 (habilitados); se propone a QA un caso nuevo de vencimiento automático.
 - Depende de: US-021 (vigencia calculada al pagar).
 - Habilita: US-047, US-048, US-052, US-055, US-057.
+
+## Historial de cambios
+
+- 2026-10-12: Implementada, pendiente verificación en `dev`. Regla de vigencia única en `apps/api/src/memberships/vigency.ts`; proceso diario `memberships-expire` (EventBridge `cron(15 5 * * ? *)` = 00:15 Lima, módulo `scheduled-job`); defensa por fecha en `POST /reservations`. Rastro para US-047: ítem `MembershipTransition` (modelo-dynamodb.md §3.17, patrón #27), escrito en la misma transacción que el cambio de estado.

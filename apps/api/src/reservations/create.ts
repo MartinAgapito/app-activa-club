@@ -27,6 +27,7 @@ import { recordAuditLog } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
 import { findMemberByCognitoSub, getMemberById } from '../members/repository';
+import { hasMembershipEnded, limaDateOnly } from '../memberships/vigency';
 import { getResourceById } from '../resources/repository';
 import { guestMonthlyCounterMonth } from './guest-month';
 import { resolveReservationEndsAt } from './reservation-window';
@@ -60,6 +61,20 @@ const NON_RESERVABLE_MEMBERSHIP_STATUSES: ReadonlySet<Member['membershipStatus']
 ]);
 
 /**
+ * Defensa en profundidad (US-038, criterio 8): un socio que figura vigente
+ * (`ACTIVE`/`EXPIRING_SOON`) pero cuyo `membershipEndsAt` ya pasó (fecha de
+ * Lima) no puede reservar aunque el proceso diario de vencimiento todavía no
+ * haya corrido (entre la medianoche y su ejecución, o si una ejecución falló).
+ */
+function hasLapsedWhileMarkedCurrent(member: Member, now: Date): boolean {
+  if (member.membershipStatus !== 'ACTIVE' && member.membershipStatus !== 'EXPIRING_SOON') {
+    return false;
+  }
+  if (!member.membershipEndsAt) return false;
+  return hasMembershipEnded(member.membershipEndsAt, limaDateOnly(now));
+}
+
+/**
  * RN-RES-12/RN-PAG-06 (criterios 10/11 de US-030; cierra A-11, A-15, P-10):
  * solo un socio `ACTIVE`, sin deuda (`membershipStatus` fuera de
  * `DEBT`/`EXPIRED`) y sin saldo pendiente, puede confirmar una reserva. A
@@ -70,13 +85,14 @@ const NON_RESERVABLE_MEMBERSHIP_STATUSES: ReadonlySet<Member['membershipStatus']
  * socio participante (US-031) no se valida por este camino (caso alternativo
  * documentado en la historia).
  */
-export function assertMemberCanReserve(member: Member): void {
+export function assertMemberCanReserve(member: Member, now: Date = new Date()): void {
   if (member.memberStatus !== 'ACTIVE') {
     throw new AppError('MEMBERSHIP_REQUIRED', 'El socio debe estar activo para reservar.');
   }
   if (
     NON_RESERVABLE_MEMBERSHIP_STATUSES.has(member.membershipStatus) ||
-    member.outstandingBalance > 0
+    member.outstandingBalance > 0 ||
+    hasLapsedWhileMarkedCurrent(member, now)
   ) {
     throw new AppError(
       'MEMBER_HAS_DEBT',
@@ -255,7 +271,7 @@ export async function createReservation(
     // No debería ocurrir para un token válido con socio ya enlazado; defensivo.
     throw new AppError('NOT_FOUND', 'No se encontró el socio asociado a esta cuenta.');
   }
-  assertMemberCanReserve(member);
+  assertMemberCanReserve(member, now);
 
   const resource = await getResourceById(client, input.request.resourceId);
   if (!resource) {

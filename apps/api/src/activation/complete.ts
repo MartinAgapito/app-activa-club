@@ -14,7 +14,7 @@ import type {
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
-import { limaDateOnly } from '../migration/transform';
+import { limaDateOnly } from '../memberships/vigency';
 import { createActivationCognitoUser, type CreateActivationCognitoUser } from './cognito';
 import {
   completeActivationWrite,
@@ -48,7 +48,7 @@ function conflictError(outcome: Exclude<CompleteActivationOutcome, 'ACTIVATED'>)
  * `UpdateItem` (nunca un `PutItem` nuevo: preserva `legacyId`, membresía y
  * saldo de la migración, US-012). `memberStatus` pasa a `ACTIVE`;
  * `membershipStatus` se recalcula con el mismo criterio de vigencia de la
- * migración (`deriveMembershipStatus`, `../migration/transform.ts`), por si
+ * migración (`deriveMembershipStatus`, `../memberships/vigency.ts`), por si
  * la membresía venció o entró en deuda desde que se migró.
  */
 export async function completeActivation(

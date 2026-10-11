@@ -28,6 +28,11 @@ backlog en `docs/scrum/`.
   consulta y cancelación, aprobación o rechazo admin, mantenimiento de recursos,
   edición de aforo, horario y estado, y las pantallas de reserva, Mis reservas y
   administración. Pendiente: verificación extremo a extremo en `dev`.
+- Sprint 4 (EP-03, US-038): proceso diario que actualiza el estado de la
+  membresía por vencimiento (`EXPIRING_SOON` a 7 días o menos, `EXPIRED` al
+  pasar la fecha), regla de vigencia única compartida, defensa por fecha en
+  `POST /reservations` y módulo Terraform `scheduled-job` (EventBridge 00:15
+  America/Lima, alarma de errores). Pendiente: verificación en `dev`.
 
 <!--
 Convenciones para nuevas entradas:

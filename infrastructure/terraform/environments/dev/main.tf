@@ -243,6 +243,9 @@ locals {
       "reservations-reject",
       "members-lookup",
       "guests-lookup",
+      # EP-03, US-038: proceso programado (no HTTP), ver module
+      # "job_memberships_expire" al final de este archivo.
+      "memberships-expire",
       ] : function_name => (
       var.lambda_artifacts_dir == null ? null : "${var.lambda_artifacts_dir}/${function_name}.zip"
     )
@@ -1671,6 +1674,56 @@ module "endpoint_guests_lookup" {
       # solo pide este ítem puntual, no un Query de la partición completa.
       actions   = ["dynamodb:GetItem"]
       resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Proceso programado de vencimiento de membresías (US-038, EP-03).
+#
+# Lambda NO HTTP invocada por EventBridge una vez al día: 00:15 hora de Lima
+# = 05:15 UTC (Lima es UTC-5 todo el año, sin horario de verano; las reglas
+# programadas de EventBridge evalúan cron siempre en UTC).
+#
+# IAM = exactamente lo que usa apps/api/src/memberships/**:
+# - dynamodb:Query sobre GSI2 (patrón #15: GSI2PK=MEMBERSHIP#ACTIVE).
+# - dynamodb:GetItem sobre la tabla (Member por memberId, patrón #1).
+# - dynamodb:UpdateItem (Member + retiro del período de GSI2) y
+#   dynamodb:PutItem (rastro MembershipTransition) dentro de la
+#   TransactWriteItems; TransactWrite no es una acción IAM propia, exige el
+#   permiso de cada operación individual.
+# Sin Scan, sin DeleteItem, sin ningún otro servicio.
+#
+# Alarma de errores ACTIVA (excepción justificada a la reducción de alarmas,
+# ADR-0008 / US-038 criterio 10): un proceso batch sin usuario delante falla
+# en silencio si nadie lo mira, y un fallo deja a socios vencidos con estado
+# ACTIVE (la defensa en profundidad de POST /reservations los frena, pero las
+# métricas y los avisos de EP-05 quedarían falsos).
+# ---------------------------------------------------------------------------
+module "job_memberships_expire" {
+  source = "../../modules/scheduled-job"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name       = "memberships-expire"
+  description         = "Recalcula membershipStatus por vencimiento (US-038), diario 00:15 America/Lima."
+  source_zip_path     = local.lambda_zip_path["memberships-expire"]
+  schedule_expression = "cron(15 5 * * ? *)"
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+    {
+      # Solo GSI2 (patrón #15), no el wildcard de todos los índices.
+      actions   = ["dynamodb:Query"]
+      resources = ["${local.dynamodb_table_arn}/index/GSI2"]
     },
   ]
 }

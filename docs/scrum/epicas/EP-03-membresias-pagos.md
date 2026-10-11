@@ -91,3 +91,4 @@ La matriz de alcance §3 clasifica como MVP la "renovación automática opcional
 
 - 2026-08-09: Creación de la épica EP-03 y asociación de las historias del Sprint 2 (US-019..US-026).
 - 2026-10-11: Asociación de US-038 (vencimiento de membresía) y US-050 (pantalla de historial de pagos del socio) como deuda técnica, planificadas en los Sprints 4 y 5.
+- 2026-10-12: US-038 implementada (proceso diario de vencimiento, regla de vigencia compartida y defensa por fecha en la reserva); pendiente verificación en `dev`.

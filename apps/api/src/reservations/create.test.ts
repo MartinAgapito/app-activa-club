@@ -299,7 +299,46 @@ describe('assertMemberCanReserve', () => {
   });
 
   it('acepta un socio ACTIVE sin deuda ni membresía vencida', () => {
-    expect(() => assertMemberCanReserve(baseMember)).not.toThrow();
+    expect(() =>
+      assertMemberCanReserve(baseMember, new Date('2026-07-01T15:00:00Z')),
+    ).not.toThrow();
+  });
+
+  describe('defensa en profundidad por vencimiento (US-038, criterio 8)', () => {
+    // 2026-07-02 10:00 en Lima.
+    const now = new Date('2026-07-02T15:00:00Z');
+
+    it.each<MembershipStatus>(['ACTIVE', 'EXPIRING_SOON'])(
+      'rechaza MEMBER_HAS_DEBT si membershipStatus es %s pero membershipEndsAt ya pasó',
+      (membershipStatus) => {
+        const member = {
+          ...baseMember,
+          membershipStatus,
+          membershipEndsAt: '2026-07-01T10:00:00.000Z',
+        };
+        expect(() => assertMemberCanReserve(member, now)).toThrowError(
+          expect.objectContaining({ code: 'MEMBER_HAS_DEBT' }),
+        );
+      },
+    );
+
+    it('rechaza si el vencimiento fue ayer (fecha sin hora, migrado)', () => {
+      const member = { ...baseMember, membershipEndsAt: '2026-07-01' };
+      expect(() => assertMemberCanReserve(member, now)).toThrowError(
+        expect.objectContaining({ code: 'MEMBER_HAS_DEBT' }),
+      );
+    });
+
+    it('acepta si la membresía vence hoy (todavía vigente)', () => {
+      const member = { ...baseMember, membershipEndsAt: '2026-07-02' };
+      expect(() => assertMemberCanReserve(member, now)).not.toThrow();
+    });
+
+    it('un instante UTC del día siguiente que en Lima aún es hoy sigue vigente', () => {
+      // 2026-07-03T03:00Z = 2026-07-02 22:00 en Lima.
+      const member = { ...baseMember, membershipEndsAt: '2026-07-03T03:00:00.000Z' };
+      expect(() => assertMemberCanReserve(member, now)).not.toThrow();
+    });
   });
 });
 

@@ -84,6 +84,9 @@ const HANDLERS = {
   'reservations-reject': 'handlers/reservations/reject.ts', // US-034 (implementado)
   'members-lookup': 'handlers/members/lookup.ts', // US-031 (implementado)
   'guests-lookup': 'handlers/guests/lookup.ts', // US-031 (implementado)
+  // EP-03, US-038: proceso programado (EventBridge), no HTTP. Ver
+  // module "job_memberships_expire" en environments/dev/main.tf.
+  'memberships-expire': 'handlers/memberships/expire.ts', // US-038 (implementado)
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');
