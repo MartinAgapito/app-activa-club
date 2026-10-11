@@ -1295,11 +1295,12 @@ module "endpoint_resources_maintenance_delete" {
 
   iam_policy_statements = [
     {
-      # GetItem (el bloqueo existe) + DeleteItem del MaintenanceBlock +
-      # PutItem del AuditLog "RESOURCE_MAINTENANCE" (US-035, ADR-0008). Sin
-      # índice: el bloqueo se referencia por su PK/SK exactas
-      # (RESOURCE#<id> / MAINT#<startsAt>#<blockId>, modelo §3.11).
-      actions   = ["dynamodb:GetItem", "dynamodb:DeleteItem", "dynamodb:PutItem"]
+      # Query (localizar el bloqueo: la ruta solo trae resourceId y blockId,
+      # pero la SK es MAINT#<startsAt>#<blockId>, asi que no hay GetItem
+      # posible) sobre la tabla base, sin indice + DeleteItem del
+      # MaintenanceBlock + PutItem del AuditLog "RESOURCE_MAINTENANCE"
+      # (US-035, ADR-0008). GetItem se conserva por compatibilidad.
+      actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:DeleteItem", "dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn]
     },
   ]
