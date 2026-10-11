@@ -1,16 +1,18 @@
-import { UnderConstructionPage } from '../../components/UnderConstructionPage';
+// Recursos y mantenimiento — interfaz administrativa de US-036 (gestión de
+// recursos) y US-035 (bloqueos por mantenimiento). Cada sección es un
+// componente propio compuesto por esta página.
+
+import { PageHeader } from '@activa-club/ui';
+import { ResourceManagementSection } from '../../admin/resources/ResourceManagementSection';
 
 export function ResourcesMaintenancePage() {
   return (
-    <UnderConstructionPage
-      title="Recursos y mantenimiento"
-      description="Gestión de aforo, horarios y bloqueos temporales por mantenimiento de cada recurso (RN-RES-11, RN-ADM-04)."
-      endpoints={[
-        'GET /resources',
-        'PATCH /resources/{resourceId}',
-        'POST /resources/{resourceId}/maintenance',
-        'DELETE /resources/{resourceId}/maintenance/{blockId}',
-      ]}
-    />
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Recursos y mantenimiento"
+        description="Gestiona el aforo, el horario y el estado de las instalaciones del club."
+      />
+      <ResourceManagementSection />
+    </div>
   );
 }
