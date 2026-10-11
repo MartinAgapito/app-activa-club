@@ -23,6 +23,9 @@ despliegues sensibles y procedimientos de rollback.
   Requiere aplicar manualmente, una única vez, el rol de escritura
   `activa-club-github-actions-deploy-dev` declarado en
   `infrastructure/terraform/bootstrap/main.tf` (ver ese documento).
+- [`migracion-inicial-dev.md`](./migracion-inicial-dev.md) — Runbook de la
+  carga inicial de socios en `dev` (JSON en S3 + `POST /admin/migration/run`),
+  verificación y reinicio del entorno.
 - [`despliegue-prd.md`](./despliegue-prd.md) — Despliegue final/prd
   (cumple el rol de "producción" del proyecto — no hay un entorno `prod`
   separado, ver ADR-0001): disparo manual, aprobación humana obligatoria vía

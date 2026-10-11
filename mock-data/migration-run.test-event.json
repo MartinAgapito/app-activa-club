@@ -1,0 +1,13 @@
+{
+  "httpMethod": "POST",
+  "path": "/admin/migration/run",
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "sub": "admin-consola-dev",
+        "email": "admin@activaclub.test",
+        "cognito:groups": "[admin]"
+      }
+    }
+  }
+}
