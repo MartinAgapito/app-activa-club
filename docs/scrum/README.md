@@ -23,18 +23,20 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | [EP-02](./epicas/EP-02-migracion-activacion-acceso.md)               | Migración de socios, activación y acceso                   | MVP             | Cerrada     |
 | [EP-03](./epicas/EP-03-membresias-pagos.md)                          | Membresías y pagos                                         | MVP             | Cerrada     |
 | [EP-04](./epicas/EP-04-reservas-instalaciones.md)                    | Reservas de instalaciones                                  | MVP             | En progreso |
-| EP-05                                                                | Notificaciones                                             | MVP             | Planificada |
-| EP-06                                                                | Administración                                             | MVP             | Planificada |
-| EP-07                                                                | Dashboards y analytics                                     | MVP             | Planificada |
+| [EP-05](./epicas/EP-05-notificaciones.md)                            | Notificaciones                                             | MVP             | Planificada |
+| [EP-06](./epicas/EP-06-administracion.md)                            | Administración                                             | MVP             | Planificada |
+| [EP-07](./epicas/EP-07-dashboards-analytics.md)                      | Dashboards y analytics                                     | MVP             | Planificada |
 
 ## Sprints
 
-| Sprint                            | Nombre                                   | Épica | Estado   |
-| --------------------------------- | ---------------------------------------- | ----- | -------- |
-| [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01 | Cerrado  |
-| [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02 | Cerrado  |
-| [Sprint 2](./sprints/sprint-2.md) | Membresías y pagos                       | EP-03 | Cerrado  |
-| [Sprint 3](./sprints/sprint-3.md) | Reservas de instalaciones                | EP-04 | En curso |
+| Sprint                            | Nombre                                   | Épica        | Estado      |
+| --------------------------------- | ---------------------------------------- | ------------ | ----------- |
+| [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01        | Cerrado     |
+| [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02        | Cerrado     |
+| [Sprint 2](./sprints/sprint-2.md) | Membresías y pagos                       | EP-03        | Cerrado     |
+| [Sprint 3](./sprints/sprint-3.md) | Reservas de instalaciones                | EP-04        | En curso    |
+| [Sprint 4](./sprints/sprint-4.md) | Notificaciones                           | EP-05        | Planificado |
+| [Sprint 5](./sprints/sprint-5.md) | Administración, dashboards y analytics   | EP-06, EP-07 | Planificado |
 
 ## Historias del Sprint 0 (EP-01)
 
@@ -96,6 +98,43 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 
 > **US-037 es deuda técnica arrastrada de EP-03**, no una historia de reservas: se planifica en el Sprint 3 porque bloquea su precondición (socios `ACTIVE` al día). Ver [ADR-0011](../architecture/adr/ADR-0011-stripe-sandbox-reemplaza-culqi.md).
 
+## Historias del Sprint 4 (EP-05)
+
+| ID                                                                          | Título                                                                 | Responsable        | Prioridad | Depende de             |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------ | --------- | ---------------------- |
+| [US-038](./historias/US-038-actualizar-estado-membresia-por-vencimiento.md) | Actualizar el estado de la membresía según su vencimiento              | Backend + DevOps   | Crítica   | US-021                 |
+| [US-039](./historias/US-039-provisionar-endpoints-notificaciones.md)        | Provisionar endpoints e infraestructura de notificaciones              | DevOps             | Crítica   | —                      |
+| [US-040](./historias/US-040-emitir-notificaciones-eventos.md)               | Emitir notificaciones de eventos (bandeja interna y correo)            | Backend + DevOps   | Crítica   | US-039                 |
+| [US-041](./historias/US-041-bandeja-notificaciones-socio.md)                | Consultar mi bandeja de notificaciones y marcarlas como leídas         | Backend + Frontend | Alta      | US-039, US-040         |
+| [US-042](./historias/US-042-notificar-eventos-cuenta.md)                    | Notificar la activación de cuenta y la decisión sobre una solicitud    | Backend            | Alta      | US-040                 |
+| [US-043](./historias/US-043-notificar-resultado-pagos.md)                   | Notificar el resultado de un pago                                      | Backend            | Alta      | US-040                 |
+| [US-044](./historias/US-044-notificar-cambios-estado-reservas.md)           | Notificar los cambios de estado de una reserva                         | Backend            | Alta      | US-040                 |
+| [US-045](./historias/US-045-notificar-mantenimiento-socios-afectados.md)    | Avisar a los socios afectados por un mantenimiento                     | Backend            | Media     | US-040                 |
+| [US-046](./historias/US-046-recordatorio-reserva.md)                        | Recordar una reserva próxima                                           | Backend + DevOps   | Media     | US-040                 |
+| [US-047](./historias/US-047-avisar-renovacion-proxima-vencida.md)           | Avisar que la membresía está por vencer o ya venció                    | Backend            | Media     | US-038, US-040         |
+| [US-048](./historias/US-048-publicar-notificacion-segmentada.md)            | Publicar una notificación segmentada (servidor)                        | Backend            | Alta      | US-038, US-039, US-040 |
+| [US-049](./historias/US-049-consola-admin-notificaciones.md)                | Publicar y consultar notificaciones desde la consola de administración | Backend + Frontend | Alta      | US-048                 |
+
+> **US-038 es deuda técnica de EP-03**: hoy ningún proceso recalcula `membershipStatus` cuando vence la membresía, así que un socio vencido sigue pudiendo reservar y no hay socios "por vencer" a quienes avisar. Se planifica en el Sprint 4 porque bloquea los avisos de renovación y los segmentos de EP-05, igual que US-037 en el Sprint 3.
+
+## Historias del Sprint 5 (EP-06, EP-07)
+
+| ID                                                                   | Título                                                                         | Responsable        | Prioridad | Depende de             |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------ | --------- | ---------------------- |
+| [US-050](./historias/US-050-ver-mi-historial-pagos.md)               | Ver mi historial de pagos en la plataforma                                     | Frontend           | Media     | US-025                 |
+| [US-051](./historias/US-051-consultar-socios-admin.md)               | Consultar los socios y su situación de membresía                               | Frontend           | Alta      | US-017                 |
+| [US-052](./historias/US-052-filtrar-socios-situacion-membresia.md)   | Filtrar socios con deuda, vencidos o por vencer                                | Backend + Frontend | Media     | US-038, US-048, US-051 |
+| [US-053](./historias/US-053-consultar-pagos-socios-admin.md)         | Consultar los pagos de los socios                                              | Frontend           | Media     | US-025                 |
+| [US-054](./historias/US-054-provisionar-endpoints-dashboards.md)     | Provisionar endpoints e infraestructura de dashboards                          | DevOps             | Crítica   | —                      |
+| [US-055](./historias/US-055-resumen-personal-socio-servidor.md)      | Obtener el resumen personal del socio (servidor)                               | Backend            | Alta      | US-038, US-041, US-054 |
+| [US-056](./historias/US-056-ver-inicio-personal-socio.md)            | Ver mi inicio personal (dashboard del socio)                                   | Frontend           | Alta      | US-055                 |
+| [US-057](./historias/US-057-metricas-socios-pagos-notificaciones.md) | Calcular las métricas de socios, membresías, pagos y notificaciones (servidor) | Backend            | Alta      | US-038, US-054         |
+| [US-058](./historias/US-058-metricas-reservas-ocupacion.md)          | Calcular las métricas de reservas y ocupación (servidor)                       | Backend            | Media     | US-054                 |
+| [US-059](./historias/US-059-ver-resumen-operativo-admin.md)          | Ver el resumen operativo en el inicio del administrador                        | Frontend           | Alta      | US-057                 |
+| [US-060](./historias/US-060-ver-analitica-reservas-ocupacion.md)     | Ver la analítica de reservas y ocupación                                       | Frontend           | Media     | US-058                 |
+
+> **US-050 es deuda de EP-03**: el servidor del historial de pagos (US-025) está implementado, pero la pantalla del socio nunca se construyó. EP-06 agrupa US-051..US-053 y EP-07 agrupa US-054..US-060.
+
 ## Convenciones de trazabilidad
 
 - Épica: `EP-NN`
@@ -111,3 +150,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 - 2026-08-09: Creación de EP-04 y Sprint 3 con las historias US-027..US-036 (reservas de instalaciones).
 - 2026-10-10: Cierre documental de EP-01..EP-03 (Cerradas) y avance de EP-04 / Sprint 3 (en curso): implementadas en backend US-027..US-031, US-033 y US-034 (más US-037 Stripe); pendientes US-032 (flujo de reserva en la interfaz), US-035, US-036 y la verificación E2E.
 - 2026-10-11: EP-04 con las diez historias implementadas (backend y pantallas); pendiente la verificación extremo a extremo.
+- 2026-10-11: Creación de EP-05 (notificaciones), EP-06 (administración) y EP-07 (dashboards y analytics) y de los Sprints 4 y 5 con las historias US-038..US-060. US-038 (vencimiento de membresía) y US-050 (pantalla de historial de pagos del socio) son deuda técnica de EP-03. Cada épica registra sus preguntas abiertas.
