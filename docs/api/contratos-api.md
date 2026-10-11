@@ -498,6 +498,7 @@ Response 200: mismo shape que un elemento de `items` en `GET /payments`.
 | GET    | `/resources/{resourceId}/availability?date=YYYY-MM-DD` | member | Franjas disponibles del día           |
 | PATCH  | `/resources/{resourceId}`                              | admin  | Actualiza aforo/horario/estado        |
 | POST   | `/resources/{resourceId}/maintenance`                  | admin  | Bloqueo por mantenimiento (RN-RES-11) |
+| GET    | `/resources/{resourceId}/maintenance?from=&to=`        | admin  | Lista los bloqueos de un recurso      |
 | DELETE | `/resources/{resourceId}/maintenance/{blockId}`        | admin  | Libera un bloqueo                     |
 
 ### GET /resources
@@ -629,6 +630,48 @@ la ventana bloqueada:
   "affectedReservationCount": 2
 }
 ```
+
+### GET /resources/{resourceId}/maintenance
+
+Lista los bloqueos de mantenimiento de un recurso para que el administrador vea
+cuáles liberar (US-035, criterio 13). Solo `admin` (403 `FORBIDDEN` para
+`member`); recurso inexistente → 404 `NOT_FOUND`.
+
+Query opcional:
+
+| Parámetro | Tipo     | Descripción                                                                 |
+| --------- | -------- | --------------------------------------------------------------------------- |
+| `from`    | ISO-8601 | Inicio de la ventana de consulta (admite offset).                           |
+| `to`      | ISO-8601 | Fin de la ventana de consulta (admite offset). Debe ser posterior a `from`. |
+
+- Sin `from` ni `to`: bloqueos con `endsAt` posterior a ahora (vigentes y
+  futuros).
+- Con `from` y/o `to`: bloqueos cuyo intervalo se solapa con la ventana
+  (semiabierta `[from, to)`), incluidos los ya vencidos. Una ventana abierta por
+  un extremo (solo `from` o solo `to`) es válida.
+- `from >= to` → 400 `VALIDATION_ERROR`.
+- Orden por `startsAt` ascendente. Sin paginación (volumen mínimo por recurso).
+
+Response 200:
+
+```json
+{
+  "items": [
+    {
+      "blockId": "01J...",
+      "resourceId": "piscina-1",
+      "startsAt": "2026-07-20T13:00:00.000Z",
+      "endsAt": "2026-07-20T18:00:00.000Z",
+      "reason": "Limpieza de piscina",
+      "createdBy": "b1c2d3e4-...",
+      "createdAt": "2026-07-01T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+`createdBy` es el `sub` de Cognito del administrador que creó el bloqueo;
+`reason` puede ser `null`. Una lista vacía devuelve `{ "items": [] }`.
 
 ### DELETE /resources/{resourceId}/maintenance/{blockId}
 

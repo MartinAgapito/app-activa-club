@@ -8,15 +8,17 @@
 
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { ulid } from 'ulid';
-import type { CreateMaintenanceResponse } from '@activa-club/shared-types';
+import type { CreateMaintenanceResponse, ListMaintenanceResponse } from '@activa-club/shared-types';
 
 import { recordAuditLog, type AuditActor } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
+import { intervalsOverlap } from '../reservations/overlap';
 import { findResourceOccupancy } from '../reservations/repository';
 import {
   deleteMaintenanceBlock,
   findMaintenanceBlock,
+  listMaintenanceBlocks as queryMaintenanceBlocks,
   putMaintenanceBlock,
 } from './maintenance-repository';
 import { getResourceById } from './repository';
@@ -131,4 +133,61 @@ export async function releaseMaintenanceBlock(input: ReleaseMaintenanceInput): P
     },
     now,
   });
+}
+
+export interface ListMaintenanceInput {
+  resourceId: string;
+  /** Inicio de la ventana de consulta (ISO-8601, admite offset). */
+  from?: string | undefined;
+  /** Fin de la ventana de consulta (ISO-8601, admite offset). */
+  to?: string | undefined;
+  client?: DynamoDBDocumentClient;
+  now?: Date;
+}
+
+// Extremos representables de `Date`, para ventanas abiertas (solo `from` o solo `to`).
+const MIN_DATE = new Date(-8.64e15);
+const MAX_DATE = new Date(8.64e15);
+
+/**
+ * Lista los bloqueos de un recurso (US-035, criterio 13), ordenados por
+ * `startsAt` ascendente. Sin `from`/`to` devuelve los vigentes y futuros
+ * (`endsAt` posterior a ahora); con alguno de los dos, los que se solapan con
+ * la ventana `[from, to)`, incluidos bloqueos ya vencidos.
+ */
+export async function listMaintenanceBlocks(
+  input: ListMaintenanceInput,
+): Promise<ListMaintenanceResponse> {
+  const client = input.client ?? getDocumentClient();
+  const now = input.now ?? new Date();
+
+  if (input.from && input.to && new Date(input.from) >= new Date(input.to)) {
+    throw new AppError('VALIDATION_ERROR', 'from debe ser anterior a to.');
+  }
+
+  const resource = await getResourceById(client, input.resourceId);
+  if (!resource) {
+    throw new AppError('NOT_FOUND', 'No se encontró el recurso indicado.');
+  }
+
+  const blocks = await queryMaintenanceBlocks(client, input.resourceId);
+  const hasWindow = input.from !== undefined || input.to !== undefined;
+  const windowStart = input.from ? new Date(input.from) : MIN_DATE;
+  const windowEnd = input.to ? new Date(input.to) : MAX_DATE;
+
+  const items = blocks
+    .filter((block) =>
+      hasWindow
+        ? intervalsOverlap(block.startsAt, block.endsAt, windowStart, windowEnd)
+        : new Date(block.endsAt) > now,
+    )
+    .sort((a, b) =>
+      a.startsAt === b.startsAt
+        ? a.blockId.localeCompare(b.blockId)
+        : a.startsAt < b.startsAt
+          ? -1
+          : 1,
+    );
+
+  return { items };
 }
