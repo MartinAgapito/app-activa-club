@@ -760,7 +760,10 @@ contadores mensuales + perfiles de invitado).
 Validaciones server-side (todas obligatorias):
 
 - Socio titular `ACTIVE` y sin deuda (RN-RES-12 / RN-PAG-06) → 422
-  `MEMBER_HAS_DEBT` / `MEMBERSHIP_REQUIRED`.
+  `MEMBER_HAS_DEBT` / `MEMBERSHIP_REQUIRED`. Además del `membershipStatus`, se
+  evalúa la fecha: un titular `ACTIVE`/`EXPIRING_SOON` cuyo `membershipEndsAt`
+  ya pasó (fecha de Lima) también recibe `MEMBER_HAS_DEBT`, aunque el proceso
+  diario de vencimiento (US-038) todavía no lo haya marcado `EXPIRED`.
 - Dentro del horario del recurso y `endsAt = startsAt + blockMinutes`
   (RN-RES) → 422 `OUTSIDE_SCHEDULE`.
 - Sin cruces para el recurso (RN-RES-07) → 409 `RESERVATION_OVERLAP`.

@@ -7,7 +7,7 @@
 import type { Member, MembershipStatus } from '@activa-club/shared-types';
 
 import { keys } from '../lib/dynamo';
-import { deriveMembershipStatus } from '../migration/transform';
+import { deriveMembershipStatus } from '../memberships/vigency';
 
 /** Subconjunto del `Member` necesario para decidir elegibilidad de activación. */
 export type MigratedMemberCandidate = Pick<Member, 'memberStatus' | 'cognitoSub'>;

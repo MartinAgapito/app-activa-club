@@ -12,6 +12,7 @@ import type {
 } from '@activa-club/shared-types';
 
 import { keys } from '../lib/dynamo';
+import { deriveMembershipStatus, limaDateOnly } from '../memberships/vigency';
 
 /**
  * Ítem `Member` migrado. `GSI1PK`/`GSI1SK` (resolución por `cognitoSub`) se
@@ -70,38 +71,10 @@ export interface TransformDeps {
   now?: string;
 }
 
-/** Fecha de hoy en zona America/Lima como `YYYY-MM-DD` (comparable lexicográficamente). */
-export function limaDateOnly(date: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Lima',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}
-
-function daysBetween(fromDateOnly: string, toDateOnly: string): number {
-  const from = Date.parse(`${fromDateOnly}T00:00:00Z`);
-  const to = Date.parse(`${toDateOnly}T00:00:00Z`);
-  return Math.round((to - from) / 86_400_000);
-}
-
-/**
- * Deriva `membershipStatus` a partir de `saldoPendiente` y `fin`
- * (docs/data/mapeo-migracion.md §3). El orden de las condiciones es el de la
- * tabla del documento: deuda gana sobre vencimiento, y vencimiento gana sobre
- * "por vencer".
- */
-export function deriveMembershipStatus(
-  fin: string,
-  saldoPendiente: number,
-  todayLima: string,
-): MembershipStatus {
-  if (saldoPendiente > 0) return 'DEBT';
-  if (fin < todayLima) return 'EXPIRED';
-  if (daysBetween(todayLima, fin) <= 7) return 'EXPIRING_SOON';
-  return 'ACTIVE';
-}
+// La regla de vigencia (umbral de 7 días, "vencida", fecha de Lima) vive en un
+// único lugar compartido con la activación y el proceso diario de US-038.
+// Se re-exporta aquí para no romper a los consumidores existentes.
+export { deriveMembershipStatus, limaDateOnly };
 
 /**
  * Transforma un socio del JSON on-premise (ya validado con

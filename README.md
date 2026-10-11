@@ -196,7 +196,7 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `activation/`        | `POST /activation/verify`, `POST /activation/complete`.                                                                                                 |
 | `registration/`      | `POST /registration`.                                                                                                                                   |
 | `members/`           | `GET/PATCH /members/me`, `PATCH /members/me/auto-renew`, `GET /members`, `GET /members/{id}`, `POST …/approve`, `POST …/reject`, `GET /members/lookup`. |
-| `memberships/`       | `GET /memberships/plans`.                                                                                                                               |
+| `memberships/`       | `GET /memberships/plans`; `expire.ts` es el proceso diario de vencimiento (EventBridge, no HTTP).                                                       |
 | `payments/`          | `POST /payments`, `GET /payments`, `GET /payments/{id}`, `POST /payments/webhook`.                                                                      |
 | `resources/`         | `GET /resources`, `PATCH /resources/{id}`, `POST/GET /resources/{id}/maintenance`, `DELETE /resources/{id}/maintenance/{blockId}`.                      |
 | `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`.                                                                           |
@@ -236,6 +236,8 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `payments/eligibility.ts`                             | Qué estado de socio permite pagar.                          |
 | `payments/idempotency.ts`                             | Evita cobros duplicados con la misma `idempotencyKey`.      |
 | `payments/membership-cycle.ts`                        | Cálculo de vigencia de la membresía tras pagar.             |
+| `memberships/vigency.ts`                              | Regla única de vigencia (umbral de 7 días, vencida).        |
+| `memberships/expire-memberships.ts` / `repository.ts` | Proceso diario de vencimiento y rastro para avisos.         |
 | `payments/plans.ts`                                   | Planes y montos (siempre resueltos en el servidor).         |
 | `payments/repository.ts`                              | Persistencia de pagos y períodos de membresía.              |
 | `payments/stripe-client.ts`                           | Cliente de cargos de Stripe test mode.                      |
@@ -336,6 +338,7 @@ Cada entorno tiene `main.tf`, `providers.tf`, `variables.tf`, `outputs.tf` y un
 | `s3-storage`        | Buckets de migración y de activos.                                              |
 | `ses-identity`      | Identidad de remitente de correos.                                              |
 | `log-group`         | CloudWatch Log Group con retención.                                             |
+| `scheduled-job`     | Lambda programada con EventBridge + IAM mínima + log group + alarma de errores. |
 | `resource-catalog`  | Carga las diez instalaciones del club como ítems de DynamoDB.                   |
 
 </details>
