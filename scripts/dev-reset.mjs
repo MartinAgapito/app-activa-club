@@ -15,6 +15,7 @@
 //   node scripts/dev-reset.mjs            -> simulacro: solo muestra qué borraría
 //   node scripts/dev-reset.mjs --apply    -> respalda y borra de verdad
 //   node scripts/dev-reset.mjs --apply --keep-cognito
+//   node scripts/dev-reset.mjs --apply --yes   -> sin pedir confirmación escrita
 //
 // Requiere AWS CLI con el perfil `activa-club-dev`. Procedimiento completo en
 // docs/deployment/migracion-inicial-dev.md.
@@ -34,6 +35,7 @@ const KEEP_ADMIN_EMAIL = 'admin@activaclub.test';
 
 const APPLY = process.argv.includes('--apply');
 const KEEP_COGNITO = process.argv.includes('--keep-cognito');
+const YES = process.argv.includes('--yes');
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const env = { ...process.env, AWS_PROFILE: PROFILE, AWS_DEFAULT_REGION: REGION };
@@ -91,13 +93,22 @@ if (!APPLY) {
   process.exit(0);
 }
 
-// Salvaguarda 3: confirmación escrita.
-const rl = createInterface({ input: process.stdin, output: process.stdout });
-const answer = await rl.question('\nEscribe BORRAR para continuar: ');
-rl.close();
-if (answer.trim() !== 'BORRAR') {
-  console.log('Cancelado. No se borró nada.');
-  process.exit(0);
+// Salvaguarda 3: confirmación escrita. `--yes` la omite (terminales sin entrada
+// interactiva, como la de `!` en Claude Code); `--apply` ya es explícito.
+if (!YES) {
+  if (!process.stdin.isTTY) {
+    console.error(
+      'No hay terminal interactiva para confirmar. Vuelve a ejecutar con --apply --yes.',
+    );
+    process.exit(1);
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await rl.question('Escribe BORRAR para continuar: ');
+  rl.close();
+  if (answer.trim() !== 'BORRAR') {
+    console.log('Cancelado. No se borró nada.');
+    process.exit(0);
+  }
 }
 
 // Respaldo local (carpeta ignorada por git).
