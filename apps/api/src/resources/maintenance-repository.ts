@@ -116,3 +116,35 @@ export async function deleteMaintenanceBlock(
     throw error;
   }
 }
+
+/**
+ * Lista todos los bloqueos de un recurso (`GET .../maintenance`, US-035
+ * criterio 13): `Query` sobre la tabla base (PK=`RESOURCE#<id>`,
+ * `begins_with(SK,"MAINT#")`), sin índice ni `Scan`. La SK empieza por
+ * `MAINT#<startsAt>`, así que el resultado ya sale ordenado por inicio. El
+ * volumen por recurso es mínimo; se sigue `LastEvaluatedKey` hasta agotarlo.
+ * Devuelve solo los campos del contrato, sin claves internas.
+ */
+export async function listMaintenanceBlocks(
+  client: DynamoDBDocumentClient,
+  resourceId: string,
+): Promise<MaintenanceBlock[]> {
+  const pk = keys.resource(resourceId).PK;
+  const blocks: MaintenanceBlock[] = [];
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+
+  do {
+    const result = await client.send(
+      new QueryCommand({
+        TableName: tableName(),
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+        ExpressionAttributeValues: { ':pk': pk, ':prefix': 'MAINT#' },
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    );
+    for (const item of result.Items ?? []) blocks.push(toMaintenanceBlock(item));
+    exclusiveStartKey = result.LastEvaluatedKey;
+  } while (exclusiveStartKey);
+
+  return blocks;
+}

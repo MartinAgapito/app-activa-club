@@ -130,6 +130,23 @@ export const createMaintenanceSchema = z
     path: ['endsAt'],
   });
 
+/**
+ * Query de `GET /resources/{resourceId}/maintenance`: ventana opcional. Se
+ * compara por instante (no por texto) porque `from`/`to` admiten offset.
+ */
+export const listMaintenanceQuerySchema = z
+  .object({
+    from: isoDateSchema.optional(),
+    to: isoDateSchema.optional(),
+  })
+  .refine(
+    (data) =>
+      data.from === undefined ||
+      data.to === undefined ||
+      new Date(data.from).getTime() < new Date(data.to).getTime(),
+    { message: 'from debe ser anterior a to.', path: ['to'] },
+  );
+
 export const listReservationsQuerySchema = z.object({
   scope: z.enum(['me', 'all']).optional(),
   status: reservationStatusSchema.optional(),

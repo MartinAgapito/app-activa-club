@@ -209,6 +209,15 @@ export interface CreateMaintenanceResponse {
   affectedReservationCount: number;
 }
 
+/**
+ * Respuesta de `GET /resources/{resourceId}/maintenance` (US-035, criterio
+ * 13): bloqueos del recurso ordenados por `startsAt` ascendente, sin
+ * paginación.
+ */
+export interface ListMaintenanceResponse {
+  items: MaintenanceBlock[];
+}
+
 // --- Invitados externos (RN-RES-03/04) ---
 
 /**
