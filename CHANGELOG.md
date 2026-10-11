@@ -23,11 +23,11 @@ backlog en `docs/scrum/`.
 - Sprint 2 (EP-03): planes de membresía, cobro idempotente, checkout,
   renovación automática, webhook de confirmación e historial de pagos; pasarela
   migrada a Stripe test mode (ADR-0011).
-- Sprint 3 (EP-04, en curso): catálogo de instalaciones, disponibilidad por
-  día, creación de reserva con candado de concurrencia, participantes
-  (socios e invitados), consulta/cancelación y aprobación/rechazo admin.
-  Pendientes: pantalla de reserva (US-032), mantenimiento (US-035) y gestión
-  admin (US-036).
+- Sprint 3 (EP-04): catálogo de instalaciones, disponibilidad por día, creación de
+  reserva con candado de concurrencia, participantes (socios e invitados),
+  consulta y cancelación, aprobación o rechazo admin, mantenimiento de recursos,
+  edición de aforo, horario y estado, y las pantallas de reserva, Mis reservas y
+  administración. Pendiente: verificación extremo a extremo en `dev`.
 
 <!--
 Convenciones para nuevas entradas:

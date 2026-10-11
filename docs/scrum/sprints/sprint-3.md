@@ -161,3 +161,4 @@ Estas no amplían el alcance: precisan reglas ya acordadas cuya interpretación 
 
 - 2026-08-09: Creación del Sprint 3 con las 10 historias de EP-04 (US-027..US-036).
 - 2026-08-09: Cierre de las tres decisiones funcionales pendientes (ADR-0009, ADR-0010); dos endpoints de lookup por DNI, entidad `GuestProfile`, catálogo como ítems de Terraform y estado explícito por franja en la disponibilidad.
+- 2026-10-11: Ola 5 completa: US-032 (reservar), interfaz de US-033 y US-034, US-035 (mantenimiento, con endpoint de listado de bloqueos) y US-036 (gestión de recursos y cancelación administrativa). Pendiente la Ola 6 (verificación E2E).

@@ -106,3 +106,4 @@ Decisión adicional derivada de la primera, del mismo ADR-0009: el **invitado ex
 
 - 2026-08-09: Creación de la épica EP-04 y asociación de las historias del Sprint 3 (US-027..US-036).
 - 2026-08-09: Cierre de las tres decisiones funcionales pendientes (ADR-0009 y ADR-0010); alta de la entidad `GuestProfile`, de los endpoints de resolución por DNI y del estado por franja en la disponibilidad.
+- 2026-10-11: US-027 a US-036 implementadas (backend y pantallas). La épica queda en progreso solo por la verificación extremo a extremo (Ola 6).

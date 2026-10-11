@@ -110,3 +110,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 - 2026-08-09: Creación de EP-03 y Sprint 2 con las historias US-019..US-026 (membresías y pagos); actualización de los estados de Sprint 0/1 y EP-01/EP-02 a cerrados.
 - 2026-08-09: Creación de EP-04 y Sprint 3 con las historias US-027..US-036 (reservas de instalaciones).
 - 2026-10-10: Cierre documental de EP-01..EP-03 (Cerradas) y avance de EP-04 / Sprint 3 (en curso): implementadas en backend US-027..US-031, US-033 y US-034 (más US-037 Stripe); pendientes US-032 (flujo de reserva en la interfaz), US-035, US-036 y la verificación E2E.
+- 2026-10-11: EP-04 con las diez historias implementadas (backend y pantallas); pendiente la verificación extremo a extremo.
