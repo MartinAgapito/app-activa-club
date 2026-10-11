@@ -1,17 +1,18 @@
-// Reservas — catálogo de instalaciones y selector de franjas horarias.
+// Reservas — flujo completo de reserva de una instalación (US-028, US-029,
+// US-032).
 //
-// EP-04 (US-028, US-029): construye el catálogo y el selector de
-// disponibilidad por día contra la forma exacta del contrato
-// (docs/api/contratos-api.md §6). Ambos endpoints ya están desplegados y
-// reales (../../resources/resources-client.ts delega en `apiRequest`, sin
-// mocks). Es preparación de US-032 (flujo completo de reserva: elegir
-// instalación + día + horario + participantes y confirmar), que todavía no
-// se implementa acá — no hay selección de participantes ni `POST
-// /reservations`, y tampoco el bloqueo por deuda (`canReserve` de `GET
-// /dashboard/member`, EP-07, fuera de este sprint).
+// Elegir instalación + día + franja (disponibilidad real, docs/api/
+// contratos-api.md §6) -> agregar participantes por DNI -> resumen ->
+// confirmar con `POST /reservations` (§7). Todas las reglas críticas las
+// valida el servidor (US-030 y US-031): la interfaz las anticipa (aforo,
+// deuda, duplicados) pero si el servidor rechaza algo, gana el servidor
+// (criterio 14). El estado del flujo vive aquí para que instalación,
+// participantes y notas sobrevivan a un refresco de disponibilidad
+// (criterio 9). "Mis reservas" y la bandeja admin son US-033/US-034.
 
-import { useState } from 'react';
-import type { UseQueryResult } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import {
   Badge,
   Button,
@@ -22,8 +23,15 @@ import {
   Input,
   PageHeader,
   Spinner,
+  buttonVariants,
 } from '@activa-club/ui';
-import type { AvailabilityResponse, AvailabilitySlot, Resource } from '@activa-club/shared-types';
+import type {
+  AvailabilityResponse,
+  AvailabilitySlot,
+  CreateReservationResponse,
+  Resource,
+} from '@activa-club/shared-types';
+import { useAuth } from '../../auth/AuthContext';
 import { ApiRequestError } from '../../lib/api/http-client';
 import { getTodayInLima, formatTimeRangeInLima } from '../../lib/format/lima-time';
 import {
@@ -34,13 +42,48 @@ import {
   RESOURCE_TYPE_LABEL,
   formatBlockDuration,
 } from '../../lib/format/resource';
+import { useMemberProfileQuery } from '../../members/profile-query';
 import { useResourceAvailabilityQuery, useResourcesQuery } from '../../resources/resources-query';
+import { RESERVATION_BLOCK_COPY, getReservationBlock } from '../../reservations/eligibility';
+import {
+  participantKey,
+  toParticipantInput,
+  type DraftParticipant,
+} from '../../reservations/participants';
+import { ParticipantsSection } from '../../reservations/ParticipantsSection';
+import {
+  toReservationErrorFeedback,
+  type ReservationErrorFeedback,
+} from '../../reservations/reservation-errors';
+import { useCreateReservationMutation } from '../../reservations/reservations-query';
+import {
+  ReservationErrorAlert,
+  ReservationResult,
+  ReservationSummary,
+} from '../../reservations/ReservationSummary';
+
+interface CompletedReservation {
+  resource: Resource;
+  response: CreateReservationResponse;
+}
 
 export function ReservationsPage() {
+  const queryClient = useQueryClient();
+  const { signOut } = useAuth();
   const resourcesQuery = useResourcesQuery();
+  const profileQuery = useMemberProfileQuery();
+  const createMutation = useCreateReservationMutation();
+
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => getTodayInLima());
   const [selectedSlotStart, setSelectedSlotStart] = useState<string | null>(null);
+  const [participants, setParticipants] = useState<DraftParticipant[]>([]);
+  const [notes, setNotes] = useState('');
+  const [submitError, setSubmitError] = useState<ReservationErrorFeedback | null>(null);
+  const [completed, setCompleted] = useState<CompletedReservation | null>(null);
+  // Guarda síncrona contra doble clic: `isPending` solo se refleja tras el
+  // siguiente render (criterio 11).
+  const inFlightRef = useRef(false);
 
   const selectedResource =
     resourcesQuery.data?.find((resource) => resource.resourceId === selectedResourceId) ?? null;
@@ -50,31 +93,103 @@ export function ReservationsPage() {
     selectedResource ? selectedDate : null,
   );
 
+  // Solo cuenta si la franja sigue libre en la última disponibilidad: tras un
+  // refresco por `RESERVATION_OVERLAP` deja de estar seleccionada.
+  const selectedSlot: AvailabilitySlot | null =
+    availabilityQuery.data?.slots.find(
+      (slot) => slot.startsAt === selectedSlotStart && slot.available,
+    ) ?? null;
+
+  const profile = profileQuery.data;
+  const block = profile ? getReservationBlock(profile) : null;
+
   function selectResource(resourceId: string) {
     setSelectedResourceId(resourceId);
     setSelectedSlotStart(null);
+    setSubmitError(null);
+    setCompleted(null);
   }
 
   function changeDate(nextDate: string) {
     setSelectedDate(nextDate);
     setSelectedSlotStart(null);
+    setSubmitError(null);
   }
+
+  function selectSlot(startsAt: string) {
+    setSelectedSlotStart(startsAt);
+    setSubmitError(null);
+  }
+
+  function refreshAvailability(resourceId: string) {
+    void queryClient.invalidateQueries({ queryKey: ['resources', resourceId, 'availability'] });
+  }
+
+  async function confirm() {
+    if (inFlightRef.current || !selectedResource || !selectedSlot) {
+      return;
+    }
+    inFlightRef.current = true;
+    setSubmitError(null);
+
+    try {
+      const trimmedNotes = notes.trim();
+      // Sin `endsAt` ni `holderMemberId`: no existen en el contrato de
+      // entrada (el servidor calcula el fin y el titular es el autenticado).
+      const response = await createMutation.mutateAsync({
+        resourceId: selectedResource.resourceId,
+        startsAt: selectedSlot.startsAt,
+        participants: participants.map(toParticipantInput),
+        ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+      });
+      setCompleted({ resource: selectedResource, response });
+      setParticipants([]);
+      setNotes('');
+      setSelectedSlotStart(null);
+      refreshAvailability(selectedResource.resourceId);
+    } catch (error) {
+      const feedback = toReservationErrorFeedback(error);
+      setSubmitError(feedback);
+      if (feedback.refreshAvailability) {
+        refreshAvailability(selectedResource.resourceId);
+      }
+      if (feedback.sessionExpired) {
+        // El guard de rutas redirige a /login y, tras autenticarse, devuelve
+        // al socio a esta pantalla (mismo criterio que el checkout).
+        signOut();
+      }
+    } finally {
+      inFlightRef.current = false;
+    }
+  }
+
+  const hasAvailableSlot = availabilityQuery.data?.slots.some((slot) => slot.available) ?? false;
+  const showDraft = Boolean(selectedResource && selectedSlot && !block && !completed);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Reservas"
-        description="Elige una instalación y un día para ver sus franjas horarias disponibles."
-        actions={<Badge variant="warning">Consulta de disponibilidad</Badge>}
+        description="Elige una instalación, un día y un horario, agrega a tus acompañantes y confirma tu reserva."
       />
 
-      <Card compact className="border-brand-200 bg-brand-50">
-        <p className="text-sm text-brand-900">
-          Estamos preparando la reserva completa (elegir horario, agregar participantes y
-          confirmar). Por ahora esta pantalla muestra el catálogo de instalaciones y su
-          disponibilidad real por día.
-        </p>
-      </Card>
+      {block ? (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4"
+        >
+          <p className="text-base font-semibold text-danger-800">
+            {RESERVATION_BLOCK_COPY[block].title}
+          </p>
+          <p className="text-sm text-danger-800">{RESERVATION_BLOCK_COPY[block].message}</p>
+          <Link
+            to="/socio/membresia/pagar"
+            className={buttonVariants({ variant: 'primary', className: 'self-start' })}
+          >
+            Ir a pagar mi membresía
+          </Link>
+        </div>
+      ) : null}
 
       <ResourceCatalogSection
         query={resourcesQuery}
@@ -88,9 +203,55 @@ export function ReservationsPage() {
           date={selectedDate}
           onDateChange={changeDate}
           query={availabilityQuery}
-          selectedSlotStart={selectedSlotStart}
-          onSelectSlot={setSelectedSlotStart}
+          selectedSlotStart={selectedSlot ? selectedSlotStart : null}
+          onSelectSlot={selectSlot}
         />
+      ) : null}
+
+      {submitError ? <ReservationErrorAlert feedback={submitError} /> : null}
+
+      {completed ? (
+        <ReservationResult
+          resource={completed.resource}
+          response={completed.response}
+          onNewReservation={() => setCompleted(null)}
+        />
+      ) : null}
+
+      {selectedResource && !selectedSlot && !block && !completed && hasAvailableSlot ? (
+        <p className="text-sm text-slate-600">
+          Elige una franja libre para agregar participantes y confirmar tu reserva.
+        </p>
+      ) : null}
+
+      {showDraft && selectedResource && selectedSlot ? (
+        <>
+          <ParticipantsSection
+            resourceName={selectedResource.name}
+            capacity={selectedResource.capacity}
+            participants={participants}
+            holderMemberId={profile?.memberId ?? null}
+            holderDni={profile?.dni ?? null}
+            onAdd={(participant) => {
+              setSubmitError(null);
+              setParticipants((current) => [...current, participant]);
+            }}
+            onRemove={(key) => {
+              setSubmitError(null);
+              setParticipants((current) => current.filter((item) => participantKey(item) !== key));
+            }}
+          />
+          <ReservationSummary
+            resource={selectedResource}
+            date={selectedDate}
+            slot={selectedSlot}
+            participants={participants}
+            notes={notes}
+            onNotesChange={setNotes}
+            isSubmitting={createMutation.isPending}
+            onConfirm={() => void confirm()}
+          />
+        </>
       ) : null}
     </div>
   );
