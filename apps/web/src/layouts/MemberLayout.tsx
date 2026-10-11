@@ -7,7 +7,8 @@ const MEMBER_LINKS = [
   { to: '/socio', label: 'Inicio', end: true },
   { to: '/socio/membresia', label: 'Membresía' },
   { to: '/socio/pagos', label: 'Pagos' },
-  { to: '/socio/reservas', label: 'Reservas' },
+  { to: '/socio/reservas', label: 'Reservas', end: true },
+  { to: '/socio/reservas/mias', label: 'Mis reservas' },
   { to: '/socio/notificaciones', label: 'Notificaciones' },
   { to: '/socio/perfil', label: 'Perfil' },
 ];

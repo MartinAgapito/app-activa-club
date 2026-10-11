@@ -77,6 +77,7 @@ sesión). Guard: `RequireRole allow={['member']}`.
 | `/socio/membresia`      | Estado de membresía                     | `GET /members/me`, `PATCH /members/me/auto-renew`                                                                                 | RN-PAG-01..03.                                                      |
 | `/socio/pagos`          | Pagos y renovación                      | `GET /memberships/plans`, `POST /payments`, `GET /payments`                                                                       | RN-PAG-04/07/08. Nunca se procesan datos de tarjeta en el frontend. |
 | `/socio/reservas`       | Reservas y calendario de disponibilidad | `GET /resources`, `GET /resources/{id}/availability`, `POST /reservations`, `GET /reservations`, `POST /reservations/{id}/cancel` | RN-RES-01..12. Ver §6 (restricción por deuda).                      |
+| `/socio/reservas/mias`  | Mis reservas (consultar y cancelar)     | `GET /reservations?scope=me`, `GET /reservations/{id}`, `POST /reservations/{id}/cancel`                                          | US-033, RN-RES-10 (cancelación hasta 24 h antes).                   |
 | `/socio/notificaciones` | Notificaciones                          | `GET /notifications`, `POST /notifications/{id}/read`                                                                             | RN-NOT-01.                                                          |
 | `/socio/perfil`         | Perfil                                  | `GET /members/me`, `PATCH /members/me`                                                                                            | —                                                                   |
 
@@ -165,6 +166,7 @@ vía `canReserve` en `GET /dashboard/member`.
 /socio/membresia               member    Estado de membresía
 /socio/pagos                   member    Pagos y renovación
 /socio/reservas                member    Reservas (incluye participantes/invitados en el flujo)
+/socio/reservas/mias           member    Mis reservas (consultar y cancelar)
 /socio/notificaciones          member    Notificaciones
 /socio/perfil                  member    Perfil
 
