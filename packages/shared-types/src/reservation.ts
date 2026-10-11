@@ -142,6 +142,26 @@ export interface ReservationDetail extends Reservation {
   participants: ReservationParticipant[];
 }
 
+/**
+ * Socio titular de una reserva, tal como lo ve el administrador en el listado
+ * `GET /reservations?scope=all` (US-036, criterio 8). Solo identificación
+ * mínima: nunca correo, teléfono ni DNI.
+ */
+export interface ReservationHolderSummary {
+  memberId: string;
+  firstName: string;
+  lastName: string;
+}
+
+/**
+ * Ítem del listado administrativo de reservas (`scope=all`): la cabecera más el
+ * socio titular. `holder` es `null` si el socio ya no se puede resolver. El
+ * listado `scope=me` sigue devolviendo `Reservation` a secas.
+ */
+export interface AdminReservationListItem extends Reservation {
+  holder: ReservationHolderSummary | null;
+}
+
 export interface RejectReservationRequest {
   reason: string;
 }

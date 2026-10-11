@@ -102,19 +102,20 @@ export const availabilityQuerySchema = z.object({
 
 // --- Administración de recursos ---
 
+// Hora local del club "HH:mm" (00:00-23:59). Solo estos cuatro campos son
+// editables en runtime (US-036, criterio 7); `.strict()` rechaza con 400 cualquier
+// otro (`blockMinutes`, `type`, `name`, `requiresApproval`), cuya fuente de
+// verdad es Terraform (ADR-0010).
+const clubTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
 export const updateResourceSchema = z
   .object({
     capacity: z.number().int().positive().optional(),
-    opensAt: z
-      .string()
-      .regex(/^\d{2}:\d{2}$/)
-      .optional(),
-    closesAt: z
-      .string()
-      .regex(/^\d{2}:\d{2}$/)
-      .optional(),
+    opensAt: clubTimeSchema.optional(),
+    closesAt: clubTimeSchema.optional(),
     resourceStatus: resourceStatusSchema.optional(),
   })
+  .strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Debe enviar al menos un campo a actualizar.',
   });

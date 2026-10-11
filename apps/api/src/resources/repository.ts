@@ -9,8 +9,13 @@
 // prefijo `RESOURCE#` en su `PK` (p. ej. `MaintenanceBlock`, §3.11, cuya
 // `SK` empieza con `MAINT#`).
 
-import { GetCommand, ScanCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import type { Resource } from '@activa-club/shared-types';
+import {
+  GetCommand,
+  ScanCommand,
+  UpdateCommand,
+  type DynamoDBDocumentClient,
+} from '@aws-sdk/lib-dynamodb';
+import type { Resource, UpdateResourceRequest } from '@activa-club/shared-types';
 
 import { keys, tableName } from '../lib/dynamo';
 
@@ -61,4 +66,50 @@ export async function getResourceById(
   // leído contra un esquema propio de acceso a datos antes de confiar en el
   // cast.
   return result.Item ? (result.Item as unknown as Resource) : undefined;
+}
+
+/**
+ * Actualiza solo los campos editables en runtime de un recurso (US-036,
+ * criterio 7: `capacity`, `opensAt`, `closesAt`, `resourceStatus`). Los nombres
+ * de atributo salen de una lista cerrada, nunca de las claves del llamante, así
+ * que ningún otro atributo (`blockMinutes`, `type`...) puede llegar a la
+ * expresión.
+ *
+ * `attribute_exists(PK)` evita que un `UpdateItem` sobre un `resourceId`
+ * inexistente cree un ítem fantasma (mismo cuidado que `UpdateItem` de socios).
+ * Devuelve el recurso completo tras el cambio, o `undefined` si no existe.
+ */
+const UPDATABLE_RESOURCE_FIELDS = ['capacity', 'opensAt', 'closesAt', 'resourceStatus'] as const;
+
+export async function updateResourceFields(
+  client: DynamoDBDocumentClient,
+  resourceId: string,
+  changes: UpdateResourceRequest,
+): Promise<Resource | undefined> {
+  const fields = UPDATABLE_RESOURCE_FIELDS.filter((field) => changes[field] !== undefined);
+  if (fields.length === 0) {
+    throw new Error('updateResourceFields requiere al menos un campo a actualizar.');
+  }
+
+  try {
+    const result = await client.send(
+      new UpdateCommand({
+        TableName: tableName(),
+        Key: keys.resource(resourceId),
+        UpdateExpression: `SET ${fields.map((field) => `#${field} = :${field}`).join(', ')}`,
+        ConditionExpression: 'attribute_exists(PK)',
+        ExpressionAttributeNames: Object.fromEntries(fields.map((field) => [`#${field}`, field])),
+        ExpressionAttributeValues: Object.fromEntries(
+          fields.map((field) => [`:${field}`, changes[field]]),
+        ),
+        ReturnValues: 'ALL_NEW',
+      }),
+    );
+    return result.Attributes ? (result.Attributes as unknown as Resource) : undefined;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
+      return undefined;
+    }
+    throw error;
+  }
 }

@@ -29,13 +29,29 @@ describe('POST /reservations/{reservationId}/cancel', () => {
     expect(cancelReservationMock).not.toHaveBeenCalled();
   });
 
-  it('un admin recibe 403 (cancelación administrativa es US-036, fuera de esta historia)', async () => {
+  it('un rol desconocido o sin grupo recibe 403 y no invoca al orquestador', async () => {
+    const result = await handler(buildEvent('res-1', { sub: 'otro-sub' }));
+
+    expect(result.statusCode).toBe(403);
+    expect(cancelReservationMock).not.toHaveBeenCalled();
+  });
+
+  it('US-036 criterio 10: un admin cancela y el orquestador recibe actorRole admin', async () => {
+    cancelReservationMock.mockResolvedValue({
+      reservationId: 'res-1',
+      reservationStatus: 'CANCELLED',
+    });
+
     const result = await handler(
       buildEvent('res-1', { sub: 'admin-sub', 'cognito:groups': '[admin]' }),
     );
 
-    expect(result.statusCode).toBe(403);
-    expect(cancelReservationMock).not.toHaveBeenCalled();
+    expect(result.statusCode).toBe(200);
+    expect(cancelReservationMock).toHaveBeenCalledWith({
+      cognitoSub: 'admin-sub',
+      reservationId: 'res-1',
+      actorRole: 'admin',
+    });
   });
 
   it('member: cancela sin necesitar cuerpo de solicitud y responde 200 con el resultado del contrato', async () => {
@@ -52,6 +68,7 @@ describe('POST /reservations/{reservationId}/cancel', () => {
     expect(cancelReservationMock).toHaveBeenCalledWith({
       cognitoSub: 'member-sub',
       reservationId: 'res-1',
+      actorRole: 'member',
     });
   });
 

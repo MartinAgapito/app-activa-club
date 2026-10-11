@@ -72,7 +72,7 @@ const HANDLERS = {
   // funcion a la vez (mismo patron ya usado para EP-03).
   'resources-list': 'handlers/resources/list.ts', // US-028 (implementado)
   'resources-availability': 'handlers/reservations/availability.ts', // US-029 (implementado)
-  'resources-update': 'handlers/not-implemented.ts', // US-036
+  'resources-update': 'handlers/resources/update.ts', // US-036
   'resources-maintenance-create': 'handlers/resources/maintenance-create.ts', // US-035
   'resources-maintenance-delete': 'handlers/resources/maintenance-delete.ts', // US-035
   'reservations-create': 'handlers/reservations/create.ts', // US-030/US-031 (implementado)

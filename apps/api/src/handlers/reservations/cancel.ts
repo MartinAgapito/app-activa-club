@@ -1,8 +1,7 @@
-// POST /reservations/{reservationId}/cancel — cancela una reserva propia
-// (docs/api/contratos-api.md §7, US-033, criterios 5-12, RN-RES-10). Solo
-// `member` por ahora: el contrato también admite `admin` en esta misma ruta
-// (cancelación sin la restricción de 24 horas), pero esa rama es US-036 y se
-// agrega ahí, no aquí (ver cabecera de `../../reservations/cancel.ts`).
+// POST /reservations/{reservationId}/cancel — cancela una reserva
+// (docs/api/contratos-api.md §7, US-033, RN-RES-10). `member` cancela su propia
+// reserva con la restricción de 24 horas; `admin` (US-036, criterio 10) puede
+// cancelar cualquier reserva sin ella (ver `../../reservations/cancel.ts`).
 //
 // Sin cuerpo de solicitud significativo (`cancelReservationSchema` en
 // `packages/validation` es `{}` opcional): no se parsea `event.body`, para no
@@ -20,11 +19,15 @@ async function handleCancelReservation(
   event: APIGatewayProxyWithCognitoAuthorizerEvent,
 ): Promise<APIGatewayProxyResult> {
   const identity = extractIdentity(event);
-  requireRole(identity, ['member']);
+  requireRole(identity, ['member', 'admin']);
 
   const reservationId = requireReservationIdPathParam(event);
 
-  const result = await cancelReservation({ cognitoSub: identity.sub, reservationId });
+  const result = await cancelReservation({
+    cognitoSub: identity.sub,
+    reservationId,
+    actorRole: identity.roles.includes('admin') ? 'admin' : 'member',
+  });
 
   return jsonResponse(200, result);
 }
