@@ -37,19 +37,23 @@ Además, EP-03 es el módulo donde el proyecto demuestra manejo responsable de m
 
 ## Historias asociadas
 
-| ID                                                                      | Título                                                          | Responsable                 | Depende de     |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------- | -------------- |
-| [US-019](../historias/US-019-provisionar-endpoints-membresias-pagos.md) | Provisionar endpoints e infraestructura de membresías y pagos   | DevOps                      | —              |
-| [US-020](../historias/US-020-consultar-planes-membresia.md)             | Consultar los planes de membresía disponibles                   | Backend + Frontend          | US-019         |
-| [US-021](../historias/US-021-cobro-membresia-idempotente-culqi.md)      | Cobrar la membresía con Culqi de forma idempotente y confirmada | Backend                     | US-019         |
-| [US-022](../historias/US-022-checkout-pago-membresia.md)                | Pagar la membresía desde la plataforma (checkout)               | Frontend                    | US-020, US-021 |
-| [US-023](../historias/US-023-renovacion-membresia-autorenovacion.md)    | Renovar la membresía y autorizar la renovación automática       | Backend + Frontend          | US-021, US-022 |
-| [US-024](../historias/US-024-webhook-confirmacion-culqi.md)             | Confirmar pagos mediante el webhook de Culqi                    | Backend                     | US-019, US-021 |
-| [US-025](../historias/US-025-historial-pagos.md)                        | Consultar el historial de pagos (socio y administrador)         | Backend + Frontend          | US-021         |
-| [US-026](../historias/US-026-manejo-seguro-datos-pago.md)               | Garantizar el manejo seguro de los datos de pago                | Backend + DevOps            | US-021, US-024 |
-| [US-037](../historias/US-037-migrar-pasarela-culqi-a-stripe.md)         | Migrar la pasarela de pagos de Culqi a Stripe (test mode)       | Backend + Frontend + DevOps | US-019..US-026 |
+| ID                                                                           | Título                                                          | Responsable                 | Depende de     |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------- | -------------- |
+| [US-019](../historias/US-019-provisionar-endpoints-membresias-pagos.md)      | Provisionar endpoints e infraestructura de membresías y pagos   | DevOps                      | —              |
+| [US-020](../historias/US-020-consultar-planes-membresia.md)                  | Consultar los planes de membresía disponibles                   | Backend + Frontend          | US-019         |
+| [US-021](../historias/US-021-cobro-membresia-idempotente-culqi.md)           | Cobrar la membresía con Culqi de forma idempotente y confirmada | Backend                     | US-019         |
+| [US-022](../historias/US-022-checkout-pago-membresia.md)                     | Pagar la membresía desde la plataforma (checkout)               | Frontend                    | US-020, US-021 |
+| [US-023](../historias/US-023-renovacion-membresia-autorenovacion.md)         | Renovar la membresía y autorizar la renovación automática       | Backend + Frontend          | US-021, US-022 |
+| [US-024](../historias/US-024-webhook-confirmacion-culqi.md)                  | Confirmar pagos mediante el webhook de Culqi                    | Backend                     | US-019, US-021 |
+| [US-025](../historias/US-025-historial-pagos.md)                             | Consultar el historial de pagos (socio y administrador)         | Backend + Frontend          | US-021         |
+| [US-026](../historias/US-026-manejo-seguro-datos-pago.md)                    | Garantizar el manejo seguro de los datos de pago                | Backend + DevOps            | US-021, US-024 |
+| [US-037](../historias/US-037-migrar-pasarela-culqi-a-stripe.md)              | Migrar la pasarela de pagos de Culqi a Stripe (test mode)       | Backend + Frontend + DevOps | US-019..US-026 |
+| [US-038](../historias/US-038-actualizar-estado-membresia-por-vencimiento.md) | Actualizar el estado de la membresía según su vencimiento       | Backend + DevOps            | US-021         |
+| [US-050](../historias/US-050-ver-mi-historial-pagos.md)                      | Ver mi historial de pagos en la plataforma                      | Frontend                    | US-025         |
 
 > US-037 es **deuda técnica arrastrada de esta épica**, planificada en el Sprint 3 (ver su sección "Ubicación en el backlog"): sin ella, ningún socio puede llegar a `ACTIVE` pagando y EP-03 queda funcionalmente abierta.
+>
+> US-038 y US-050 son **deuda técnica detectada al planificar EP-05..EP-07** (2026-10-11): ningún proceso recalcula `membershipStatus` cuando vence la membresía (un socio vencido sigue pudiendo reservar), y la pantalla del historial de pagos del socio que especificó US-025 nunca se construyó. Se planifican en los Sprints 4 y 5. La épica sigue figurando como cerrada porque su alcance original se entregó; estas dos historias corrigen huecos, no agregan alcance.
 
 ## Criterios de aceptación de la épica
 
@@ -86,3 +90,4 @@ La matriz de alcance §3 clasifica como MVP la "renovación automática opcional
 ## Historial de cambios
 
 - 2026-08-09: Creación de la épica EP-03 y asociación de las historias del Sprint 2 (US-019..US-026).
+- 2026-10-11: Asociación de US-038 (vencimiento de membresía) y US-050 (pantalla de historial de pagos del socio) como deuda técnica, planificadas en los Sprints 4 y 5.
