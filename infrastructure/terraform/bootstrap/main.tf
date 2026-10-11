@@ -302,6 +302,10 @@ data "aws_iam_policy_document" "github_actions_plan_permissions" {
       "cloudwatch:DescribeAlarms",
       "cloudwatch:GetMetricData",
       "cloudwatch:ListTagsForResource",
+      # US-038: reglas de EventBridge del job programado de vencimiento.
+      "events:DescribeRule",
+      "events:ListTargetsByRule",
+      "events:ListTagsForResource",
     ]
     resources = ["*"]
   }
@@ -544,6 +548,31 @@ data "aws_iam_policy_document" "github_actions_deploy_dev_permissions" {
     ]
     resources = [
       "arn:aws:lambda:*:${data.aws_caller_identity.current.account_id}:function:${local.dev_name_prefix}-*",
+    ]
+  }
+
+  # US-038: reglas de EventBridge que disparan el job programado de
+  # vencimiento de membresías (modules/scheduled-job). Acotado al prefijo del
+  # entorno dev; sin permisos sobre reglas de otros entornos ni sobre buses
+  # de eventos personalizados.
+  statement {
+    sid    = "ManageDevEventBridgeRules"
+    effect = "Allow"
+    actions = [
+      "events:PutRule",
+      "events:DeleteRule",
+      "events:DescribeRule",
+      "events:EnableRule",
+      "events:DisableRule",
+      "events:PutTargets",
+      "events:RemoveTargets",
+      "events:ListTargetsByRule",
+      "events:ListTagsForResource",
+      "events:TagResource",
+      "events:UntagResource",
+    ]
+    resources = [
+      "arn:aws:events:*:${data.aws_caller_identity.current.account_id}:rule/${local.dev_name_prefix}-*",
     ]
   }
 
