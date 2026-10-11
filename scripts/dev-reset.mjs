@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-console -- script de CLI: la salida por consola es su interfaz. */
 // Reinicia los DATOS del entorno `dev` dejando el catálogo de instalaciones.
 //
 // Qué hace (en este orden):
