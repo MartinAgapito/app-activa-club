@@ -1,0 +1,60 @@
+{
+  "version": "1",
+  "exportedAt": "2026-10-11T00:00:00Z",
+  "socios": [
+    {
+      "legacyId": "SOC-PRUEBA-001",
+      "dni": "10000001",
+      "nombres": "Ana",
+      "apellidos": "Torres Vega",
+      "email": "ana.torres.prueba@example.com",
+      "telefono": "999000001",
+      "membresia": { "tipo": "ANNUAL", "inicio": "2026-01-15", "fin": "2027-01-15", "estadoLegado": "ACTIVA" },
+      "saldoPendiente": 0
+    },
+    {
+      "legacyId": "SOC-PRUEBA-002",
+      "dni": "10000002",
+      "nombres": "Luis",
+      "apellidos": "Ramírez Paz",
+      "email": "luis.ramirez.prueba@example.com",
+      "membresia": { "tipo": "MONTHLY", "inicio": "2026-09-10", "fin": "2026-11-10", "estadoLegado": "ACTIVA" },
+      "saldoPendiente": 5000
+    },
+    {
+      "legacyId": "SOC-PRUEBA-003",
+      "dni": "10000003",
+      "nombres": "Carla",
+      "apellidos": "Núñez Solís",
+      "email": "carla.nunez.prueba@example.com",
+      "membresia": { "tipo": "MONTHLY", "inicio": "2026-09-15", "fin": "2026-10-15", "estadoLegado": "ACTIVA" },
+      "saldoPendiente": 0
+    },
+    {
+      "legacyId": "SOC-PRUEBA-004",
+      "dni": "10000004",
+      "nombres": "Diego",
+      "apellidos": "Flores Reyes",
+      "email": "diego.flores.prueba@example.com",
+      "membresia": { "tipo": "MONTHLY", "inicio": "2026-08-01", "fin": "2026-09-01", "estadoLegado": "VENCIDA" },
+      "saldoPendiente": 0
+    },
+    {
+      "legacyId": "SOC-PRUEBA-005",
+      "dni": "10000005",
+      "nombres": "Eva",
+      "apellidos": "Castro Lima",
+      "email": "eva.castro.prueba@example.com",
+      "membresia": { "tipo": "ANNUAL", "inicio": "2026-05-01", "fin": "2027-05-01", "estadoLegado": "ACTIVA" },
+      "saldoPendiente": 0
+    },
+    {
+      "legacyId": "SOC-PRUEBA-006",
+      "dni": "10000006",
+      "nombres": "Sin Correo",
+      "apellidos": "Prueba",
+      "membresia": { "tipo": "MONTHLY", "inicio": "2026-09-01", "fin": "2026-11-01", "estadoLegado": "ACTIVA" },
+      "saldoPendiente": 0
+    }
+  ]
+}

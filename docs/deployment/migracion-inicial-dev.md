@@ -26,147 +26,49 @@ y el contrato `POST /admin/migration/run` en
 | User Pool / Client | `us-east-1_qTDbzVP5a` / `602agaeln1fltp67qbkkkao9a5`            |
 | Rol requerido      | `admin` (usuario `admin@activaclub.test`)                       |
 
+## Archivos del procedimiento (dentro del repo)
+
+| Archivo                                                                                    | Para qué sirve                                            |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| [`mock-data/legacy-export.json`](../../mock-data/legacy-export.json)                       | Datos ficticios de socios. Se sube **tal cual** a S3.     |
+| [`mock-data/migration-run.test-event.json`](../../mock-data/migration-run.test-event.json) | Evento de prueba para disparar la migración desde Lambda. |
+
+El archivo ya se llama `legacy-export.json`, que es el nombre exacto que lee el
+handler. Un caso por socio:
+
+| DNI      | Socio | Situación                | Resultado esperado               |
+| -------- | ----- | ------------------------ | -------------------------------- |
+| 10000001 | Ana   | Anual vigente, sin deuda | `ACTIVE`                         |
+| 10000002 | Luis  | Saldo pendiente de S/ 50 | `DEBT`                           |
+| 10000003 | Carla | Vence en 7 días o menos  | `EXPIRING_SOON`                  |
+| 10000004 | Diego | Venció                   | `EXPIRED`                        |
+| 10000005 | Eva   | Anual vigente, sin deuda | `ACTIVE`                         |
+| 10000006 | —     | Sin correo               | **Rechazado** sin frenar el lote |
+
+Si el procedimiento se repite en otra fecha, ajustar las fechas de Carla (que
+venza en 7 días o menos) y de Diego (que `fin` sea anterior a hoy). Luis tiene
+deuda, así que su estado es `DEBT` sin importar la fecha.
+
 ## Precondiciones
 
-1. Perfil AWS configurado: `export AWS_PROFILE=activa-club-dev AWS_DEFAULT_REGION=us-east-1`.
-2. Tabla `activa-club-dev` sin socios (solo los 10 ítems `METADATA`). Si hay datos
-   de pruebas anteriores, limpiarlos antes (ver "Reiniciar el entorno").
-3. Contraseña del usuario admin. **No se comparte ni se versiona.**
+1. Tabla `activa-club-dev` sin socios: solo los 10 ítems `METADATA` del
+   catálogo. Si hay datos anteriores, ver "Reiniciar el entorno".
+2. Acceso a la consola de AWS de la cuenta `463310123916`, región `us-east-1`.
 
-## Paso 1. Crear el archivo `legacy-export.json`
+## Paso 1. Subir el archivo (consola de S3)
 
-Datos 100 % ficticios, un caso por socio. Guardar con ese nombre exacto:
+1. **S3** → bucket **`activa-club-dev-migration`** → **Upload** → **Add files**.
+2. Elegir `mock-data/legacy-export.json` (el nombre no debe cambiar).
+3. **Upload** y confirmar que el objeto aparece en la lista.
 
-```json
-{
-  "version": "1",
-  "exportedAt": "2026-10-11T00:00:00Z",
-  "socios": [
-    {
-      "legacyId": "SOC-PRUEBA-001",
-      "dni": "10000001",
-      "nombres": "Ana",
-      "apellidos": "Torres Vega",
-      "email": "ana.torres.prueba@example.com",
-      "telefono": "999000001",
-      "membresia": {
-        "tipo": "ANNUAL",
-        "inicio": "2026-01-15",
-        "fin": "2027-01-15",
-        "estadoLegado": "ACTIVA"
-      },
-      "saldoPendiente": 0
-    },
-    {
-      "legacyId": "SOC-PRUEBA-002",
-      "dni": "10000002",
-      "nombres": "Luis",
-      "apellidos": "Ramírez Paz",
-      "email": "luis.ramirez.prueba@example.com",
-      "membresia": {
-        "tipo": "MONTHLY",
-        "inicio": "2026-09-10",
-        "fin": "2026-11-10",
-        "estadoLegado": "ACTIVA"
-      },
-      "saldoPendiente": 5000
-    },
-    {
-      "legacyId": "SOC-PRUEBA-003",
-      "dni": "10000003",
-      "nombres": "Carla",
-      "apellidos": "Núñez Solís",
-      "email": "carla.nunez.prueba@example.com",
-      "membresia": {
-        "tipo": "MONTHLY",
-        "inicio": "2026-09-15",
-        "fin": "2026-10-15",
-        "estadoLegado": "ACTIVA"
-      },
-      "saldoPendiente": 0
-    },
-    {
-      "legacyId": "SOC-PRUEBA-004",
-      "dni": "10000004",
-      "nombres": "Diego",
-      "apellidos": "Flores Reyes",
-      "email": "diego.flores.prueba@example.com",
-      "membresia": {
-        "tipo": "MONTHLY",
-        "inicio": "2026-08-01",
-        "fin": "2026-09-01",
-        "estadoLegado": "VENCIDA"
-      },
-      "saldoPendiente": 0
-    },
-    {
-      "legacyId": "SOC-PRUEBA-005",
-      "dni": "10000005",
-      "nombres": "Eva",
-      "apellidos": "Castro Lima",
-      "email": "eva.castro.prueba@example.com",
-      "membresia": {
-        "tipo": "ANNUAL",
-        "inicio": "2026-05-01",
-        "fin": "2027-05-01",
-        "estadoLegado": "ACTIVA"
-      },
-      "saldoPendiente": 0
-    },
-    {
-      "legacyId": "SOC-PRUEBA-006",
-      "dni": "10000006",
-      "nombres": "Sin Correo",
-      "apellidos": "Prueba",
-      "membresia": {
-        "tipo": "MONTHLY",
-        "inicio": "2026-09-01",
-        "fin": "2026-11-01",
-        "estadoLegado": "ACTIVA"
-      },
-      "saldoPendiente": 0
-    }
-  ]
-}
-```
+## Paso 2. Ejecutar la migración (consola de Lambda)
 
-Si se repite el procedimiento en otra fecha, ajustar las fechas a "hoy": Carla
-debe vencer en 7 días o menos (para `EXPIRING_SOON`) y Diego debe tener `fin`
-anterior a hoy (para `EXPIRED`). Luis tiene deuda, así que su estado es `DEBT`
-sin importar la fecha.
+1. **Lambda** → función **`activa-club-dev-admin-migration-run`** → pestaña **Test**.
+2. Crear un evento de prueba (por ejemplo `migrar-dev`) y pegar el contenido de
+   `mock-data/migration-run.test-event.json`.
+3. Pulsar **Test**.
 
-## Paso 2. Subir el archivo al bucket
-
-```bash
-aws s3 cp legacy-export.json s3://activa-club-dev-migration/legacy-export.json
-aws s3 ls s3://activa-club-dev-migration/
-```
-
-Esperado: el objeto aparece listado.
-
-## Paso 3. Obtener el token del admin
-
-```bash
-aws cognito-idp initiate-auth \
-  --client-id 602agaeln1fltp67qbkkkao9a5 \
-  --auth-flow USER_PASSWORD_AUTH \
-  --auth-parameters USERNAME=admin@activaclub.test,PASSWORD='<contraseña>' \
-  --query 'AuthenticationResult.IdToken' --output text
-```
-
-El `IdToken` dura 1 hora. Guardarlo en una variable de la sesión (`TOKEN=...`);
-no pegarlo en chats, tickets ni commits. Alternativa: iniciar sesión en la web
-como admin y copiar el token desde las herramientas del navegador.
-
-## Paso 4. Ejecutar la migración
-
-```bash
-curl -s -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  https://tsbus7d8pe.execute-api.us-east-1.amazonaws.com/dev/admin/migration/run
-```
-
-Esperado: HTTP `202` con el resumen:
+Esperado: `statusCode` `202` y, dentro de `body`:
 
 ```json
 {
@@ -179,32 +81,34 @@ Esperado: HTTP `202` con el resumen:
 }
 ```
 
-| Respuesta | Causa probable                                                     |
-| --------- | ------------------------------------------------------------------ |
-| `401`     | Token vencido o mal copiado: repetir el paso 3.                    |
-| `403`     | El usuario no pertenece al grupo `admin`.                          |
-| `400`     | El objeto no es JSON válido o no se llama `legacy-export.json`.    |
-| `5xx`     | Revisar el log group de la Lambda de migración en CloudWatch Logs. |
+| Resultado         | Causa probable                                                  |
+| ----------------- | --------------------------------------------------------------- |
+| `403`             | El evento de prueba no trae `"cognito:groups": "[admin]"`.      |
+| `400`             | El objeto no es JSON válido o no se llama `legacy-export.json`. |
+| Error `NoSuchKey` | El archivo no está en el bucket `activa-club-dev-migration`.    |
+| Otro error        | Revisar el log group de la Lambda en CloudWatch Logs.           |
 
-## Paso 5. Verificar
+### Qué prueba y qué no esta vía
 
-```bash
-aws dynamodb scan --table-name activa-club-dev \
-  --filter-expression "SK = :s" --expression-attribute-values '{":s":{"S":"PROFILE"}}' \
-  --projection-expression "dni,memberStatus,membershipStatus,outstandingBalance" --output table
-```
+El evento de prueba invoca la Lambda directamente, sin pasar por API Gateway.
+Prueba la lógica de migración, pero **no** el authorizer de Cognito ni el
+rechazo con `403` a un usuario sin rol `admin` (eso se verifica en el E2E). El
+`AuditLog` queda con el actor `admin-consola-dev`.
 
-Esperado (5 filas, `memberStatus = MIGRATED`):
+Vía alternativa por API (con token real del admin):
+`POST https://tsbus7d8pe.execute-api.us-east-1.amazonaws.com/dev/admin/migration/run`
+con `Authorization: Bearer <IdToken>` (grupo `admin`). El `IdToken` se obtiene
+iniciando sesión en la web como `admin@activaclub.test`; no se versiona ni se
+comparte.
 
-| DNI      | membershipStatus |
-| -------- | ---------------- |
-| 10000001 | `ACTIVE`         |
-| 10000002 | `DEBT`           |
-| 10000003 | `EXPIRING_SOON`  |
-| 10000004 | `EXPIRED`        |
-| 10000005 | `ACTIVE`         |
+## Paso 3. Verificar
 
-El DNI `10000006` no debe aparecer (rechazado por falta de correo).
+Esperado en DynamoDB (consola → tabla `activa-club-dev` → **Explore items**,
+filtrando `SK = PROFILE`): 5 fichas de socio con `memberStatus = MIGRATED`.
+En total la tabla debe tener 31 ítems: 10 del catálogo, 20 de los 5 socios
+(ficha, período, `UniqueDni` y `UniqueEmail` por socio) y 1 de auditoría.
+
+El DNI `10000006` no debe aparecer.
 
 ## Idempotencia
 
@@ -231,6 +135,6 @@ existe su usuario en Cognito. Los casos de prueba están en la
 ## Qué NO hacer
 
 - No subir datos reales de socios: el entorno `dev` usa solo datos ficticios.
-- No versionar tokens, contraseñas ni el archivo con datos reales.
+- No versionar tokens ni contraseñas. El JSON del repo es solo de datos ficticios.
 - No ejecutar este procedimiento contra `prd` sin la aprobación del GitHub
   Environment `prd`.
