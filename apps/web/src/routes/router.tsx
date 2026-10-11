@@ -23,6 +23,7 @@ import { MembershipPage } from '../pages/member/MembershipPage';
 import { CheckoutPage } from '../pages/member/CheckoutPage';
 import { PaymentsPage } from '../pages/member/PaymentsPage';
 import { ReservationsPage } from '../pages/member/ReservationsPage';
+import { MyReservationsPage } from '../pages/member/MyReservationsPage';
 import { NotificationsPage } from '../pages/member/NotificationsPage';
 import { ProfilePage } from '../pages/member/ProfilePage';
 
@@ -80,6 +81,7 @@ const routes: RouteObject[] = [
               { path: '/socio/membresia', element: <MembershipPage /> },
               { path: '/socio/pagos', element: <PaymentsPage /> },
               { path: '/socio/reservas', element: <ReservationsPage /> },
+              { path: '/socio/reservas/mias', element: <MyReservationsPage /> },
               { path: '/socio/notificaciones', element: <NotificationsPage /> },
               { path: '/socio/perfil', element: <ProfilePage /> },
             ],

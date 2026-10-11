@@ -55,6 +55,14 @@ export function formatTimeRangeInLima(startsAt: string, endsAt: string): string 
   return `${formatTimeInLima(startsAt)} – ${formatTimeInLima(endsAt)}`;
 }
 
+/** Día completo de un instante UTC en hora del club, p. ej. "miércoles, 12 de
+ * agosto de 2026" (una franja nocturna cae en otro día en UTC, no en Lima). */
+export function formatDateInLima(iso: string): string {
+  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'full', timeZone: 'America/Lima' }).format(
+    new Date(iso),
+  );
+}
+
 /** Suma minutos a una hora `HH:mm` y devuelve el resultado en el mismo
  * formato (usado para generar franjas desde `opensAt` hasta `closesAt`). */
 export function addMinutesToTime(hhmm: string, minutesToAdd: number): string {

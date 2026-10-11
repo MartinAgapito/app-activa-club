@@ -215,9 +215,14 @@ export function ReservationResult({
             </dd>
           </div>
         </dl>
-        <Button type="button" variant="secondary" onClick={onNewReservation}>
-          Hacer otra reserva
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link to="/socio/reservas/mias" className={buttonVariants({ variant: 'primary' })}>
+            Ver mis reservas
+          </Link>
+          <Button type="button" variant="secondary" onClick={onNewReservation}>
+            Hacer otra reserva
+          </Button>
+        </div>
       </div>
     </Card>
   );

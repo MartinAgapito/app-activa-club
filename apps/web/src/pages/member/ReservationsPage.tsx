@@ -171,6 +171,11 @@ export function ReservationsPage() {
       <PageHeader
         title="Reservas"
         description="Elige una instalación, un día y un horario, agrega a tus acompañantes y confirma tu reserva."
+        actions={
+          <Link to="/socio/reservas/mias" className={buttonVariants({ variant: 'secondary' })}>
+            Mis reservas
+          </Link>
+        }
       />
 
       {block ? (
