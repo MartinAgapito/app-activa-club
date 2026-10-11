@@ -50,12 +50,12 @@ ese documento.
 | EP-06 | Administración                        | Planificada |
 | EP-07 | Dashboards y analytics                | Planificada |
 
-**EP-04, detalle.** Backend implementado y probado: catálogo, disponibilidad,
-crear reserva (con candado de concurrencia y participantes), consultar y
-cancelar, aprobar o rechazar. Pendientes: pantalla de reserva (US-032),
-mantenimiento de recursos (US-035), gestión administrativa (US-036) y
-verificación E2E. Detalle por historia en [`docs/scrum/`](docs/scrum/README.md)
-y casos de prueba en
+**EP-04, detalle.** Las diez historias están implementadas, con backend y
+pantallas: catálogo, disponibilidad, crear reserva (con candado de
+concurrencia y participantes), Mis reservas, cancelar, aprobar o rechazar,
+mantenimiento y gestión de recursos. Pendiente: la verificación extremo a
+extremo contra `dev` (Ola 6). Detalle por historia en
+[`docs/scrum/`](docs/scrum/README.md) y casos de prueba en
 [`docs/testing/matriz-trazabilidad.md`](docs/testing/matriz-trazabilidad.md).
 
 ## Mapa del proyecto (interactivo)
@@ -123,13 +123,13 @@ Configuración: `index.html` (entrada), `vite.config.ts` (Vite + Tailwind v4),
 <details>
 <summary><code>src/pages/</code> — pantallas</summary>
 
-| Carpeta   | Pantallas                                                                                                                                                                                                                                             |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `public/` | `HomePage`, `LoginPage`, `RegisterPage`, `ActivationPage`, `ForgotPasswordPage`, `VerifyEmailPage` (placeholder).                                                                                                                                     |
-| `member/` | `ProfilePage`, `MembershipPage`, `CheckoutPage`, `ReservationsPage` (catálogo y disponibilidad). `MemberDashboardPage`, `PaymentsPage` y `NotificationsPage` son placeholders.                                                                        |
-| `admin/`  | `PendingRequestsPage` (aprobar o rechazar socios). El resto (`AdminDashboardPage`, `MembersManagementPage`, `MembershipsAdminPage`, `ReservationsAdminPage`, `ResourcesMaintenancePage`, `NotificationsAdminPage`, `AnalyticsPage`) son placeholders. |
-| `shared/` | `ForbiddenPage`, `NotFoundPage`, `PendingApprovalPage`.                                                                                                                                                                                               |
-| `dev/`    | `DesignSystemPage`: referencia interna, solo en modo desarrollo.                                                                                                                                                                                      |
+| Carpeta   | Pantallas                                                                                                                                                                                                                                                                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `public/` | `HomePage`, `LoginPage`, `RegisterPage`, `ActivationPage`, `ForgotPasswordPage`, `VerifyEmailPage` (placeholder).                                                                                                                                                                                                                                 |
+| `member/` | `ProfilePage`, `MembershipPage`, `CheckoutPage`, `ReservationsPage` (reservar con participantes), `MyReservationsPage` (listar y cancelar). `MemberDashboardPage`, `PaymentsPage` y `NotificationsPage` son placeholders.                                                                                                                         |
+| `admin/`  | `PendingRequestsPage` (aprobar o rechazar socios), `ReservationsAdminPage` (bandeja de pendientes y todas las reservas) y `ResourcesMaintenancePage` (editar recursos y bloqueos de mantenimiento). El resto (`AdminDashboardPage`, `MembersManagementPage`, `MembershipsAdminPage`, `NotificationsAdminPage`, `AnalyticsPage`) son placeholders. |
+| `shared/` | `ForbiddenPage`, `NotFoundPage`, `PendingApprovalPage`.                                                                                                                                                                                                                                                                                           |
+| `dev/`    | `DesignSystemPage`: referencia interna, solo en modo desarrollo.                                                                                                                                                                                                                                                                                  |
 
 </details>
 
@@ -198,12 +198,12 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `members/`           | `GET/PATCH /members/me`, `PATCH /members/me/auto-renew`, `GET /members`, `GET /members/{id}`, `POST …/approve`, `POST …/reject`, `GET /members/lookup`. |
 | `memberships/`       | `GET /memberships/plans`.                                                                                                                               |
 | `payments/`          | `POST /payments`, `GET /payments`, `GET /payments/{id}`, `POST /payments/webhook`.                                                                      |
-| `resources/`         | `GET /resources`.                                                                                                                                       |
+| `resources/`         | `GET /resources`, `PATCH /resources/{id}`, `POST/GET /resources/{id}/maintenance`, `DELETE /resources/{id}/maintenance/{blockId}`.                      |
 | `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`.                                                                           |
 | `guests/`            | `GET /guests/lookup`.                                                                                                                                   |
 | `admin/`             | `POST /admin/migration/run`.                                                                                                                            |
 | `health/`            | `GET /health`.                                                                                                                                          |
-| `not-implemented.ts` | Placeholder de endpoints cuya historia aún no se implementa (mantenimiento y gestión de recursos).                                                      |
+| `not-implemented.ts` | Placeholder histórico para endpoints sin implementar. Hoy ningún endpoint lo usa.                                                                       |
 
 </details>
 
@@ -247,23 +247,25 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 <details>
 <summary><code>src/reservations/</code> y <code>resources/</code> — reservas (EP-04)</summary>
 
-| Archivo                    | Para qué sirve                                                                     |
-| -------------------------- | ---------------------------------------------------------------------------------- |
-| `create.ts`                | Crear reserva: elegibilidad, horario, mantenimiento, cruces, aforo, participantes. |
-| `availability.ts`          | Franjas del día con su estado (libre, reservada, mantenimiento, pasada).           |
-| `list.ts` / `get-by-id.ts` | Listado paginado y detalle de reservas.                                            |
-| `cancel.ts`                | Cancelación con regla de 24 horas y devolución del cupo de invitado.               |
-| `approve.ts` / `reject.ts` | Decisión administrativa de parrillas y salón social.                               |
-| `repository.ts`            | Acceso a datos, candado de concurrencia y escrituras atómicas.                     |
-| `slots.ts`                 | Genera las franjas horarias y resuelve su estado.                                  |
-| `overlap.ts`               | Cálculo de solapamiento entre intervalos.                                          |
-| `time.ts`                  | Conversión entre hora de Lima y UTC.                                               |
-| `reservation-window.ts`    | Calcula `endsAt` a partir de `startsAt` y la duración del bloque.                  |
-| `reservation-status.ts`    | Qué estados cuentan como "activos" para cruces.                                    |
-| `cancellation.ts`          | Regla pura de las 24 horas.                                                        |
-| `guest-month.ts`           | Mes calendario del contador de invitado.                                           |
-| `resources/repository.ts`  | Acceso al catálogo de instalaciones.                                               |
-| `guests/lookup.ts`         | Resolver un invitado externo por DNI.                                              |
+| Archivo                                                  | Para qué sirve                                                                     |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `create.ts`                                              | Crear reserva: elegibilidad, horario, mantenimiento, cruces, aforo, participantes. |
+| `availability.ts`                                        | Franjas del día con su estado (libre, reservada, mantenimiento, pasada).           |
+| `list.ts` / `get-by-id.ts`                               | Listado paginado y detalle de reservas.                                            |
+| `cancel.ts`                                              | Cancelación con regla de 24 horas y devolución del cupo de invitado.               |
+| `approve.ts` / `reject.ts`                               | Decisión administrativa de parrillas y salón social.                               |
+| `repository.ts`                                          | Acceso a datos, candado de concurrencia y escrituras atómicas.                     |
+| `slots.ts`                                               | Genera las franjas horarias y resuelve su estado.                                  |
+| `overlap.ts`                                             | Cálculo de solapamiento entre intervalos.                                          |
+| `time.ts`                                                | Conversión entre hora de Lima y UTC.                                               |
+| `reservation-window.ts`                                  | Calcula `endsAt` a partir de `startsAt` y la duración del bloque.                  |
+| `reservation-status.ts`                                  | Qué estados cuentan como "activos" para cruces.                                    |
+| `cancellation.ts`                                        | Regla pura de las 24 horas.                                                        |
+| `guest-month.ts`                                         | Mes calendario del contador de invitado.                                           |
+| `resources/repository.ts`                                | Acceso al catálogo de instalaciones y edición de aforo, horario y estado.          |
+| `resources/update.ts`                                    | Editar un recurso (solo aforo, horario y estado) con auditoría.                    |
+| `resources/maintenance.ts` / `maintenance-repository.ts` | Crear, listar y liberar bloqueos de mantenimiento.                                 |
+| `guests/lookup.ts`                                       | Resolver un invitado externo por DNI.                                              |
 
 </details>
 
