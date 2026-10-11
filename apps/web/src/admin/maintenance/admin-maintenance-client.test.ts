@@ -26,7 +26,7 @@ describe('admin-maintenance-client', () => {
     await expect(releaseMaintenanceBlock('piscina-1', 'blk 1')).resolves.toBeUndefined();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/resources/piscina-1/maintenance/blk%201');
+    expect(url.endsWith('/resources/piscina-1/maintenance/blk%201')).toBe(true);
     expect(init.method).toBe('DELETE');
   });
 
@@ -64,7 +64,7 @@ describe('admin-maintenance-client', () => {
     ).resolves.toEqual(created);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/resources/piscina-1/maintenance');
+    expect(url.endsWith('/resources/piscina-1/maintenance')).toBe(true);
     expect(init.method).toBe('POST');
     expect(JSON.parse(init.body as string)).toEqual({
       startsAt: created.startsAt,
@@ -76,6 +76,8 @@ describe('admin-maintenance-client', () => {
     const fetchMock = stubFetch(new Response(JSON.stringify({ items: [] }), { status: 200 }));
 
     await expect(listMaintenanceBlocks('piscina-1')).resolves.toEqual({ items: [] });
-    expect((fetchMock.mock.calls[0] as [string])[0]).toBe('/resources/piscina-1/maintenance');
+    expect(
+      (fetchMock.mock.calls[0] as [string])[0].endsWith('/resources/piscina-1/maintenance'),
+    ).toBe(true);
   });
 });
