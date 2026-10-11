@@ -8,11 +8,11 @@ import { PutCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { ulid } from 'ulid';
 import type { z } from 'zod';
 import type {
+  AuditActorRole,
   AuditLog,
   LegacyMember,
   MigrationRejectedItem,
   MigrationResult,
-  Role,
 } from '@activa-club/shared-types';
 import { legacyExportEnvelopeSchema, legacyMemberSchema } from '@activa-club/validation';
 
@@ -24,13 +24,13 @@ import { writeMigratedMember } from './repository';
 
 export interface MigrationActor {
   actorId: string;
-  actorRole: Role;
+  actorRole: AuditActorRole;
 }
 
 export interface RunMigrationInput {
   /** Lee el JSON crudo desde su origen (S3 en producción; inyectable en pruebas). */
   readSource: () => Promise<unknown>;
-  /** Quién dispara la migración, para la auditoría (admin autenticado o `SYSTEM`). */
+  /** Quién dispara la migración, para la auditoría (operador de la invocación directa, `system`; ADR-0012). */
   actor: MigrationActor;
   /** Cliente DynamoDB inyectable; por defecto el singleton compartido (`lib/dynamo`). */
   client?: DynamoDBDocumentClient;

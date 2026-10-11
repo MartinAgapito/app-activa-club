@@ -65,8 +65,9 @@ variable "source_zip_path" {
 }
 
 variable "schedule_expression" {
-  description = "Expresión de EventBridge (cron/rate). Las reglas programadas evalúan cron SIEMPRE en UTC: el llamante convierte la hora de America/Lima (UTC-5, sin horario de verano)."
+  description = "Expresión de EventBridge (cron/rate). Las reglas programadas evalúan cron SIEMPRE en UTC: el llamante convierte la hora de America/Lima (UTC-5, sin horario de verano). null = Lambda de invocación directa, sin regla/target/permiso de EventBridge."
   type        = string
+  default     = null
 }
 
 variable "schedule_enabled" {

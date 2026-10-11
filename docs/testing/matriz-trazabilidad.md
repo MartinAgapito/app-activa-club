@@ -30,13 +30,22 @@
 
 ## 1. Migración (RN-MIG) — [EP-02](../scrum/epicas/EP-02-migracion-activacion-acceso.md), Sprint 1 (cerrado)
 
-| #    | Caso de prueba                                                                                                                         | Regla(s)           | Endpoint(s)                 | Tipo   | Severidad  | Estado |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | --------------------------- | ------ | ---------- | ------ |
-| M-01 | La migración carga socios, membresías, saldo pendiente resumido y estado legado desde el JSON mock hacia DynamoDB                      | RN-MIG-01/02/03/06 | `POST /admin/migration/run` | IA     | Bloqueante | Pasa   |
-| M-02 | La migración NO trae pagos históricos detallados ni reservas históricas                                                                | RN-MIG-04          | `POST /admin/migration/run` | IA     | Alta       | Pasa   |
-| M-03 | Cada socio migrado conserva su `legacyId` para trazabilidad                                                                            | RN-MIG-05          | `POST /admin/migration/run` | U + IA | Media      | Pasa   |
-| M-04 | Tras migrar, las lecturas de socio provienen de DynamoDB, no del JSON origen                                                           | RN-MIG-06          | `GET /members/{memberId}`   | IA     | Alta       | Pasa   |
-| M-05 | Reintentar la migración no duplica socios (idempotencia de la carga, incluido el caso de dos socios con el mismo DNI en un mismo lote) | RN-MIG-02/03       | `POST /admin/migration/run` | IA     | Alta       | Pasa   |
+| #    | Caso de prueba                                                                                                                         | Regla(s)           | Endpoint(s)               | Tipo   | Severidad  | Estado |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------- | ------ | ---------- | ------ |
+| M-01 | La migración carga socios, membresías, saldo pendiente resumido y estado legado desde el JSON mock hacia DynamoDB                      | RN-MIG-01/02/03/06 | Lambda `migration-run`    | IA     | Bloqueante | Pasa   |
+| M-02 | La migración NO trae pagos históricos detallados ni reservas históricas                                                                | RN-MIG-04          | Lambda `migration-run`    | IA     | Alta       | Pasa   |
+| M-03 | Cada socio migrado conserva su `legacyId` para trazabilidad                                                                            | RN-MIG-05          | Lambda `migration-run`    | U + IA | Media      | Pasa   |
+| M-04 | Tras migrar, las lecturas de socio provienen de DynamoDB, no del JSON origen                                                           | RN-MIG-06          | `GET /members/{memberId}` | IA     | Alta       | Pasa   |
+| M-05 | Reintentar la migración no duplica socios (idempotencia de la carga, incluido el caso de dos socios con el mismo DNI en un mismo lote) | RN-MIG-02/03       | Lambda `migration-run`    | IA     | Alta       | Pasa   |
+
+**Cómo se dispara (M-01, M-02, M-03, M-05)**: la carga inicial es una Lambda de
+invocación directa (consola de Lambda con evento `{}` o `aws lambda invoke`,
+sin payload ni API Gateway; [ADR-0012](../architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)). La autorización ya no es el rol `admin`
+de la aplicación sino IAM (`lambda:InvokeFunction`): el antiguo caso "un
+no-admin recibe `403`" deja de aplicar y se reemplaza por "solo identidades IAM
+con `lambda:InvokeFunction` pueden ejecutarla" (verificación manual en el
+runbook; sin endpoint HTTP que probar). La auditoría `MIGRATION_RUN` registra
+`actorRole = system`.
 
 ## 2. Activación y registro (RN-ACT) — [EP-02](../scrum/epicas/EP-02-migracion-activacion-acceso.md), Sprint 1 (cerrado; A-11/A-15 dependen de EP-03/EP-04, todavía futuras)
 
@@ -208,3 +217,4 @@ nuevos que surjan de criterios de aceptación más detallados.
 - 2026-10-10: Sección 4 (Reservas): los casos R-01..R-16, R-18, R-19 y R-24..R-29 pasan de "Pendiente" a "Implementado y cubierto por pruebas automatizadas de API" tras cerrar US-027..US-031, US-033 y US-034. No se marcan "Cumple" porque falta la verificación en vivo contra `dev` (Ola 6). R-17 y R-20..R-23 siguen pendientes (US-035/US-036, sin implementar).
 - 2026-10-11: Sección 4 (Reservas): R-17, R-20, R-22 y R-23 pasan de "Pendiente" a "Implementado y cubierto por pruebas automatizadas de API" tras cerrar US-035 y US-036. R-21 sigue pendiente (depende de EP-05, notificaciones). Las pantallas de reserva, Mis reservas y administración (US-032, US-033, US-034, US-035, US-036) ya existen; la verificación en vivo sigue pendiente (Ola 6).
 - 2026-10-12: Se agrega P-13 (vencimiento automático de la membresía, US-038): el proceso diario recalcula `membershipStatus` y `POST /reservations` verifica además la fecha de vencimiento. Queda implementado y cubierto por pruebas automatizadas de API; la verificación en vivo en `dev` está pendiente. P-10 se refuerza (el caso "membresía vencida" ya no depende de que el proceso haya corrido). DA-02 y DA-04 quedan habilitados en su parte de datos. El resumen de cobertura se ajusta (Pagos 12 -> 13, total 95 -> 96).
+- 2026-10-11: Sección 1 (Migración): M-01, M-02, M-03 y M-05 pasan de `POST /admin/migration/run` a la Lambda `migration-run` de invocación directa (ADR-0012). No se agregan ni quitan casos; el resumen de cobertura no cambia. La autorización pasa de rol `admin` a IAM (`lambda:InvokeFunction`).

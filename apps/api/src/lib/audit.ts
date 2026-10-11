@@ -8,13 +8,13 @@
 
 import { PutCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { ulid } from 'ulid';
-import type { AuditAction, AuditLog, Role } from '@activa-club/shared-types';
+import type { AuditAction, AuditActorRole, AuditLog } from '@activa-club/shared-types';
 
 import { keys, tableName } from './dynamo';
 
 export interface AuditActor {
   actorId: string;
-  actorRole: Role;
+  actorRole: AuditActorRole;
 }
 
 export interface RecordAuditLogInput {

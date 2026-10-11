@@ -14,8 +14,8 @@ output "log_group_name" {
 }
 
 output "schedule_rule_name" {
-  description = "Nombre de la regla de EventBridge que dispara la función."
-  value       = aws_cloudwatch_event_rule.schedule.name
+  description = "Nombre de la regla de EventBridge que dispara la función (null si es de invocación directa)."
+  value       = try(aws_cloudwatch_event_rule.schedule[0].name, null)
 }
 
 output "using_stub" {

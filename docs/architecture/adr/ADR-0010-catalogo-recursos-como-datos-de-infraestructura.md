@@ -80,7 +80,8 @@ compartido con `for_each`) y se instancian desde `environments/dev` y
   Rechazada: RN-MIG-03 define la migración como migración de **socios**; mezclar
   dato maestro de instalaciones en ese flujo confunde dos cosas distintas y
   ata la existencia del catálogo a que alguien ejecute
-  `POST /admin/migration/run`.
+  la carga inicial de socios (Lambda `migration-run`, invocación directa; antes
+  `POST /admin/migration/run`, ver ADR-0012).
 - **Constantes en el código de las Lambdas.** Rechazada explícitamente por el
   criterio 10 de US-028: el aforo y el horario deben poder editarse sin
   desplegar (RN-ADM-04), y el frontend debe consumirlos desde la API.

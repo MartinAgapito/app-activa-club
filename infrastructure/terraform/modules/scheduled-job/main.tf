@@ -1,4 +1,5 @@
-# Lambda programada (EventBridge cron) con IAM de mínimo privilegio, log group
+# Lambda programada (EventBridge cron), o de invocación directa si no se define
+# schedule_expression, con IAM de mínimo privilegio, log group
 # con retención y una alarma de errores (ADR-0004, ADR-0008, US-038).
 #
 # Sin recursos siempre encendidos: Lambda + regla de EventBridge se facturan
@@ -16,6 +17,7 @@ terraform {
 locals {
   name_prefix        = "${var.project}-${var.environment}"
   function_full_name = "${local.name_prefix}-${var.function_name}"
+  has_schedule       = var.schedule_expression != null
   using_stub         = var.source_zip_path == null
   effective_zip_path = local.using_stub ? data.archive_file.stub[0].output_path : var.source_zip_path
   effective_zip_hash = local.using_stub ? data.archive_file.stub[0].output_base64sha256 : filebase64sha256(var.source_zip_path)
@@ -131,9 +133,13 @@ resource "aws_lambda_function" "this" {
 }
 
 # ---------------------------------------------------------------------------
-# Programación: regla de EventBridge -> Lambda.
+# Programación: regla de EventBridge -> Lambda. Con schedule_expression = null
+# (Lambda de invocación directa, p. ej. la carga inicial de socios, ADR-0012)
+# no se crea ni regla, ni target, ni permiso de EventBridge.
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_event_rule" "schedule" {
+  count = local.has_schedule ? 1 : 0
+
   name                = "${local.function_full_name}-schedule"
   description         = var.description
   schedule_expression = var.schedule_expression
@@ -143,17 +149,21 @@ resource "aws_cloudwatch_event_rule" "schedule" {
 }
 
 resource "aws_cloudwatch_event_target" "lambda" {
-  rule = aws_cloudwatch_event_rule.schedule.name
+  count = local.has_schedule ? 1 : 0
+
+  rule = aws_cloudwatch_event_rule.schedule[0].name
   arn  = aws_lambda_function.this.arn
 }
 
 # Solo esta regla puede invocar la función (mínimo privilegio).
 resource "aws_lambda_permission" "eventbridge" {
+  count = local.has_schedule ? 1 : 0
+
   statement_id  = "AllowEventBridgeInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.this.function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.schedule.arn
+  source_arn    = aws_cloudwatch_event_rule.schedule[0].arn
 }
 
 # ---------------------------------------------------------------------------
@@ -179,4 +189,22 @@ resource "aws_cloudwatch_metric_alarm" "errors" {
   }
 
   tags = local.common_tags
+}
+
+# Los recursos de programación pasaron a `count` (ADR-0012): estos bloques
+# evitan que Terraform destruya y recree la regla/target/permiso ya
+# desplegados de memberships-expire (el plan debe salir sin cambios).
+moved {
+  from = aws_cloudwatch_event_rule.schedule
+  to   = aws_cloudwatch_event_rule.schedule[0]
+}
+
+moved {
+  from = aws_cloudwatch_event_target.lambda
+  to   = aws_cloudwatch_event_target.lambda[0]
+}
+
+moved {
+  from = aws_lambda_permission.eventbridge
+  to   = aws_lambda_permission.eventbridge[0]
 }

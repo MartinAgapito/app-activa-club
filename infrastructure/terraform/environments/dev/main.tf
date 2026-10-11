@@ -246,6 +246,9 @@ locals {
       # EP-03, US-038: proceso programado (no HTTP), ver module
       # "job_memberships_expire" al final de este archivo.
       "memberships-expire",
+      # Carga inicial de socios (US-012, ADR-0012): Lambda de invocación
+      # directa (no HTTP), ver module "job_migration_run".
+      "migration-run",
       ] : function_name => (
       var.lambda_artifacts_dir == null ? null : "${var.lambda_artifacts_dir}/${function_name}.zip"
     )
@@ -290,8 +293,6 @@ locals {
     module.endpoint_members_approve.integration_id,
     module.endpoint_members_reject.method_id,
     module.endpoint_members_reject.integration_id,
-    module.endpoint_admin_migration_run.method_id,
-    module.endpoint_admin_migration_run.integration_id,
     module.endpoint_memberships_plans.method_id,
     module.endpoint_memberships_plans.integration_id,
     module.endpoint_payments_create.method_id,
@@ -793,6 +794,17 @@ module "endpoint_members_reject" {
 }
 
 # --- Administración operativa (docs/api/contratos-api.md §10) -------------
+#
+# OBSOLETO (ADR-0012): POST /admin/migration/run fue reemplazado por la
+# Lambda de invocación directa "job_migration_run" (más abajo). Este módulo
+# se elimina en la FASE 2 (PR siguiente) y entretanto responde 501
+# (handlers/not-implemented.ts).
+#
+# Por qué dos fases: el deployment/stage de API Gateway registran en el state
+# una dependencia de este módulo; quitarlo en el mismo `apply` que reemplaza
+# el deployment produce `Error: Cycle` en el plan. La fase 1 (este cambio)
+# desacopla el módulo del deployment (api_method_trigger_ids) y la fase 2 lo
+# destruye ya sin dependientes.
 
 module "endpoint_admin_migration_run" {
   source = "../../modules/endpoint"
@@ -1724,6 +1736,59 @@ module "job_memberships_expire" {
       # Solo GSI2 (patrón #15), no el wildcard de todos los índices.
       actions   = ["dynamodb:Query"]
       resources = ["${local.dynamodb_table_arn}/index/GSI2"]
+    },
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Carga inicial de socios (US-009 / US-012, ADR-0012).
+#
+# Lambda NO HTTP de INVOCACIÓN DIRECTA (consola de Lambda o `aws lambda
+# invoke`): sin API Gateway, sin Cognito y sin regla de EventBridge
+# (schedule_expression = null). No tiene ninguna superficie pública; quien
+# puede ejecutarla es solo una identidad IAM con lambda:InvokeFunction.
+# Reutiliza modules/scheduled-job (misma forma: Lambda + rol + log group) en
+# lugar de un módulo nuevo: el cambio al módulo es mínimo y compatible hacia
+# atrás (moved blocks; el plan de memberships-expire no cambia).
+#
+# IAM = exactamente lo que usa apps/api/src/handlers/migration/run.ts y
+# src/migration/**:
+# - s3:GetObject sobre el bucket de migración (lee legacy-export.json).
+# - dynamodb:PutItem sobre la tabla: las 4 escrituras de cada socio van en una
+#   TransactWriteItems de Puts condicionados (TransactWriteItems no es una
+#   acción IAM propia; exige PutItem) y el AuditLog es un PutItem.
+# Sin Query/Get/Update/Scan/Delete: run.ts no lee la tabla.
+#
+# SIN alarma de errores: se invoca a mano por un operador que ve el resultado
+# (o el error) en la consola/CLI al momento; una alarma sin acciones no
+# aportaría nada y una carga única no necesita monitoreo continuo.
+# ---------------------------------------------------------------------------
+module "job_migration_run" {
+  source = "../../modules/scheduled-job"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name       = "migration-run"
+  description         = "Carga inicial de socios desde legacy-export.json (US-012), invocacion directa sin API."
+  source_zip_path     = local.lambda_zip_path["migration-run"]
+  schedule_expression = null
+  enable_error_alarm  = false
+  timeout             = 300
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME   = local.dynamodb_table_name
+    MIGRATION_BUCKET_NAME = local.migration_bucket_name
+  }
+
+  iam_policy_statements = [
+    {
+      actions   = ["s3:GetObject"]
+      resources = ["${local.migration_bucket_arn}/*"]
+    },
+    {
+      actions   = ["dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
     },
   ]
 }

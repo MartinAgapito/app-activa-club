@@ -3,6 +3,9 @@
 Backend serverless de Activa Club — Node.js + TypeScript sobre AWS Lambda,
 expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 ([ADR-0004](../../docs/architecture/adr/ADR-0004-api-gateway-rest-lambda-por-endpoint.md)).
+Hoy son **29 endpoints HTTP** más **2 Lambdas no-HTTP**: `memberships-expire`
+(EventBridge, diaria) y `migration-run` (invocación directa, carga inicial de
+socios; [ADR-0012](../../docs/architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)).
 
 > Sprint 0 (US-009) dejó el **scaffolding** del backend — estructura de
 > carpetas, middleware compartido y el diseño del flujo de migración — más dos
@@ -10,8 +13,9 @@ expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 > patrón a replicar (ver
 > [docs/scrum/historias/US-009-modulos-backend-flujo-migracion.md](../../docs/scrum/historias/US-009-modulos-backend-flujo-migracion.md)).
 > Sprint 1 (US-012) implementó la lógica funcional completa del flujo de
-> migración y expuso `POST /admin/migration/run` (solo `admin`) como el primer
-> endpoint con lógica de negocio real (ver
+> migración y la expuso como el primer endpoint con lógica de negocio real
+> (`POST /admin/migration/run`, solo `admin`); desde ADR-0012 es una Lambda de
+> invocación directa (`migration-run`), sin API Gateway (ver
 > [docs/scrum/historias/US-012-migracion-inicial-socios-dynamodb.md](../../docs/scrum/historias/US-012-migracion-inicial-socios-dynamodb.md)).
 > También implementó el registro de socio nuevo (US-016,
 > `POST /registration`) y la activación de socio migrado por DNI (US-013,
@@ -28,7 +32,8 @@ src/
   handlers/          # Una Lambda por endpoint (ADR-0004). Un archivo = un handler exportado.
     health/get.ts             # GET /health (público, sin datos) — plantilla mínima.
     members/get-me.ts         # GET /members/me (member) — auth + Query GSI1 + respuesta.
-    admin/run-migration.ts    # POST /admin/migration/run (admin) — wiring del flujo de migración.
+    migration/run.ts          # Lambda `migration-run` (NO HTTP, invocación directa, ADR-0012) — carga inicial de socios.
+    memberships/expire.ts     # Lambda `memberships-expire` (NO HTTP, EventBridge) — vencimiento diario (US-038).
     activation/verify.ts      # POST /activation/verify (público) — wiring de src/activation/verify.ts.
     activation/complete.ts    # POST /activation/complete (público) — wiring de src/activation/complete.ts.
     registration/post.ts      # POST /registration (público) — wiring de src/registration/register.ts.
@@ -165,8 +170,12 @@ uno (fácil de probar sin AWS real):
 
 El origen real del JSON es el bucket S3 de migración
 ([ADR-0005](../../docs/architecture/adr/ADR-0005-s3-migracion-activos-hosting.md)),
-leído por `src/handlers/admin/run-migration.ts` (`POST /admin/migration/run`,
-solo `admin`). Como `mock-data/` aún no tiene el JSON on-premise real (ver
+leído por `src/handlers/migration/run.ts`: una Lambda (`migration-run`) de
+**invocación directa** —consola de Lambda o `aws lambda invoke`— sin API
+Gateway ni payload, que ignora el evento, devuelve el resumen y audita con
+`actorId = migration-operator`, `actorRole = system`
+([ADR-0012](../../docs/architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)).
+La autorización es IAM (`lambda:InvokeFunction`), no un rol de aplicación. Como `mock-data/` aún no tiene el JSON on-premise real (ver
 `mock-data/README.md`), `src/migration/fixtures/legacy-export.sample.ts`
 contiene un fixture mínimo **ficticio**, usado solo en pruebas, para validar
 el diseño de la transformación.

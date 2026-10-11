@@ -28,7 +28,7 @@ Instanciación del módulo `modules/endpoint` (más `modules/log-group` y alarma
 - `GET /members/me` (member) y `PATCH /members/me` (member)
 - `GET /members` (admin), `GET /members/{memberId}` (admin)
 - `POST /members/{memberId}/approve` (admin), `POST /members/{memberId}/reject` (admin)
-- `POST /admin/migration/run` (admin)
+- ~~`POST /admin/migration/run` (admin)~~ — **retirado el 2026-10-11** ([ADR-0012](../../architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)): la carga inicial pasó a una Lambda de invocación directa, sin API Gateway.
 
 ## Valor de negocio
 

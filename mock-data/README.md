@@ -10,8 +10,9 @@ Contenido:
   `dev`. Se sube tal cual al bucket de migración (ADR-0005) con ese nombre.
   Un caso por socio (activo, con deuda, por vencer, vencido y un registro
   inválido sin correo).
-- `migration-run.test-event.json`: evento de prueba para disparar la migración
-  desde la consola de Lambda.
+
+La Lambda `migration-run` no recibe payload (ADR-0012): en la consola de Lambda
+se prueba con el evento `{}`, por lo que ya no hace falta un archivo de evento.
 
 El procedimiento completo está en
 [`docs/deployment/migracion-inicial-dev.md`](../docs/deployment/migracion-inicial-dev.md).

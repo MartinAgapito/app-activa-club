@@ -3,35 +3,34 @@
 Procedimiento manual y repetible para cargar los socios del "sistema
 on-premise" en el entorno `dev`. Lo ejecuta una persona (no el CD) porque
 escribe datos de negocio. Referencias: [mapeo-migracion.md](../data/mapeo-migracion.md)
-y el contrato `POST /admin/migration/run` en
-[contratos-api.md](../api/contratos-api.md).
+y el contrato de invocación en [contratos-api.md](../api/contratos-api.md) §10.
+La migración es una Lambda de **invocación directa**, sin endpoint HTTP
+([ADR-0012](../architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)).
 
 ## Qué se carga y qué no
 
-| Dato                                            | Cómo entra                                      |
-| ----------------------------------------------- | ----------------------------------------------- |
-| Catálogo de instalaciones (10 ítems `METADATA`) | `terraform apply` (ADR-0010). **No** va aquí.   |
-| Socios, membresía vigente y saldo pendiente     | **Este runbook** (JSON en S3 + endpoint admin). |
-| Reservas, pagos, invitados, bloqueos, auditoría | Se generan usando la aplicación.                |
-| Cuentas de acceso (Cognito) de los socios       | Cada socio las crea al activar su cuenta (DNI). |
+| Dato                                            | Cómo entra                                              |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| Catálogo de instalaciones (10 ítems `METADATA`) | `terraform apply` (ADR-0010). **No** va aquí.           |
+| Socios, membresía vigente y saldo pendiente     | **Este runbook** (JSON en S3 + Lambda `migration-run`). |
+| Reservas, pagos, invitados, bloqueos, auditoría | Se generan usando la aplicación.                        |
+| Cuentas de acceso (Cognito) de los socios       | Cada socio las crea al activar su cuenta (DNI).         |
 
 ## Datos del entorno
 
-| Elemento           | Valor                                                           |
-| ------------------ | --------------------------------------------------------------- |
-| Cuenta / región    | `463310123916` / `us-east-1` (perfil AWS `activa-club-dev`)     |
-| Bucket             | `activa-club-dev-migration`                                     |
-| Objeto             | **`legacy-export.json`** (el nombre es fijo, lo lee el handler) |
-| API                | `https://tsbus7d8pe.execute-api.us-east-1.amazonaws.com/dev`    |
-| User Pool / Client | `us-east-1_qTDbzVP5a` / `602agaeln1fltp67qbkkkao9a5`            |
-| Rol requerido      | `admin` (usuario `admin@activaclub.test`)                       |
+| Elemento          | Valor                                                            |
+| ----------------- | ---------------------------------------------------------------- |
+| Cuenta / región   | `463310123916` / `us-east-1` (perfil AWS `activa-club-dev`)      |
+| Bucket            | `activa-club-dev-migration`                                      |
+| Objeto            | **`legacy-export.json`** (el nombre es fijo, lo lee el handler)  |
+| Lambda            | `activa-club-dev-migration-run` (sin API Gateway)                |
+| Permiso requerido | IAM `lambda:InvokeFunction` sobre esa función (no rol de la app) |
 
 ## Archivos del procedimiento (dentro del repo)
 
-| Archivo                                                                                    | Para qué sirve                                            |
-| ------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| [`mock-data/legacy-export.json`](../../mock-data/legacy-export.json)                       | Datos ficticios de socios. Se sube **tal cual** a S3.     |
-| [`mock-data/migration-run.test-event.json`](../../mock-data/migration-run.test-event.json) | Evento de prueba para disparar la migración desde Lambda. |
+| Archivo                                                              | Para qué sirve                                        |
+| -------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`mock-data/legacy-export.json`](../../mock-data/legacy-export.json) | Datos ficticios de socios. Se sube **tal cual** a S3. |
 
 El archivo ya se llama `legacy-export.json`, que es el nombre exacto que lee el
 handler. Un caso por socio:
@@ -63,12 +62,19 @@ deuda, así que su estado es `DEBT` sin importar la fecha.
 
 ## Paso 2. Ejecutar la migración (consola de Lambda)
 
-1. **Lambda** → función **`activa-club-dev-admin-migration-run`** → pestaña **Test**.
-2. Crear un evento de prueba (por ejemplo `migrar-dev`) y pegar el contenido de
-   `mock-data/migration-run.test-event.json`.
+1. **Lambda** → función **`activa-club-dev-migration-run`** → pestaña **Test**.
+2. Crear un evento de prueba (por ejemplo `migrar-dev`) con el contenido `{}`:
+   la función ignora el evento y lee `legacy-export.json` del bucket.
 3. Pulsar **Test**.
 
-Esperado: `statusCode` `202` y, dentro de `body`:
+Por CLI es equivalente (sin payload):
+
+```bash
+aws lambda invoke --function-name activa-club-dev-migration-run   --profile activa-club-dev --region us-east-1 --payload '{}'   --cli-binary-format raw-in-base64-out salida.json
+```
+
+Esperado: la respuesta de la invocación es directamente el resumen (no hay
+`statusCode` ni `body`):
 
 ```json
 {
@@ -81,25 +87,19 @@ Esperado: `statusCode` `202` y, dentro de `body`:
 }
 ```
 
-| Resultado         | Causa probable                                                  |
-| ----------------- | --------------------------------------------------------------- |
-| `403`             | El evento de prueba no trae `"cognito:groups": "[admin]"`.      |
-| `400`             | El objeto no es JSON válido o no se llama `legacy-export.json`. |
-| Error `NoSuchKey` | El archivo no está en el bucket `activa-club-dev-migration`.    |
-| Otro error        | Revisar el log group de la Lambda en CloudWatch Logs.           |
+| Resultado                 | Causa probable                                                          |
+| ------------------------- | ----------------------------------------------------------------------- |
+| Error `VALIDATION_ERROR`  | El objeto no es JSON válido o no tiene `version`/`exportedAt`/`socios`. |
+| Error `NoSuchKey`         | El archivo no está en el bucket `activa-club-dev-migration`.            |
+| `AccessDenied` al invocar | Tu identidad IAM no tiene `lambda:InvokeFunction` sobre la función.     |
+| Otro error                | Revisar el log group de la Lambda en CloudWatch Logs.                   |
 
-### Qué prueba y qué no esta vía
+### Autorización y auditoría
 
-El evento de prueba invoca la Lambda directamente, sin pasar por API Gateway.
-Prueba la lógica de migración, pero **no** el authorizer de Cognito ni el
-rechazo con `403` a un usuario sin rol `admin` (eso se verifica en el E2E). El
-`AuditLog` queda con el actor `admin-consola-dev`.
-
-Vía alternativa por API (con token real del admin):
-`POST https://tsbus7d8pe.execute-api.us-east-1.amazonaws.com/dev/admin/migration/run`
-con `Authorization: Bearer <IdToken>` (grupo `admin`). El `IdToken` se obtiene
-iniciando sesión en la web como `admin@activaclub.test`; no se versiona ni se
-comparte.
+No hay endpoint ni usuario de la aplicación: solo una identidad IAM con
+`lambda:InvokeFunction` puede ejecutarla. El `AuditLog` (`MIGRATION_RUN`) queda
+con `actorId = migration-operator` y `actorRole = system`. Si el JSON falla, la
+invocación termina en error y no se escribe nada.
 
 ## Paso 3. Verificar
 
@@ -112,7 +112,7 @@ El DNI `10000006` no debe aparecer.
 
 ## Idempotencia
 
-Repetir el paso 4 no duplica socios: los ya migrados se cuentan en `skipped`
+Repetir el paso 2 no duplica socios: los ya migrados se cuentan en `skipped`
 (condición `attribute_not_exists` sobre `UniqueDni` y `UniqueEmail`).
 
 ## Después de la migración

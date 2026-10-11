@@ -15,11 +15,18 @@ export type AuditAction =
   | 'NOTIFICATION_SENT'
   | 'MIGRATION_RUN';
 
+/**
+ * Rol del actor de una acción auditada: un rol de aplicación o `system` para
+ * procesos sin identidad Cognito (carga inicial por invocación directa de
+ * Lambda, ADR-0012).
+ */
+export type AuditActorRole = Role | 'system';
+
 /** Registro de auditoría de una acción administrativa (entidad AuditLog). */
 export interface AuditLog {
   auditId: string;
   actorId: string;
-  actorRole: Role;
+  actorRole: AuditActorRole;
   action: AuditAction;
   targetType: string;
   targetId: string;
