@@ -1,20 +1,23 @@
 // Orquestador de `POST /reservations/{reservationId}/cancel` para `member`
-// (US-033, criterios 5-12, RN-RES-05/06/10, docs/api/contratos-api.md §7).
+// (US-033, criterios 5-12, RN-RES-05/06/10) y para `admin` (US-036, criterio
+// 10, docs/api/contratos-api.md §7).
 //
-// Alcance de esta historia: solo la cancelación del socio **titular**, sujeta
-// a la ventana de 24 horas (RN-RES-10). La cancelación administrativa sin esa
-// restricción (contrato: el mismo endpoint también admite `admin`) es
-// US-036, deliberadamente fuera de alcance aquí — el handler
-// (`../handlers/reservations/cancel.ts`) solo autoriza `member` por ahora;
-// habilitar `admin` en esa misma ruta es tarea de esa historia, no de esta.
+// - `member`: solo el socio **titular**, sujeto a la ventana de 24 horas
+//   (RN-RES-10). Visibilidad ajena (criterio 9): "no titular" se trata igual
+//   que "no existe" (404), como el detalle (`./get-by-id.ts`).
+// - `admin`: cualquier reserva, sin la regla de 24 horas y sin exigir
+//   titularidad. El administrador no es un `Member` en DynamoDB, así que no se
+//   resuelve por `findMemberByCognitoSub`: el actor de la auditoría es su
+//   `sub` de Cognito (mismo criterio que RESOURCE_UPDATED/RESOURCE_MAINTENANCE).
 //
-// Visibilidad ajena (criterio 9): mismo criterio que el detalle
-// (`./get-by-id.ts`) — "no titular" se trata igual que "no existe" (404).
+// Ambos roles comparten el rechazo de reservas ya CANCELLED/REJECTED (409) y la
+// misma transacción `writeCancellation`, que libera la franja y devuelve el
+// cupo mensual de los invitados externos.
 
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import type { CancelReservationResponse } from '@activa-club/shared-types';
+import type { CancelReservationResponse, Reservation } from '@activa-club/shared-types';
 
-import { recordAuditLog } from '../lib/audit';
+import { recordAuditLog, type AuditActor } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
 import { findMemberByCognitoSub } from '../members/repository';
@@ -31,6 +34,8 @@ import {
 
 export interface CancelReservationInput {
   cognitoSub: string;
+  /** Rol de la identidad autenticada; por defecto `member` (comportamiento US-033). */
+  actorRole?: 'member' | 'admin';
   reservationId: string;
   /** Cliente DynamoDB inyectable; por defecto el singleton compartido (lib/dynamo). */
   client?: DynamoDBDocumentClient;
@@ -45,16 +50,28 @@ export async function cancelReservation(
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
 
-  const member = await findMemberByCognitoSub(client, input.cognitoSub);
-  if (!member) {
-    // No debería ocurrir para un token válido con socio ya enlazado; defensivo.
-    throw new AppError('NOT_FOUND', 'No se encontró el socio asociado a esta cuenta.');
-  }
+  const isAdmin = input.actorRole === 'admin';
 
-  const reservation = await getReservationById(client, input.reservationId);
-  if (!reservation || reservation.holderMemberId !== member.memberId) {
-    // Criterio 9: "no titular" se trata igual que "no existe" (ver cabecera).
-    throw new AppError('NOT_FOUND', 'No se encontró la reserva indicada.');
+  let actor: AuditActor;
+  let reservation: Reservation | undefined;
+  if (isAdmin) {
+    actor = { actorId: input.cognitoSub, actorRole: 'admin' };
+    reservation = await getReservationById(client, input.reservationId);
+    if (!reservation) {
+      throw new AppError('NOT_FOUND', 'No se encontró la reserva indicada.');
+    }
+  } else {
+    const member = await findMemberByCognitoSub(client, input.cognitoSub);
+    if (!member) {
+      // No debería ocurrir para un token válido con socio ya enlazado; defensivo.
+      throw new AppError('NOT_FOUND', 'No se encontró el socio asociado a esta cuenta.');
+    }
+    actor = { actorId: member.memberId, actorRole: 'member' };
+    reservation = await getReservationById(client, input.reservationId);
+    if (!reservation || reservation.holderMemberId !== member.memberId) {
+      // Criterio 9: "no titular" se trata igual que "no existe" (ver cabecera).
+      throw new AppError('NOT_FOUND', 'No se encontró la reserva indicada.');
+    }
   }
 
   if (!isActiveReservationStatus(reservation.reservationStatus)) {
@@ -64,8 +81,9 @@ export async function cancelReservation(
     throw new AppError('CONFLICT', 'La reserva ya no está activa; no puede cancelarse nuevamente.');
   }
 
-  if (!canCancelReservation(reservation.startsAt, now)) {
+  if (!isAdmin && !canCancelReservation(reservation.startsAt, now)) {
     // Criterio 6/7: aplica también a PENDING_APPROVAL (RN-RES-10), el socio
+    // (el administrador queda exento, US-036 criterio 10)
     // no necesita esperar la decisión del administrador para cancelar.
     throw new AppError(
       'CANCELLATION_TOO_LATE',
@@ -111,10 +129,14 @@ export async function cancelReservation(
   // en `./create.ts`.
   await recordAuditLog(client, {
     action: 'RESERVATION_CANCELLED',
-    actor: { actorId: member.memberId, actorRole: 'member' },
+    actor,
     targetType: 'Reservation',
     targetId: reservation.reservationId,
-    metadata: { resourceId: reservation.resourceId, startsAt: reservation.startsAt },
+    metadata: {
+      resourceId: reservation.resourceId,
+      startsAt: reservation.startsAt,
+      ...(isAdmin ? { holderMemberId: reservation.holderMemberId } : {}),
+    },
     now: nowIso,
   });
 

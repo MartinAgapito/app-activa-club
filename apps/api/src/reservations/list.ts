@@ -22,11 +22,17 @@
 //   `VALIDATION_ERROR` — nunca un `Scan` completo de la tabla.
 
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import type { Paginated, Reservation, ReservationStatus } from '@activa-club/shared-types';
+import type {
+  AdminReservationListItem,
+  Paginated,
+  Reservation,
+  ReservationHolderSummary,
+  ReservationStatus,
+} from '@activa-club/shared-types';
 
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
-import { findMemberByCognitoSub } from '../members/repository';
+import { findMemberByCognitoSub, getMemberById } from '../members/repository';
 import {
   listReservationsByHolder,
   listReservationsByResource,
@@ -47,9 +53,41 @@ export interface ListReservationsInput {
   client?: DynamoDBDocumentClient;
 }
 
+/**
+ * Agrega a cada reserva el socio titular (US-036, criterio 8). Los
+ * `holderMemberId` se deduplican y se resuelven en paralelo (una página tiene
+ * como máximo `limit` reservas, muchas del mismo socio); solo se expone
+ * `memberId`, nombre y apellido. Un socio no resoluble da `holder: null`.
+ */
+async function withHolders(
+  client: DynamoDBDocumentClient,
+  page: Paginated<Reservation>,
+): Promise<Paginated<AdminReservationListItem>> {
+  const holderIds = [...new Set(page.items.map((reservation) => reservation.holderMemberId))];
+  const resolved = await Promise.all(
+    holderIds.map(async (memberId): Promise<[string, ReservationHolderSummary | null]> => {
+      const member = await getMemberById(client, memberId);
+      return [
+        memberId,
+        member
+          ? { memberId: member.memberId, firstName: member.firstName, lastName: member.lastName }
+          : null,
+      ];
+    }),
+  );
+  const holders = new Map(resolved);
+  return {
+    ...page,
+    items: page.items.map((reservation) => ({
+      ...reservation,
+      holder: holders.get(reservation.holderMemberId) ?? null,
+    })),
+  };
+}
+
 export async function listReservations(
   input: ListReservationsInput,
-): Promise<Paginated<Reservation>> {
+): Promise<Paginated<Reservation> | Paginated<AdminReservationListItem>> {
   const client = input.client ?? getDocumentClient();
   const pageOptions = {
     ...(input.from !== undefined ? { from: input.from } : {}),
@@ -73,13 +111,15 @@ export async function listReservations(
 
   // scope === 'all' (admin, ya autorizado por el handler).
   if (input.status !== undefined) {
-    return listReservationsByStatus(client, input.status, {
+    const page = await listReservationsByStatus(client, input.status, {
       ...(input.resourceId !== undefined ? { resourceId: input.resourceId } : {}),
       ...pageOptions,
     });
+    return withHolders(client, page);
   }
   if (input.resourceId !== undefined) {
-    return listReservationsByResource(client, input.resourceId, pageOptions);
+    const page = await listReservationsByResource(client, input.resourceId, pageOptions);
+    return withHolders(client, page);
   }
   throw new AppError(
     'VALIDATION_ERROR',
