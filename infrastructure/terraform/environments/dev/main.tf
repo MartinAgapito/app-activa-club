@@ -234,6 +234,7 @@ locals {
       "resources-update",
       "resources-maintenance-create",
       "resources-maintenance-delete",
+      "resources-maintenance-list",
       "reservations-create",
       "reservations-list",
       "reservations-get-by-id",
@@ -311,6 +312,8 @@ locals {
     module.endpoint_resources_maintenance_create.integration_id,
     module.endpoint_resources_maintenance_delete.method_id,
     module.endpoint_resources_maintenance_delete.integration_id,
+    module.endpoint_resources_maintenance_list.method_id,
+    module.endpoint_resources_maintenance_list.integration_id,
     module.endpoint_reservations_create.method_id,
     module.endpoint_reservations_create.integration_id,
     module.endpoint_reservations_list.method_id,
@@ -1301,6 +1304,44 @@ module "endpoint_resources_maintenance_delete" {
       # MaintenanceBlock + PutItem del AuditLog "RESOURCE_MAINTENANCE"
       # (US-035, ADR-0008). GetItem se conserva por compatibilidad.
       actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:DeleteItem", "dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+module "endpoint_resources_maintenance_list" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "resources-maintenance-list"
+  source_zip_path = local.lambda_zip_path["resources-maintenance-list"]
+  http_method     = "GET"
+  resource_path   = "api/resources/{resourceId}/maintenance"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  # Sin alarma de errores: endpoint de lectura administrativo, fuera del
+  # conjunto crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["resources/{resourceId}/maintenance"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # GetItem (el recurso existe, modelo §3.7) + Query sobre la tabla base,
+      # sin índice (PK=RESOURCE#<id>, begins_with(SK,"MAINT#"), US-035
+      # criterio 13). Solo lectura: sin Put/Update/Delete.
+      actions   = ["dynamodb:GetItem", "dynamodb:Query"]
       resources = [local.dynamodb_table_arn]
     },
   ]
