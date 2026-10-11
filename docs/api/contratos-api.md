@@ -520,6 +520,26 @@ los campos, para que no haya duda de quién manda sobre cada uno:
 Terraform fija el valor **inicial** de los cuatro campos de runtime y no los
 vuelve a tocar: una edición del administrador sobrevive a los despliegues.
 
+### PATCH /resources/{resourceId}
+
+Solo `admin` (`member` → 403). Request: al menos uno de `capacity` (entero > 0),
+`opensAt`, `closesAt` (`HH:mm`, hora local del club, 00:00-23:59) y
+`resourceStatus` (`AVAILABLE` | `MAINTENANCE`). Response 200: el `Resource`
+completo ya actualizado.
+
+- Cuerpo vacío, valores inválidos o **cualquier otro campo** (`blockMinutes`,
+  `type`, `name`, `requiresApproval`, ...) → 400 `VALIDATION_ERROR`. El esquema
+  es estricto: esos campos no se editan por este endpoint (ADR-0010).
+- `closesAt` debe ser posterior a `opensAt` **considerando el valor resultante**
+  tras mezclar con el actual (si el cuerpo solo trae `opensAt`, se compara con
+  el `closesAt` vigente) → 400 `VALIDATION_ERROR`.
+- `resourceId` inexistente → 404 `NOT_FOUND`.
+- Efecto inmediato en la disponibilidad y en las reservas **nuevas**; las
+  reservas ya creadas no se invalidan retroactivamente.
+- Un PATCH que no cambia ningún valor responde 200 sin escribir ni auditar.
+- Auditoría `RESOURCE_UPDATED` (`targetType=Resource`) con
+  `metadata = { fields: [...], changes: { <campo>: { from, to } } }`.
+
 ### GET /resources/{resourceId}/availability?date=2026-07-12
 
 Response 200:
@@ -730,7 +750,8 @@ aplica.
 Listado paginado por cursor (§1), ordenado ascendente por `startsAt` (agrupa
 pasado y futuro; el cliente distingue "próximas" de "pasadas" comparando cada
 `startsAt` contra la hora actual, US-033 criterio 2). Cada ítem es la entidad
-`Reservation` completa (sin envoltura adicional).
+`Reservation` completa (sin envoltura adicional); con `scope=all` cada ítem
+agrega además `holder` (ver abajo).
 
 - `scope=me` (default): únicamente las reservas donde el socio autenticado es
   el **titular** (RN-RES-06). Rol `member`.
@@ -739,7 +760,9 @@ pasado y futuro; el cliente distingue "próximas" de "pasadas" comparando cada
   `resourceId` (el modelo de datos no define un patrón de acceso "todas sin
   filtro"; ver docs/data/modelo-dynamodb.md §4); sin ninguno de los dos, 400
   `VALIDATION_ERROR`. `status=PENDING_APPROVAL` es la bandeja de aprobación
-  que reutiliza US-034.
+  que reutiliza US-034. Cada ítem incluye `holder`: `{ memberId, firstName,
+lastName }` del socio titular (nunca correo, teléfono ni DNI), o `null` si
+  el socio no se puede resolver. `scope=me` no incluye `holder`.
 
 Response 200:
 
@@ -781,7 +804,10 @@ reserva (titular); una reserva ajena responde igual que una inexistente, 404
   `NOT_FOUND`, mismo criterio que el detalle) y hasta **24h** antes
   (RN-RES-10) → 422 `CANCELLATION_TOO_LATE`. Aplica también a
   `PENDING_APPROVAL` (el socio no espera la decisión del administrador).
-  Admin: sin restricción de 24h (US-036, implementación posterior).
+  Admin (US-036): puede cancelar cualquier reserva, sin restricción de 24h y
+  sin exigir titularidad; reserva inexistente → 404. Auditoría
+  `RESERVATION_CANCELLED` con `actorRole=admin` y `actorId` = `sub` de Cognito
+  del administrador.
 - Ya `CANCELLED`/`REJECTED` → 409 `CONFLICT`, sin tocar nada.
 - Decrementa contadores de invitado del mes (RN-RES-05) y quita la reserva de
   `reservationIds`. Estado → `CANCELLED`. Notificación `RESERVATION_CANCELLED`.

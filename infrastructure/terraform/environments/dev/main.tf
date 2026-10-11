@@ -1388,6 +1388,13 @@ module "endpoint_reservations_list" {
       actions   = ["dynamodb:Query"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
+    {
+      # GetItem del socio titular de cada reserva del listado scope=all
+      # (US-036, criterio 8: se resuelve por memberId, patrón 1). Solo sobre
+      # la tabla base: un GetItem por clave exacta no usa índices.
+      actions   = ["dynamodb:GetItem"]
+      resources = [local.dynamodb_table_arn]
+    },
   ]
 }
 
@@ -1461,6 +1468,14 @@ module "endpoint_reservations_cancel" {
       # criterio 10 de US-033).
       actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
+    },
+    {
+      # PutItem del AuditLog "RESERVATION_CANCELLED" (US-033/US-036,
+      # ADR-0008), tanto para el socio como para la cancelación administrativa.
+      # Faltaba: sin este permiso, la escritura de auditoría posterior a la
+      # transacción de cancelación fallaba con AccessDenied. Aditivo.
+      actions   = ["dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
     },
   ]
 }
