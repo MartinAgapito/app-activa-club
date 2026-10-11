@@ -77,11 +77,11 @@ const HANDLERS = {
   'resources-maintenance-delete': 'handlers/resources/maintenance-delete.ts', // US-035
   'resources-maintenance-list': 'handlers/resources/maintenance-list.ts', // US-035
   'reservations-create': 'handlers/reservations/create.ts', // US-030/US-031 (implementado)
-  'reservations-list': 'handlers/not-implemented.ts', // US-033/US-036
-  'reservations-get-by-id': 'handlers/not-implemented.ts', // US-033
-  'reservations-cancel': 'handlers/not-implemented.ts', // US-033
-  'reservations-approve': 'handlers/not-implemented.ts', // US-034
-  'reservations-reject': 'handlers/not-implemented.ts', // US-034
+  'reservations-list': 'handlers/reservations/list.ts', // US-033/US-036 (implementado)
+  'reservations-get-by-id': 'handlers/reservations/get-by-id.ts', // US-033 (implementado)
+  'reservations-cancel': 'handlers/reservations/cancel.ts', // US-033/US-036 (implementado)
+  'reservations-approve': 'handlers/reservations/approve.ts', // US-034 (implementado)
+  'reservations-reject': 'handlers/reservations/reject.ts', // US-034 (implementado)
   'members-lookup': 'handlers/members/lookup.ts', // US-031 (implementado)
   'guests-lookup': 'handlers/guests/lookup.ts', // US-031 (implementado)
 };
