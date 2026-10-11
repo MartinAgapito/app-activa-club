@@ -610,6 +610,12 @@ la ventana bloqueada:
 }
 ```
 
+### DELETE /resources/{resourceId}/maintenance/{blockId}
+
+→ 204 sin cuerpo. `blockId` inexistente o ya liberado (también en una
+liberación concurrente) → 404 `NOT_FOUND`. Auditoría `RESOURCE_MAINTENANCE`
+con `metadata.operation = "RELEASED"` (la creación registra `"CREATED"`).
+
 ## 7. Reservas (RN-RES)
 
 | Método | Ruta                                    | Auth                               | Descripción                                               |
