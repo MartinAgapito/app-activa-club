@@ -51,11 +51,11 @@ de Zod, coherentes con RN-RES/RN-NOT.
 
 ### 2.2 Backend (handlers de referencia) ↔ contrato
 
-| Endpoint      | Ruta/método contrato        | Auth contrato | Handler                                                                             | Estado                   |
-| ------------- | --------------------------- | ------------- | ----------------------------------------------------------------------------------- | ------------------------ |
-| Salud         | `GET /health` (público)     | Público       | `handlers/health/get.ts` → 200 `{status,timestamp}`                                 | OK                       |
-| Perfil propio | `GET /members/me`           | `member`      | `handlers/members/get-me.ts` → `requireRole(['member'])`, GSI1 por `cognitoSub`     | OK con observación (4.3) |
-| Migración     | `POST /admin/migration/run` | `admin`       | `handlers/admin/run-migration.ts` → `requireRole(['admin'])`, 202 `MigrationResult` | OK                       |
+| Endpoint      | Ruta/método contrato                                                                               | Auth contrato | Handler                                                                                                     | Estado                   |
+| ------------- | -------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------ |
+| Salud         | `GET /health` (público)                                                                            | Público       | `handlers/health/get.ts` → 200 `{status,timestamp}`                                                         | OK                       |
+| Perfil propio | `GET /members/me`                                                                                  | `member`      | `handlers/members/get-me.ts` → `requireRole(['member'])`, GSI1 por `cognitoSub`                             | OK con observación (4.3) |
+| Migración     | `POST /admin/migration/run` (retirado, ADR-0012: hoy Lambda `migration-run` de invocación directa) | `admin`       | `handlers/admin/run-migration.ts` → `requireRole(['admin'])`, 202 `MigrationResult` (histórico de Sprint 0) | OK                       |
 
 - Formato de error unificado: todo handler lanza `AppError(code)` y
   `toErrorResult` produce el shape §1.1 con `requestId`. Consistente.
@@ -168,16 +168,16 @@ handler + pantalla + infraestructura instanciada, el Integrador debe validar
 end-to-end (contrato, roles, errores, permisos) según esta lista. Endpoints
 contractualizados sin handler todavía (owner backend sugerido por flujo):
 
-| Flujo de alto valor        | Endpoints a implementar                                                         | Validación E2E a ejecutar                                                                                                                    |
-| -------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Migración                  | `POST /admin/migration/run` (handler ya existe)                                 | Ejecutar sobre tabla real dev; verificar `MigrationResult` y unicidad DNI/email                                                              |
-| Activación por DNI         | `POST /activation/verify`, `POST /activation/complete`                          | DNI migrado → cuenta Cognito, enlace `cognitoSub`, transición `MIGRATED→ACTIVE`, notificación `ACCOUNT_ACTIVATED`, poblado de GSI1 (ver 4.4) |
-| Login                      | Cognito nativo (`InitiateAuth`) + `GET /members/me`                             | Token → resolución de socio por GSI1; roles `member`/`admin` correctos                                                                       |
-| Pago                       | `GET /memberships/plans`, `POST /payments`, `POST /payments/webhook`            | Idempotencia (`idempotencyKey`), confirmación segura (§5/RN-PAG-07), sin datos de tarjeta al backend                                         |
-| Actualización de membresía | (efecto de `POST /payments` + webhook)                                          | Membresía se actualiza **solo** al confirmar; refleja en `Member` y `MembershipPeriod`                                                       |
-| Reserva                    | `POST /reservations`, `GET /resources/{id}/availability`, cancel/approve/reject | Todas las RN-RES server-side (deuda, cruces, aforo, invitado 2/mes, mantenimiento, 24h)                                                      |
-| Notificación               | `GET /notifications`, `POST /notifications`, read/sent                          | Inbox por socio + email SES condicionado a `alsoEmail`                                                                                       |
-| Dashboard                  | `GET /dashboard/member`, `GET /dashboard/admin`                                 | `canReserve` refleja RN-PAG-06/RN-RES-12; métricas RN-ANL-01..08                                                                             |
+| Flujo de alto valor        | Endpoints a implementar                                                                  | Validación E2E a ejecutar                                                                                                                    |
+| -------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migración                  | Lambda `migration-run` (invocación directa; antes `POST /admin/migration/run`, ADR-0012) | Ejecutar sobre tabla real dev; verificar `MigrationResult` y unicidad DNI/email                                                              |
+| Activación por DNI         | `POST /activation/verify`, `POST /activation/complete`                                   | DNI migrado → cuenta Cognito, enlace `cognitoSub`, transición `MIGRATED→ACTIVE`, notificación `ACCOUNT_ACTIVATED`, poblado de GSI1 (ver 4.4) |
+| Login                      | Cognito nativo (`InitiateAuth`) + `GET /members/me`                                      | Token → resolución de socio por GSI1; roles `member`/`admin` correctos                                                                       |
+| Pago                       | `GET /memberships/plans`, `POST /payments`, `POST /payments/webhook`                     | Idempotencia (`idempotencyKey`), confirmación segura (§5/RN-PAG-07), sin datos de tarjeta al backend                                         |
+| Actualización de membresía | (efecto de `POST /payments` + webhook)                                                   | Membresía se actualiza **solo** al confirmar; refleja en `Member` y `MembershipPeriod`                                                       |
+| Reserva                    | `POST /reservations`, `GET /resources/{id}/availability`, cancel/approve/reject          | Todas las RN-RES server-side (deuda, cruces, aforo, invitado 2/mes, mantenimiento, 24h)                                                      |
+| Notificación               | `GET /notifications`, `POST /notifications`, read/sent                                   | Inbox por socio + email SES condicionado a `alsoEmail`                                                                                       |
+| Dashboard                  | `GET /dashboard/member`, `GET /dashboard/admin`                                          | `canReserve` refleja RN-PAG-06/RN-RES-12; métricas RN-ANL-01..08                                                                             |
 
 Además, en Sprint 1 se debe:
 

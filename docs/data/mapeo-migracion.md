@@ -111,11 +111,19 @@ operativo del sistema es el derivado (RN-MIG-06: DynamoDB es la fuente operativa
 
 - El JSON reside en el bucket S3 de migración
   (`activa-club-<env>-migration`, [ADR-0005](../architecture/adr/ADR-0005-s3-migracion-activos-hosting.md)).
-- La ejecuta una **Lambda operacional** (no un endpoint público) o el endpoint
-  admin `POST /admin/migration/run` (ver [contratos-api.md](../api/contratos-api.md)),
-  restringido a `admin`.
+- La ejecuta una **Lambda operacional de invocación directa**
+  (`activa-club-<env>-migration-run`): consola de Lambda o `aws lambda invoke`,
+  **sin API Gateway, sin ruta HTTP y sin payload**
+  ([ADR-0012](../architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md),
+  que reemplaza al endpoint `POST /admin/migration/run`). Al ejecutarse con un
+  evento vacío `{}` lee `legacy-export.json` del bucket y corre este flujo.
+- Autorización: IAM (`lambda:InvokeFunction`), no un rol de aplicación. La
+  auditoría registra `actorId = migration-operator` y `actorRole = system`.
 
 ## 6. Resultado de migración (contrato de salida)
+
+Es el valor de retorno de la invocación de la Lambda (no una respuesta HTTP). Si
+el JSON no existe o es inválido, la invocación termina en error.
 
 ```json
 {
@@ -145,9 +153,9 @@ de responsabilidad única:
   (rechazo individual sin abortar el lote, §4) → transformación → persistencia
   → `AuditLog` (`MIGRATION_RUN`) con el resumen de §6.
 
-Expuesto por `POST /admin/migration/run`
-(`apps/api/src/handlers/admin/run-migration.ts`, solo `admin`), que lee el
-JSON desde el bucket S3 de migración (ADR-0005).
+Expuesto como Lambda de invocación directa `migration-run`
+(`apps/api/src/handlers/migration/run.ts`, ADR-0012), que lee el JSON desde el
+bucket S3 de migración (ADR-0005) y devuelve el resumen de §6.
 
 **Nota de diseño pendiente de confirmar con Arquitectura**: al migrar, el
 ítem `Member` se escribe sin `GSI1PK`/`GSI1SK` (resolución por `cognitoSub`),

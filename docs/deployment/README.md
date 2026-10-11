@@ -24,7 +24,7 @@ despliegues sensibles y procedimientos de rollback.
   `activa-club-github-actions-deploy-dev` declarado en
   `infrastructure/terraform/bootstrap/main.tf` (ver ese documento).
 - [`migracion-inicial-dev.md`](./migracion-inicial-dev.md) — Runbook de la
-  carga inicial de socios en `dev` (JSON en S3 + `POST /admin/migration/run`),
+  carga inicial de socios en `dev` (JSON en S3 + Lambda `migration-run` de invocación directa),
   verificación y reinicio del entorno.
 - [`despliegue-prd.md`](./despliegue-prd.md) — Despliegue final/prd
   (cumple el rol de "producción" del proyecto — no hay un entorno `prod`

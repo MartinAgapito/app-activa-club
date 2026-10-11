@@ -34,6 +34,14 @@ backlog en `docs/scrum/`.
   `POST /reservations` y módulo Terraform `scheduled-job` (EventBridge 00:15
   America/Lima, alarma de errores). Pendiente: verificación en `dev`.
 
+### Changed
+
+- Carga inicial de socios: deja de ser el endpoint `POST /admin/migration/run` y
+  pasa a ser la Lambda `migration-run` de invocación directa (consola o
+  `aws lambda invoke`, sin API Gateway ni payload; autorización IAM, auditoría
+  con actor `system`). Ver ADR-0012. El endpoint viejo queda en 501 hasta la
+  fase 2 del despliegue, que lo elimina.
+
 <!--
 Convenciones para nuevas entradas:
 

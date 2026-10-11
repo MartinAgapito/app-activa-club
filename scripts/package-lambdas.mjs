@@ -54,7 +54,14 @@ const HANDLERS = {
   'members-get-by-id': 'handlers/members/get-by-id.ts',
   'members-approve': 'handlers/members/approve.ts',
   'members-reject': 'handlers/members/reject.ts',
-  'admin-migration-run': 'handlers/admin/run-migration.ts',
+  // Carga inicial de socios (US-012, ADR-0012): Lambda de invocacion directa,
+  // sin API Gateway ni ruta HTTP. Ver module "job_migration_run" en main.tf.
+  'migration-run': 'handlers/migration/run.ts',
+  // TEMPORAL (fase 1 de ADR-0012): el endpoint POST /admin/migration/run ya no
+  // existe pero su Lambda sigue declarada en Terraform hasta la fase 2 (el
+  // deployment de API Gateway no admite quitarla en el mismo apply). Responde
+  // 501; la fase 2 elimina esta entrada junto con el modulo.
+  'admin-migration-run': 'handlers/not-implemented.ts',
   // EP-03 (US-019 infra ya desplegada; logica de negocio por historia).
   // Las 5 funciones sin logica propia todavia apuntan al placeholder
   // compartido (ver handlers/not-implemented.ts) -- cada historia lo

@@ -971,23 +971,35 @@ Response 200 (cubre RN-ANL-01..08):
 
 ## 10. Administración operativa
 
-| Método | Ruta                   | Auth  | Descripción                              |
-| ------ | ---------------------- | ----- | ---------------------------------------- |
-| POST   | `/admin/migration/run` | admin | Ejecuta la migración desde el JSON en S3 |
+No hay endpoints HTTP en esta sección. La **carga inicial de socios** dejó de
+ser `POST /admin/migration/run` y es una **Lambda de invocación directa**
+(`activa-club-<env>-migration-run`), sin API Gateway, sin ruta y sin payload
+([ADR-0012](../architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)):
 
-Response 202: contrato de salida de migración (ver
-[mapeo-migracion.md](../data/mapeo-migracion.md) §6). Auditoría `MIGRATION_RUN`.
+| Medio             | Invocación                                                                     | Autorización                 |
+| ----------------- | ------------------------------------------------------------------------------ | ---------------------------- |
+| Consola o CLI AWS | Lambda `migration-run` → Test con evento `{}` / `aws lambda invoke` (sin body) | IAM: `lambda:InvokeFunction` |
+
+- **Entrada**: ninguna. El evento se ignora; la función lee `legacy-export.json`
+  del bucket de migración.
+- **Salida** (el valor de retorno de la invocación, no una respuesta HTTP): el
+  contrato de [mapeo-migracion.md](../data/mapeo-migracion.md) §6 (`total`,
+  `migrated`, `skipped`, `rejected`, `rejectedItems`, `runAt`).
+- **Error**: si el JSON no existe o es inválido, la invocación termina en error
+  (`FunctionError`) y no escribe nada.
+- **Auditoría** `MIGRATION_RUN`: `actorId = migration-operator`,
+  `actorRole = system`.
 
 ## 11. Trazabilidad endpoint ↔ regla
 
-| Flujo               | Endpoints                                              | Reglas                   |
-| ------------------- | ------------------------------------------------------ | ------------------------ |
-| Activación          | `/activation/*`                                        | RN-ACT-01/02/03/07       |
-| Registro/aprobación | `/registration`, `/members/{id}/approve                | reject`                  | RN-ACT-05/06, RN-ADM-02 |
-| Pagos               | `/payments`, `/payments/webhook`, `/memberships/plans` | RN-PAG-01..08            |
-| Reservas            | `/reservations*`, `/resources/*/availability`          | RN-RES-01..12            |
-| Participantes       | `/members/lookup`, `/guests/lookup`                    | RN-RES-03/04             |
-| Mantenimiento       | `/resources/{id}/maintenance`                          | RN-RES-11, RN-ADM-04     |
-| Notificaciones      | `/notifications*`                                      | RN-NOT-01..04, RN-ADM-06 |
-| Dashboards          | `/dashboard/*`                                         | RN-ANL-01..08            |
-| Migración           | `/admin/migration/run`                                 | RN-MIG-01..06            |
+| Flujo               | Endpoints                                                       | Reglas                   |
+| ------------------- | --------------------------------------------------------------- | ------------------------ |
+| Activación          | `/activation/*`                                                 | RN-ACT-01/02/03/07       |
+| Registro/aprobación | `/registration`, `/members/{id}/approve                         | reject`                  | RN-ACT-05/06, RN-ADM-02 |
+| Pagos               | `/payments`, `/payments/webhook`, `/memberships/plans`          | RN-PAG-01..08            |
+| Reservas            | `/reservations*`, `/resources/*/availability`                   | RN-RES-01..12            |
+| Participantes       | `/members/lookup`, `/guests/lookup`                             | RN-RES-03/04             |
+| Mantenimiento       | `/resources/{id}/maintenance`                                   | RN-RES-11, RN-ADM-04     |
+| Notificaciones      | `/notifications*`                                               | RN-NOT-01..04, RN-ADM-06 |
+| Dashboards          | `/dashboard/*`                                                  | RN-ANL-01..08            |
+| Migración           | Lambda `migration-run` (invocación directa, sin ruta HTTP; §10) | RN-MIG-01..06            |
