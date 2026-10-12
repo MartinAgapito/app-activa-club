@@ -131,6 +131,10 @@ export function ToastProvider({ children }: ToastProviderProps) {
           'pointer-events-none fixed inset-x-0 bottom-0 z-layer-toast flex flex-col items-center gap-2',
           'px-4 pb-[max(1rem,env(safe-area-inset-bottom))]',
           'sm:inset-x-auto sm:right-0 sm:items-end sm:px-6 sm:pb-6',
+          // Con una ventana o panel abierto (Radix marca el body con
+          // `data-scroll-locked`) el aviso sube sobre la zona de acciones fija
+          // al pie para no tapar los botones del diálogo.
+          '[body[data-scroll-locked]_&]:pb-[calc(6rem+env(safe-area-inset-bottom))]',
         )}
       >
         <div aria-live="polite" className="contents">
