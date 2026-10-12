@@ -126,6 +126,26 @@ locals {
     },
   ]
 
+  # Envío de correo por Amazon SES (EP-05, US-039, ADR-0006): statement IAM
+  # reutilizado por las Lambdas que emiten eventos automáticos y por
+  # POST /notifications. Solo `ses:SendEmail` (la API v2 SendEmail, con
+  # contenido simple o con plantilla, se autoriza con esta única acción) y
+  # solo sobre la identidad del remitente de este entorno
+  # (modules/ses-identity): ninguna Lambda recibe `ses:*`, ni SendRawEmail ni
+  # SendTemplatedEmail (esta última, de la API v1, se agregaría solo si
+  # US-040 eligiera ese cliente).
+  ses_send_email_statement = {
+    actions   = ["ses:SendEmail"]
+    resources = [module.ses.identity_arn]
+  }
+
+  # Variable de entorno común de las Lambdas que envían correo: dirección del
+  # remitente verificado (no es un secreto). Evita que US-040 dependa de otro
+  # cambio de infraestructura solo para conocer el From.
+  ses_sender_env = {
+    SES_SENDER_EMAIL = module.ses.sender_email
+  }
+
   # Árbol de rutas de la API (docs/api/contratos-api.md §3, §4, §10), separado
   # por nivel de profundidad: Terraform no permite que una instancia de
   # aws_api_gateway_resource.this[x] dependa de otra instancia del mismo
@@ -135,7 +155,8 @@ locals {
   # "memberships" y "payments": EP-03/US-019 (docs/api/contratos-api.md §5).
   # "resources", "reservations" y "guests": EP-04/US-027
   # (docs/api/contratos-api.md §6 y §7).
-  api_resource_level1 = ["activation", "registration", "members", "admin", "memberships", "payments", "resources", "reservations", "guests"]
+  # "notifications": EP-05/US-039 (docs/api/contratos-api.md §8).
+  api_resource_level1 = ["activation", "registration", "members", "admin", "memberships", "payments", "resources", "reservations", "guests", "notifications"]
 
   api_resource_level2 = {
     "activation/verify"   = { parent = "activation", part = "verify" }
@@ -158,9 +179,17 @@ locals {
     # level1 "payments" (igual que POST/GET /members con "members"), sin
     # nodo level2 propio: solo "payments/webhook" y "payments/{paymentId}"
     # necesitan un segmento adicional.
-    "memberships/plans"    = { parent = "memberships", part = "plans" }
-    "payments/webhook"     = { parent = "payments", part = "webhook" }
-    "payments/{paymentId}" = { parent = "payments", part = "{paymentId}" }
+    # EP-05, US-039 (docs/api/contratos-api.md §8): "sent" (literal) y
+    # "{notificationId}" (parámetro) cuelgan del mismo padre "notifications",
+    # igual que "members/lookup" y "members/{memberId}" más arriba: API
+    # Gateway prioriza el segmento literal sobre el parámetro, así que
+    # GET /notifications/sent nunca cae en el recurso "{notificationId}"
+    # (que solo expone POST .../read).
+    "notifications/sent"             = { parent = "notifications", part = "sent" }
+    "notifications/{notificationId}" = { parent = "notifications", part = "{notificationId}" }
+    "memberships/plans"              = { parent = "memberships", part = "plans" }
+    "payments/webhook"               = { parent = "payments", part = "webhook" }
+    "payments/{paymentId}"           = { parent = "payments", part = "{paymentId}" }
   }
 
   api_resource_level3 = {
@@ -174,6 +203,9 @@ locals {
     "reservations/{reservationId}/cancel"  = { parent = "reservations/{reservationId}", part = "cancel" }
     "reservations/{reservationId}/approve" = { parent = "reservations/{reservationId}", part = "approve" }
     "reservations/{reservationId}/reject"  = { parent = "reservations/{reservationId}", part = "reject" }
+    # POST /notifications/{notificationId}/read (EP-05, US-039,
+    # docs/api/contratos-api.md §8).
+    "notifications/{notificationId}/read" = { parent = "notifications/{notificationId}", part = "read" }
   }
 
   # Único nodo de profundidad 4 del árbol (EP-04, US-027): primera ruta con
@@ -246,6 +278,14 @@ locals {
       # Carga inicial de socios (US-012, ADR-0012): Lambda de invocación
       # directa (no HTTP), ver module "job_migration_run".
       "migration-run",
+      # EP-05, US-039 (docs/api/contratos-api.md §8): sin lógica de negocio
+      # en esta historia (criterio 12), las 4 apuntan al placeholder
+      # compartido de scripts/package-lambdas.mjs hasta que US-041 (bandeja
+      # y marcar leída) y US-048/US-049 (publicar y enviadas) las reemplacen.
+      "notifications-list",
+      "notifications-read",
+      "notifications-create",
+      "notifications-sent",
       ] : function_name => (
       var.lambda_artifacts_dir == null ? null : "${var.lambda_artifacts_dir}/${function_name}.zip"
     )
@@ -331,6 +371,15 @@ locals {
     module.endpoint_members_lookup.integration_id,
     module.endpoint_guests_lookup.method_id,
     module.endpoint_guests_lookup.integration_id,
+    # EP-05, US-039 (docs/api/contratos-api.md §8).
+    module.endpoint_notifications_list.method_id,
+    module.endpoint_notifications_list.integration_id,
+    module.endpoint_notifications_read.method_id,
+    module.endpoint_notifications_read.integration_id,
+    module.endpoint_notifications_create.method_id,
+    module.endpoint_notifications_create.integration_id,
+    module.endpoint_notifications_sent.method_id,
+    module.endpoint_notifications_sent.integration_id,
   ]
 }
 
@@ -508,10 +557,10 @@ module "endpoint_activation_complete" {
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["activation/complete"]
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME  = local.dynamodb_table_name
     COGNITO_USER_POOL_ID = local.cognito_user_pool_id
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -529,6 +578,9 @@ module "endpoint_activation_complete" {
       actions   = ["cognito-idp:AdminCreateUser", "cognito-idp:AdminAddUserToGroup", "cognito-idp:AdminSetUserPassword"]
       resources = [local.cognito_user_pool_arn]
     },
+    # EP-05, US-039: correo de ACCOUNT_ACTIVATED (RN-NOT-04), best-effort
+    # (ADR-0006). La notificación interna usa el PutItem ya concedido arriba.
+    local.ses_send_email_statement,
   ]
 }
 
@@ -736,9 +788,9 @@ module "endpoint_members_approve" {
   parent_resource_id     = local.api_resource_id["members/{memberId}/approve"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -747,10 +799,14 @@ module "endpoint_members_approve" {
     },
     {
       # PutItem: registra el AuditLog "MEMBER_APPROVED" (US-017, ADR-0008)
-      # tras la transición PENDING -> APPROVED.
+      # tras la transición PENDING -> APPROVED. Cubre también, sin permiso
+      # adicional, la Notification y la MemberNotification del evento
+      # MEMBER_APPROVED (EP-05, US-039/US-040).
       actions   = ["dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn]
     },
+    # EP-05, US-039: correo de MEMBER_APPROVED, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -772,9 +828,9 @@ module "endpoint_members_reject" {
   parent_resource_id     = local.api_resource_id["members/{memberId}/reject"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -784,9 +840,13 @@ module "endpoint_members_reject" {
     {
       # PutItem: registra el AuditLog "MEMBER_REJECTED" (US-017, ADR-0008)
       # tras la transición PENDING -> REJECTED, con el motivo en `metadata`.
+      # Cubre también, sin permiso adicional, la Notification y la
+      # MemberNotification del evento MEMBER_REJECTED (EP-05, US-039/US-040).
       actions   = ["dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn]
     },
+    # EP-05, US-039: correo de MEMBER_REJECTED, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -844,10 +904,10 @@ module "endpoint_payments_create" {
   parent_resource_id     = local.api_resource_id["payments"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME          = local.dynamodb_table_name
     STRIPE_SECRET_KEY_PARAM_NAME = aws_ssm_parameter.stripe_secret_key.name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -880,6 +940,9 @@ module "endpoint_payments_create" {
       resources  = ["*"]
       conditions = local.ssm_default_kms_decrypt_conditions
     },
+    # EP-05, US-039: correo de PAYMENT_SUCCEEDED / PAYMENT_FAILED, best-effort
+    # (ADR-0006). La notificación interna usa el PutItem ya concedido arriba.
+    local.ses_send_email_statement,
   ]
 }
 
@@ -979,10 +1042,10 @@ module "endpoint_payments_webhook" {
   rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
   parent_resource_id     = local.api_resource_id["payments/webhook"]
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME              = local.dynamodb_table_name
     STRIPE_WEBHOOK_SECRET_PARAM_NAME = aws_ssm_parameter.stripe_webhook_signing_secret.name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -1009,6 +1072,9 @@ module "endpoint_payments_webhook" {
       resources  = ["*"]
       conditions = local.ssm_default_kms_decrypt_conditions
     },
+    # EP-05, US-039: correo de PAYMENT_SUCCEEDED / PAYMENT_FAILED, best-effort
+    # (ADR-0006). La notificación interna usa el PutItem ya concedido arriba.
+    local.ses_send_email_statement,
   ]
 }
 
@@ -1173,9 +1239,9 @@ module "endpoint_resources_update" {
   parent_resource_id     = local.api_resource_id["resources/{resourceId}"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -1183,9 +1249,24 @@ module "endpoint_resources_update" {
       # resourceStatus, RN-ADM-04) + PutItem del AuditLog "RESOURCE_UPDATED"
       # (US-036, ADR-0008). Sin índice: el recurso se referencia por su PK
       # exacta (resourceId) y el AuditLog se escribe por PK=AUDIT#<fecha>.
+      # El PutItem cubre también la Notification y la MemberNotification de
+      # RESOURCE_MAINTENANCE (EP-05, US-039/US-045); el GetItem, la lectura
+      # del correo del titular afectado.
       actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn]
     },
+    {
+      # EP-05, US-039/US-045: al pasar el recurso a MAINTENANCE hay que
+      # localizar las reservas activas futuras del recurso para avisar a sus
+      # titulares (patrón 19, GSI3PK=RESOURCE#<id>). Única Lambda emisora que
+      # hoy no podía consultar reservas. Solo GSI3 (el índice projection ALL
+      # ya trae el memberId del titular), no el wildcard de índices ni la
+      # tabla base.
+      actions   = ["dynamodb:Query"]
+      resources = ["${local.dynamodb_table_arn}/index/GSI3"]
+    },
+    # EP-05, US-039: correo de RESOURCE_MAINTENANCE, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -1212,9 +1293,9 @@ module "endpoint_resources_maintenance_create" {
   parent_resource_id     = local.api_resource_id["resources/{resourceId}/maintenance"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -1222,10 +1303,15 @@ module "endpoint_resources_maintenance_create" {
       # dentro de la ventana bloqueada, para calcular
       # "affectedReservationCount", RN-RES-11) + PutItem del MaintenanceBlock
       # (modelo §3.11) y del AuditLog "RESOURCE_MAINTENANCE" (US-035,
-      # ADR-0008).
+      # ADR-0008). Estos mismos permisos cubren, sin ampliación, la
+      # Notification y la MemberNotification de RESOURCE_MAINTENANCE (PutItem)
+      # y la lectura del correo de cada titular afectado (GetItem), EP-05,
+      # US-039/US-045.
       actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
+    # EP-05, US-039: correo de RESOURCE_MAINTENANCE, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -1327,9 +1413,9 @@ module "endpoint_reservations_create" {
   parent_resource_id     = local.api_resource_id["reservations"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -1346,9 +1432,13 @@ module "endpoint_reservations_create" {
       # US-027). AWS exige el permiso de la acción de ítem concreta además de
       # TransactWriteItems para cada operación dentro de la transacción
       # (mismo hallazgo ya documentado en activation-complete/registration).
+      # El PutItem cubre también la Notification y la MemberNotification de
+      # RESERVATION_CONFIRMED (EP-05, US-039/US-044).
       actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
+    # EP-05, US-039: correo de RESERVATION_CONFIRMED, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -1455,9 +1545,9 @@ module "endpoint_reservations_cancel" {
   parent_resource_id     = local.api_resource_id["reservations/{reservationId}/cancel"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -1474,10 +1564,14 @@ module "endpoint_reservations_cancel" {
       # PutItem del AuditLog "RESERVATION_CANCELLED" (US-033/US-036,
       # ADR-0008), tanto para el socio como para la cancelación administrativa.
       # Faltaba: sin este permiso, la escritura de auditoría posterior a la
-      # transacción de cancelación fallaba con AccessDenied. Aditivo.
+      # transacción de cancelación fallaba con AccessDenied. Aditivo. Cubre
+      # también la Notification y la MemberNotification de
+      # RESERVATION_CANCELLED (EP-05, US-039/US-044).
       actions   = ["dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn]
     },
+    # EP-05, US-039: correo de RESERVATION_CANCELLED, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -1499,9 +1593,9 @@ module "endpoint_reservations_approve" {
   parent_resource_id     = local.api_resource_id["reservations/{reservationId}/approve"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -1509,10 +1603,14 @@ module "endpoint_reservations_approve" {
       # PutItem del AuditLog "RESERVATION_APPROVED" (US-034, ADR-0008). El
       # actor admin sale del claim `sub` del JWT (mismo patrón que
       # members-approve/reject), no requiere resolverse por GSI1: sin
-      # contadores que tocar, sin índice.
+      # contadores que tocar, sin índice. El PutItem cubre también la
+      # Notification y la MemberNotification de RESERVATION_APPROVED (EP-05,
+      # US-039/US-044); el GetItem, la lectura del correo del titular.
       actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:PutItem"]
       resources = [local.dynamodb_table_arn]
     },
+    # EP-05, US-039: correo de RESERVATION_APPROVED, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -1534,9 +1632,9 @@ module "endpoint_reservations_reject" {
   parent_resource_id     = local.api_resource_id["reservations/{reservationId}/reject"]
   cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
 
-  environment_variables = {
+  environment_variables = merge({
     DYNAMODB_TABLE_NAME = local.dynamodb_table_name
-  }
+  }, local.ses_sender_env)
 
   iam_policy_statements = [
     {
@@ -1546,10 +1644,13 @@ module "endpoint_reservations_reject" {
       # PutItem del AuditLog "RESERVATION_REJECTED" (US-034, ADR-0008) +
       # TransactWriteItems (rechazo y devolución del cupo mensual de cada
       # invitado externo en una sola operación atómica, criterio 10 de
-      # US-034 / caso R-29).
+      # US-034 / caso R-29). El PutItem cubre también la Notification y la
+      # MemberNotification de RESERVATION_REJECTED (EP-05, US-039/US-044).
       actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:PutItem", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn]
     },
+    # EP-05, US-039: correo de RESERVATION_REJECTED, best-effort (ADR-0006).
+    local.ses_send_email_statement,
   ]
 }
 
@@ -1631,6 +1732,209 @@ module "endpoint_guests_lookup" {
       # solo pide este ítem puntual, no un Query de la partición completa.
       actions   = ["dynamodb:GetItem"]
       resources = [local.dynamodb_table_arn]
+    },
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# EP-05 (US-039): cuatro endpoints de notificaciones (docs/api/contratos-api.md
+# §8) y permiso de envío de correo por SES para las Lambdas emisoras (ver
+# local.ses_send_email_statement y los módulos endpoint_activation_complete,
+# endpoint_members_*, endpoint_payments_*, endpoint_reservations_*,
+# endpoint_resources_update y endpoint_resources_maintenance_create más
+# arriba). Sin lógica de negocio (criterio 12): las cuatro apuntan al
+# placeholder compartido de scripts/package-lambdas.mjs hasta que US-041,
+# US-048 y US-049 las reemplacen.
+#
+# Permisos IAM (criterio 5): cada Lambda recibe solo los índices que consulta
+# (ARN de índice concreto, no local.dynamodb_index_arn). Ninguna usa Scan.
+#
+# Alarmas (ADR-0008): las cuatro con enable_error_alarm = false, igual que el
+# resto de endpoints de lectura/uso administrativo, para no superar el límite
+# de 10 alarmas de la capa gratuita de CloudWatch (hoy lo ocupan las Lambdas
+# críticas de dinero y de reservas). Siguen con log group y retención.
+# ---------------------------------------------------------------------------
+
+module "endpoint_notifications_list" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "notifications-list"
+  source_zip_path = local.lambda_zip_path["notifications-list"]
+  http_method     = "GET"
+  resource_path   = "api/notifications"
+  requires_auth   = true
+  allowed_groups  = ["member"]
+
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["notifications"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Solo lectura. Query sobre la tabla base (bandeja: PK=MEMBER#<id>,
+      # begins_with(SK,"NOTIF#"), patrón 5, modelo §3.13) + Query sobre GSI1
+      # únicamente (resolver al socio autenticado por cognitoSub, patrón 11).
+      actions   = ["dynamodb:Query"]
+      resources = [local.dynamodb_table_arn, "${local.dynamodb_table_arn}/index/GSI1"]
+    },
+  ]
+}
+
+module "endpoint_notifications_read" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "notifications-read"
+  source_zip_path = local.lambda_zip_path["notifications-read"]
+  http_method     = "POST"
+  resource_path   = "api/notifications/{notificationId}/read"
+  requires_auth   = true
+  allowed_groups  = ["member"]
+
+  # Sin alarma de errores: acción de bajo riesgo del propio socio (marcar
+  # como leída), fuera del conjunto crítico monitoreado (gestión de la capa
+  # gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["notifications/{notificationId}/read"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Query sobre GSI1 (resolver al socio autenticado por cognitoSub,
+      # patrón 11) + Query/GetItem sobre la tabla base (la ruta solo trae
+      # notificationId, pero la SK es NOTIF#<createdAt>#<notificationId>:
+      # se localiza el ítem de la bandeja del propio socio por su PK, igual
+      # que resources-maintenance-delete con blockId; GetItem queda para el
+      # caso en que el handler ya conozca la SK completa) + UpdateItem
+      # (readStatus=READ, readAt). Sin PutItem ni DeleteItem; sin otros
+      # índices.
+      actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"]
+      resources = [local.dynamodb_table_arn, "${local.dynamodb_table_arn}/index/GSI1"]
+    },
+  ]
+}
+
+module "endpoint_notifications_create" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "notifications-create"
+  source_zip_path = local.lambda_zip_path["notifications-create"]
+  http_method     = "POST"
+  resource_path   = "api/notifications"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  # Sin alarma de errores (excepción a "escritura = alarma" documentada):
+  # uso administrativo puntual y con respuesta directa al administrador, que
+  # ve el error en la consola al instante; el fallo de correo es best-effort
+  # (ADR-0006) y no produce errores de la Lambda. Evita superar el límite de
+  # alarmas de la capa gratuita (ADR-0008).
+  enable_error_alarm = false
+
+  # Tiempo máximo de ejecución (criterio 7): 29 s = el límite de integración
+  # de API Gateway REST; un valor mayor no serviría porque el cliente
+  # recibiría 504 igual. Cubre el envío segmentado al padrón mock completo
+  # (decenas a un centenar de socios): escrituras de bandeja en DynamoDB
+  # (~10-20 ms cada una) más una llamada a SES por destinatario (~50-150 ms;
+  # rechazos inmediatos de destinatarios no verificados en sandbox). Ver
+  # docs/deployment/terraform-infraestructura.md para el cálculo y la
+  # limitación del límite de envío de 1 mensaje/s de SES en sandbox.
+  timeout = 29
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["notifications"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = merge({
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }, local.ses_sender_env)
+
+  iam_policy_statements = [
+    {
+      # GetItem (SINGLE: el socio destino por memberId, patrón 1;
+      # BY_RESOURCE: el recurso existe, modelo §3.7) + PutItem (la
+      # Notification, una MemberNotification por destinatario y el AuditLog
+      # "NOTIFICATION_SENT", ADR-0008). Solo tabla base, sin índice.
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+    {
+      # Resolución de segmentos (RN-NOT-03) sin Scan: Query sobre GSI2 (socios
+      # por estado, patrón 14, y membresías ACTIVE por vencimiento, patrón
+      # 15) y sobre GSI3 (BY_RESOURCE: reservas activas del recurso, patrón
+      # 19). No necesita GSI1 (el administrador se identifica por el claim
+      # `sub` del JWT) ni Query sobre la tabla base. Ambos índices con
+      # projection ALL: traen el email y los datos del destinatario.
+      actions = ["dynamodb:Query"]
+      resources = [
+        "${local.dynamodb_table_arn}/index/GSI2",
+        "${local.dynamodb_table_arn}/index/GSI3",
+      ]
+    },
+    # Correo opcional (alsoEmail), best-effort (ADR-0006, RN-NOT-02).
+    local.ses_send_email_statement,
+  ]
+}
+
+module "endpoint_notifications_sent" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "notifications-sent"
+  source_zip_path = local.lambda_zip_path["notifications-sent"]
+  http_method     = "GET"
+  resource_path   = "api/notifications/sent"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  # Sin alarma de errores: endpoint de lectura administrativo, fuera del
+  # conjunto crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["notifications/sent"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Solo lectura. Un único patrón de acceso: Query sobre GSI2
+      # (GSI2PK=NOTIFICATION#SENT, rango createdAt, patrón 18, RN-ANL-08).
+      # Sin acceso a la tabla base ni a otros índices.
+      actions   = ["dynamodb:Query"]
+      resources = ["${local.dynamodb_table_arn}/index/GSI2"]
     },
   ]
 }

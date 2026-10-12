@@ -262,3 +262,76 @@ Terraform y debe tratarse como sospechoso de estar huérfano.
   verificarse primero contra el `account_id` esperado (`aws sts
 get-caller-identity`) antes de continuar, para evitar aplicar contra una
   cuenta incorrecta.
+
+## 11. Notificaciones y envío de correo (EP-05, US-039)
+
+Todo vive en `infrastructure/terraform/environments/dev/main.tf`; no hay
+módulos nuevos (se reutiliza `modules/endpoint` y `modules/ses-identity`).
+
+**Endpoints** (módulo `endpoint`, sin lógica de negocio: placeholder 501 de
+`handlers/not-implemented.ts` hasta US-041, US-048 y US-049):
+
+| Módulo                          | Método y ruta                                   | Grupo  | IAM de DynamoDB (mínimo privilegio)                                              |
+| ------------------------------- | ----------------------------------------------- | ------ | -------------------------------------------------------------------------------- |
+| `endpoint_notifications_list`   | `GET /api/notifications`                        | member | `Query` sobre tabla + `GSI1`                                                     |
+| `endpoint_notifications_read`   | `POST /api/notifications/{notificationId}/read` | member | `GetItem`, `Query`, `UpdateItem` sobre tabla + `GSI1`                            |
+| `endpoint_notifications_create` | `POST /api/notifications`                       | admin  | `GetItem`, `PutItem` sobre tabla; `Query` sobre `GSI2` y `GSI3`; `ses:SendEmail` |
+| `endpoint_notifications_sent`   | `GET /api/notifications/sent`                   | admin  | `Query` solo sobre `GSI2`                                                        |
+
+Árbol de rutas: nodos nuevos `notifications` (nivel 1), `notifications/sent` y
+`notifications/{notificationId}` (nivel 2, hermanos: el literal tiene prioridad
+sobre el parámetro, igual que `members/lookup` y `members/{memberId}`) y
+`notifications/{notificationId}/read` (nivel 3).
+
+**Permiso de correo**: `ses:SendEmail` sobre `module.ses.identity_arn` (solo la
+identidad remitente del entorno; nunca `ses:*`, ni `SendRawEmail`). Más la
+variable de entorno `SES_SENDER_EMAIL` (no secreta). Lo reciben las 11 Lambdas
+emisoras y `notifications-create`:
+
+| Lambda                                                  | Permiso nuevo                                        |
+| ------------------------------------------------------- | ---------------------------------------------------- |
+| `activation-complete`                                   | `ses:SendEmail`                                      |
+| `members-approve`, `members-reject`                     | `ses:SendEmail`                                      |
+| `payments-create`, `payments-webhook`                   | `ses:SendEmail`                                      |
+| `reservations-create`, `-cancel`, `-approve`, `-reject` | `ses:SendEmail`                                      |
+| `resources-maintenance-create`                          | `ses:SendEmail`                                      |
+| `resources-update`                                      | `ses:SendEmail` y `dynamodb:Query` solo sobre `GSI3` |
+
+Las escrituras de `Notification` y `MemberNotification` no requirieron permiso
+nuevo: las 11 ya tienen `dynamodb:PutItem` sobre la tabla (auditoría o datos de
+negocio) y ese mismo `PutItem` cubre ambas entidades. `resources-update` es la
+única que no podía consultar reservas (necesaria para avisar a los titulares al
+pasar un recurso a mantenimiento, US-045) y recibe `Query` acotado a `GSI3`.
+
+**Alarmas** (ADR-0008): los cuatro endpoints nuevos con `enable_error_alarm =
+false`, para no superar las 10 alarmas de la capa gratuita de CloudWatch. Sí
+tienen log group con retención.
+
+**Tiempo máximo de `POST /notifications`**: 29 s (límite de integración de API
+Gateway REST; más no serviría). Cálculo para el padrón mock completo (decenas
+a un centenar de socios): escritura en DynamoDB ~10-20 ms por destinatario y
+una llamada a SES por destinatario con `alsoEmail` (~50-150 ms; los destinatarios
+no verificados en sandbox se rechazan de inmediato). Alcanza con holgura. Límite
+real a vigilar: en sandbox SES acepta 1 mensaje por segundo y 200 por día, así
+que muchos destinatarios _verificados_ no caben en 29 s; US-048 debe acotar el
+bucle de correo por tiempo y, si hace falta, escalar al Arquitecto (nunca
+publicar a medias en la bandeja).
+
+**Verificar un destinatario de prueba en el sandbox de SES** (la identidad
+remitente ya está verificada):
+
+```bash
+aws ses verify-email-identity --email-address <correo-de-prueba> --profile activa-club-dev
+```
+
+AWS envía un correo con un enlace; al abrirlo el destinatario queda verificado
+y puede recibir correos en `dev`. Salir del sandbox queda fuera del alcance
+(ADR-0006).
+
+**Rol de despliegue de CI**: no necesita permisos nuevos. Crear/actualizar
+roles, políticas, Lambdas, rutas y log groups de `activa-club-dev-*` ya está
+cubierto por `github_actions_deploy_dev`; conceder `ses:SendEmail` dentro de la
+política de un rol de Lambda no exige ningún permiso SES al desplegador.
+
+**Rollback**: revertir el PR y desplegar de nuevo; los cuatro endpoints y los
+statements se eliminan. No hay datos que borrar (no se crean tablas ni ítems).

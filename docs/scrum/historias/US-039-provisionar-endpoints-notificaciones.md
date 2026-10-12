@@ -69,6 +69,10 @@ Habilita RN-NOT-01..04 y RN-ADM-06. Autorización por rol según [ADR-0002](../.
 - Si el rol de despliegue de CI necesita permisos nuevos sobre SES, se aplica `bootstrap` con credenciales elevadas **antes** de mergear, según `docs/deployment/despliegue-dev.md`.
 - **SES en sandbox**: solo entrega a direcciones verificadas. Es suficiente para la demo; salir del sandbox queda fuera del alcance (ADR-0006). El PR debe dejar documentado cómo verificar un destinatario de prueba.
 
+## Historial de cambios
+
+- 2026-10-12: Infraestructura desplegada en `dev` por Terraform (PR de US-039), pendiente lógica: los cuatro endpoints responden 501 con el placeholder hasta US-041, US-048 y US-049; las 11 Lambdas emisoras tienen `ses:SendEmail` sobre la identidad remitente. Detalle y permisos por Lambda en `docs/deployment/terraform-infraestructura.md` sección 11. Verificación en `dev` tras el despliegue.
+
 ## Sugerencia de pruebas funcionales
 
 - `terraform plan` sin cambios tras `apply`.

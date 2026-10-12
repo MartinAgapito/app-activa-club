@@ -28,6 +28,16 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Infraestructura de notificaciones en `dev` (US-039, EP-05): cuatro endpoints
+  serverless (`GET /notifications` y `POST /notifications/{notificationId}/read`
+  para socios; `POST /notifications` y `GET /notifications/sent` para
+  administradores) con Cognito, IAM de mínimo privilegio por índice, log group y
+  sin alarma de errores (ADR-0008). Las 4 Lambdas devuelven 501 hasta US-041,
+  US-048 y US-049. Las 11 Lambdas que emiten eventos reciben `ses:SendEmail`
+  acotado a la identidad remitente y la variable `SES_SENDER_EMAIL`;
+  `resources-update` recibe además `Query` sobre GSI3. Sin cambios de API ni
+  de lógica de negocio.
+
 - Guarda de CI `check:handlers` (`scripts/check-handler-mapping.mjs`): falla
   si un handler real de `apps/api` no está en el mapa `HANDLERS` de
   `scripts/package-lambdas.mjs`, si una entrada apunta a un archivo
