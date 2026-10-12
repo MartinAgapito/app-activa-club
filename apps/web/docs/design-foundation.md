@@ -482,6 +482,31 @@ no es un componente de `@activa-club/ui` porque conoce el dominio.
 - Aviso final: `useToast().success` con el verbo del botón ("Reserva
   confirmada" / "Solicitud enviada a revisión") y acción "Ver en Mis reservas".
 
+### 7.3 Inicio del socio (US-070)
+
+Bloques independientes en `apps/web/src/dashboard/`, compuestos por
+`MemberDashboardPage`; cada uno tiene su fuente de datos, su carga, su error
+con "Reintentar" y su estado vacío, así que un fallo no tumba el inicio.
+
+- `GreetingBlock`: "Hola, <nombre de pila>" (`type-page-title`) y fecha de hoy
+  en hora de Lima.
+- `ReservationBlockNotice`: aviso rojo sobrio con enlace a pagar si el socio no
+  puede reservar (`getReservationBlock`) o ámbar informativo si vence en 7
+  días o menos.
+- `MembershipPassBlock`: el "pase", único bloque sobre `action` (azul de
+  marca): estado en `Badge` (texto, nunca solo color), plan, días restantes en
+  `type-figure`, vigencia, saldo pendiente y CTA contextual (Pagar / Renovar;
+  sin CTA si está al día). Línea "Pago en verificación" desde
+  `GET /payments?limit=1`, opcional.
+- `QuickActionsBlock`: cuatro accesos; "Reservar" se deshabilita con el motivo
+  visible, nunca se oculta.
+- `UpcomingReservationsBlock`: hasta 3 reservas activas con fecha grande
+  (día en `type-figure`), instalación, hora y `Badge` de estado.
+- Orden móvil: aviso, membresía, accesos, próximas reservas. Desde `lg`, los
+  accesos pasan a una columna lateral.
+- US-056 cambia solo la fuente de `MembershipPassBlock`
+  (`GET /dashboard/member`) y agrega bloques; el resto se conserva.
+
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
@@ -530,3 +555,4 @@ no es un componente de `@activa-club/ui` porque conoce el dominio.
   768 px y apiladas por debajo), `AuthAlert` (error `role="alert"`, resto
   `role="status"`, siempre con icono) y `PasswordRequirements` en
   `apps/web/src/components/auth/`.
+- 2026-10-11: US-070. Inicio del socio por bloques independientes (§7.3).
