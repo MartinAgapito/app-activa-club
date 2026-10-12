@@ -1,3 +1,13 @@
+/* Fuentes servidas desde el propio sitio (US-061, criterio 8): Vite empaqueta
+   los archivos woff2; solo subconjunto latin y los pesos usados. Los @import
+   deben ir antes que el resto. font-display: swap lo declara @fontsource. */
+@import '@fontsource/barlow-semi-condensed/latin-500.css';
+@import '@fontsource/barlow-semi-condensed/latin-600.css';
+@import '@fontsource/barlow-semi-condensed/latin-700.css';
+@import '@fontsource/hanken-grotesk/latin-400.css';
+@import '@fontsource/hanken-grotesk/latin-500.css';
+@import '@fontsource/hanken-grotesk/latin-600.css';
+@import '@fontsource/hanken-grotesk/latin-700.css';
 @import 'tailwindcss';
 @import './styles/theme.css';
 
@@ -12,11 +22,13 @@
   }
 
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-surface-app text-ink antialiased;
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-leading);
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-brand-500);
-    outline-offset: 2px;
+    outline: var(--focus-ring-width) solid var(--line-focus);
+    outline-offset: var(--focus-ring-offset);
   }
 }

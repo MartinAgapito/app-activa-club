@@ -24,6 +24,12 @@ en el proyecto que lo consume.
 | `EmptyState`               | Estado vacío (listados sin datos, placeholders de Sprint 0)                                          |
 | `ErrorState`               | Estado de error, alineado al formato de error del contrato de API                                    |
 
+> **US-061**: `Button`, `Card`, `Badge`, `Input`, `Textarea` y `PageLayout`
+> usan los tokens semánticos (`bg-surface-card`, `text-ink`, `border-line`,
+> `rounded-control`, `shadow-card`, `type-card-title`...) definidos en
+> `apps/web/src/styles/theme.css`. Los componentes nuevos deben usar esos
+> nombres y no colores `slate-*` a mano. Ver §3 de `design-foundation.md`.
+
 ## Convenciones
 
 - Ningún componente hace `fetch`, decide reglas de negocio (aforo, deuda,

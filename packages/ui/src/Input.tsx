@@ -25,10 +25,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-sm font-medium text-slate-700">
+      <label htmlFor={inputId} className="text-sm font-medium text-ink">
         {label}
         {required ? (
-          <span className="ml-0.5 text-danger-600" aria-hidden="true">
+          <span className="ml-0.5 text-status-problem" aria-hidden="true">
             *
           </span>
         ) : null}
@@ -40,21 +40,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         aria-invalid={Boolean(errorMessage) || undefined}
         aria-describedby={describedBy}
         className={cn(
-          'h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900',
-          'placeholder:text-slate-400',
-          'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500',
-          'disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400',
-          errorMessage && 'border-danger-500 focus:ring-danger-500 focus:border-danger-500',
+          'h-11 rounded-control border border-line-strong bg-surface-card px-3 text-sm text-ink',
+          'placeholder:text-ink-muted',
+          'transition-colors duration-(--motion-fast) ease-(--motion-ease)',
+          'focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus',
+          'disabled:cursor-not-allowed disabled:bg-surface-raised disabled:text-ink-disabled',
+          errorMessage &&
+            'border-status-problem focus:ring-status-problem focus:border-status-problem',
           className,
         )}
         {...props}
       />
       {errorMessage ? (
-        <p id={errorId} role="alert" className="text-sm text-danger-600">
+        <p id={errorId} role="alert" className="text-sm text-status-problem">
           {errorMessage}
         </p>
       ) : helpText ? (
-        <p id={helpId} className="text-sm text-slate-500">
+        <p id={helpId} className="text-sm text-ink-muted">
           {helpText}
         </p>
       ) : null}

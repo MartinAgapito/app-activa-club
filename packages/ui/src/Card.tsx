@@ -12,7 +12,7 @@ export function Card({ compact = false, className, children, ...props }: CardPro
   return (
     <div
       className={cn(
-        'rounded-2xl border border-slate-200 bg-white shadow-sm',
+        'rounded-card border border-line bg-surface-card text-ink shadow-card',
         compact ? 'p-4' : 'p-6',
         className,
       )}
@@ -33,8 +33,8 @@ export function CardHeader({ title, description, action }: CardHeaderProps) {
   return (
     <div className="mb-4 flex items-start justify-between gap-4">
       <div>
-        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-        {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
+        <h3 className="type-card-title text-ink">{title}</h3>
+        {description ? <p className="mt-1 type-aux text-ink-muted">{description}</p> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>

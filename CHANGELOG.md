@@ -33,6 +33,12 @@ backlog en `docs/scrum/`.
   pasar la fecha), regla de vigencia única compartida, defensa por fecha en
   `POST /reservations` y módulo Terraform `scheduled-job` (EventBridge 00:15
   America/Lima, alarma de errores). Pendiente: verificación en `dev`.
+- Sprint 4B (EP-08, US-061): tokens semánticos de diseño en
+  `apps/web/src/styles/theme.css` (superficie, texto, borde, acción, estados,
+  radios, elevación, capas, movimiento y escala tipográfica nombrada), fuentes
+  Barlow Semi Condensed y Hanken Grotesk autoalojadas, muestra en
+  `/_dev/design-system`, script de verificación de contraste AA y
+  `design-foundation.md` v2.0. Modo oscuro preparado en estructura, no activo.
 
 ### Changed
 
@@ -41,6 +47,10 @@ backlog en `docs/scrum/`.
   `aws lambda invoke`, sin API Gateway ni payload; autorización IAM, auditoría
   con actor `system`). Ver ADR-0012. El endpoint viejo queda en 501 hasta la
   fase 2 del despliegue, que lo elimina.
+- `Button`, `Card`, `Badge`, `Input`, `Textarea` y `PageLayout` de
+  `packages/ui` usan los tokens semánticos nuevos (US-061) sin cambiar su API.
+  Botón principal pasa a `brand-600`; botón `positive` a `positive-700` y hover
+  de `warning` a `warning-400` por contraste AA.
 
 <!--
 Convenciones para nuevas entradas:
