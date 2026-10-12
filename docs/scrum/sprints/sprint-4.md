@@ -134,6 +134,7 @@ La verificación extremo a extremo de EP-04 (Ola 6 del Sprint 3) sigue pendiente
 - 2026-10-12: US-040 implementada (módulo `notifications` del backend), pendiente consumo por US-042..US-047. Desvío: correo sin plantillas SES (generado en código con `ses:SendEmail`).
 - 2026-10-12: US-043 implementada (Ola 3): avisos del resultado de un pago desde `POST /payments` y el webhook, primera historia que consume el motor de US-040.
 - 2026-10-12: US-045 implementada (avisos de mantenimiento a los socios afectados, best-effort y acotados por petición), pendiente verificación en `dev`.
+- 2026-10-12: US-046 implementada (proceso programado de recordatorio de reservas, 18:00 America/Lima; reutiliza `scheduled-job`, con alarma de errores), pendiente verificación en `dev`.
 - 2026-10-12: US-044 implementada (Ola 3): avisos de reserva confirmada, aprobada, rechazada y cancelada al titular, sin cambios de API ni de IAM. Pendiente verificación en `dev`.
 - 2026-10-12: US-042 implementada (avisos de activación de cuenta y de decisión sobre la solicitud; sin cambios de infraestructura).
 - 2026-10-12: US-048 implementada (`POST /notifications` y `GET /notifications/sent`): segmentos sin Scan, bandejas en bloques de 100 con reintento idempotente, correo acotado (15 por publicación, 1/s, 22 s), códigos `NO_RECIPIENTS` y `RECIPIENT_LIMIT_EXCEEDED`. Sin cambios de Terraform. Pendiente verificación en `dev` y la consola (US-049).

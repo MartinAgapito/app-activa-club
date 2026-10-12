@@ -337,3 +337,44 @@ política de un rol de Lambda no exige ningún permiso SES al desplegador.
 
 **Rollback**: revertir el PR y desplegar de nuevo; los cuatro endpoints y los
 statements se eliminan. No hay datos que borrar (no se crean tablas ni ítems).
+
+## 12. Recordatorio de reservas (EP-05, US-046)
+
+Una instancia más del módulo `scheduled-job` en
+`infrastructure/terraform/environments/dev/main.tf`
+(`module.job_reservations_remind`); no hay módulos nuevos. Es la segunda
+Lambda programada del proyecto (la primera es `memberships-expire`, US-038).
+
+| Propiedad    | Valor                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------- |
+| Función      | `activa-club-dev-reservations-remind` (`handlers/reservations/remind.ts`)               |
+| Programación | `cron(0 23 * * ? *)`: 18:00 America/Lima (UTC-5 todo el año; EventBridge evalúa en UTC) |
+| Timeout      | 300 s (el lote real dura segundos; acota un cuelgue de SES o DynamoDB)                  |
+| Entorno      | `DYNAMODB_TABLE_NAME`, `SES_SENDER_EMAIL`                                               |
+| Alarma       | `activa-club-dev-reservations-remind-errors` (métrica `Errors`, ADR-0008)               |
+
+**IAM (mínimo privilegio, verificado contra el código)**:
+
+| Acción             | Recurso                 | Uso en el código                                                             |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------------- |
+| `dynamodb:GetItem` | tabla                   | `Resource` por id (nombre) y `Member` por id (titular)                       |
+| `dynamodb:Query`   | solo `index/GSI3`       | reservas por recurso y rango (patrón 21)                                     |
+| `dynamodb:PutItem` | tabla                   | `Notification` + `MemberNotification` (`TransactWriteItems` exige `PutItem`) |
+| `ses:SendEmail`    | identidad del remitente | correo best-effort del recordatorio                                          |
+
+Sin `Scan`, `UpdateItem` ni `DeleteItem`.
+
+**Alarmas**: este job suma una alarma. Con US-038 y los endpoints críticos
+quedan 11 alarmas en `dev`, una por encima de las 10 de la capa gratuita de
+CloudWatch (costo aproximado de la alarma adicional: 0,10 USD al mes). El
+criterio 7 de US-046 exige alarma; si se quiere volver a 10, la opción es
+poner `enable_error_alarm = false` en un endpoint de bajo riesgo (p. ej.
+`endpoint_reservations_reject`).
+
+**Rol de despliegue de CI**: no necesita permisos nuevos; las reglas
+`events:*` acotadas a `activa-club-dev-*` y `lambda:AddPermission` ya existen
+desde US-038.
+
+**Rollback**: revertir el PR y desplegar; la regla, la Lambda, la alarma y el
+rol se destruyen. No hay datos que borrar (los avisos ya emitidos quedan en la
+bandeja de los socios).

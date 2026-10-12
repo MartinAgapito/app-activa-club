@@ -3,8 +3,9 @@
 Backend serverless de Activa Club — Node.js + TypeScript sobre AWS Lambda,
 expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 ([ADR-0004](../../docs/architecture/adr/ADR-0004-api-gateway-rest-lambda-por-endpoint.md)).
-Hoy son **33 endpoints HTTP** más **2 Lambdas no-HTTP**: `memberships-expire`
-(EventBridge, diaria) y `migration-run` (invocación directa, carga inicial de
+Hoy son **33 endpoints HTTP** más **3 Lambdas no-HTTP**: `memberships-expire`
+(EventBridge, diaria), `reservations-remind` (EventBridge, diaria, recordatorio
+de reservas, US-046) y `migration-run` (invocación directa, carga inicial de
 socios; [ADR-0012](../../docs/architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)).
 
 > Sprint 0 (US-009) dejó el **scaffolding** del backend — estructura de
@@ -34,6 +35,7 @@ src/
     members/get-me.ts         # GET /members/me (member) — auth + Query GSI1 + respuesta.
     migration/run.ts          # Lambda `migration-run` (NO HTTP, invocación directa, ADR-0012) — carga inicial de socios.
     memberships/expire.ts     # Lambda `memberships-expire` (NO HTTP, EventBridge) — vencimiento diario (US-038).
+    reservations/remind.ts    # Lambda `reservations-remind` (NO HTTP, EventBridge) — recordatorio diario 18:00 Lima (US-046).
     activation/verify.ts      # POST /activation/verify (público) — wiring de src/activation/verify.ts.
     activation/complete.ts    # POST /activation/complete (público) — wiring de src/activation/complete.ts.
     registration/post.ts      # POST /registration (público) — wiring de src/registration/register.ts.

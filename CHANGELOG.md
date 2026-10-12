@@ -28,6 +28,17 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Recordatorio de reserva próxima (US-046, EP-05): nuevo proceso programado
+  `reservations-remind` (EventBridge, 18:00 America/Lima = 23:00 UTC, módulo
+  `scheduled-job`) que emite `RESERVATION_REMINDER` al titular de cada reserva
+  `CONFIRMED`/`APPROVED` del día calendario siguiente. Recorre los diez
+  recursos del catálogo con `GetItem` y consulta GSI3 por recurso y rango
+  (patrón 21), sin `Scan`. Idempotente (`entityId = reservationId`): una doble
+  ejecución o un reintento no duplica avisos. Un error por recurso o reserva no
+  detiene el lote, queda en el log estructurado (`evaluated`, `sent`,
+  `duplicated`, `errors`) y la invocación termina en error para disparar la
+  alarma de Lambda Errors (ADR-0008). IAM mínimo: `GetItem`/`PutItem` sobre la
+  tabla, `Query` solo sobre GSI3 y `ses:SendEmail`. Sin endpoints nuevos.
 - Consola de notificaciones del administrador (US-049, EP-05):
   `/admin/notificaciones` con pestañas "Publicar" y "Enviadas" (`?tab=`).
   Publicar: título y mensaje con contador y validación de

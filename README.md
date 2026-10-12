@@ -183,7 +183,7 @@ Configuración: `index.html` (entrada), `vite.config.ts` (Vite + Tailwind v4),
 </details>
 
 <details>
-<summary><strong>apps/api</strong> — backend serverless (una Lambda por endpoint: 33 HTTP + 2 no-HTTP, <code>memberships-expire</code> y <code>migration-run</code>)</summary>
+<summary><strong>apps/api</strong> — backend serverless (una Lambda por endpoint: 33 HTTP + 3 no-HTTP, <code>memberships-expire</code>, <code>reservations-remind</code> y <code>migration-run</code>)</summary>
 
 Patrón en capas: **handler** (HTTP, auth y validación) → **orquestador** (reglas
 de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.json`,
@@ -200,6 +200,8 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `memberships/`       | `GET /memberships/plans`; `expire.ts` es el proceso diario de vencimiento (EventBridge, no HTTP).                                                       |
 | `payments/`          | `POST /payments`, `GET /payments`, `GET /payments/{id}`, `POST /payments/webhook`.                                                                      |
 | `resources/`         | `GET /resources`, `PATCH /resources/{id}`, `POST/GET /resources/{id}/maintenance`, `DELETE /resources/{id}/maintenance/{blockId}`.                      |
+| `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`; `remind.ts` es el recordatorio diario (EventBridge, no HTTP).             |
+| `notifications/`     | `GET /notifications` (bandeja del socio), `POST /notifications/{id}/read`.                                                                              |
 | `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`.                                                                           |
 | `notifications/`     | `GET /notifications` (bandeja del socio), `POST /notifications/{id}/read`, `POST /notifications` (admin), `GET /notifications/sent` (admin).            |
 | `guests/`            | `GET /guests/lookup`.                                                                                                                                   |
