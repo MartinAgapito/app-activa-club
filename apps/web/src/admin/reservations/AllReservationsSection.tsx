@@ -1,73 +1,87 @@
-// Consulta administrativa de todas las reservas y cancelación — US-036
-// (criterios 8, 10 y 12).
+// Pestaña "Todas" — US-077 (criterio 3; antes US-036).
 //
 // `GET /reservations?scope=all` con filtros combinables por estado,
-// instalación y rango de fechas (en hora de Lima), paginación por cursor.
-// El servidor exige al menos `status` o `resourceId`: la pantalla lo impone
-// y no consulta mientras falten ambos. La cancelación administrativa no tiene
-// ventana de 24 h; el servidor decide si procede (409 si ya estaba cerrada).
+// instalación y rango de fechas (en hora de Lima), paginación por cursor con
+// "Cargar más". El servidor exige al menos `status` o `resourceId`: la pantalla
+// lo impone y no consulta mientras falten ambos. Los filtros viven en la URL.
+// Abrir una fila muestra el detalle, donde se cancela (US-077 criterio 5).
 
-import { useId, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Card,
-  ConfirmDialog,
-  EmptyState,
-  ErrorState,
-  Input,
-  Spinner,
-} from '@activa-club/ui';
+import { useId, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Button, Card, EmptyState, Input } from '@activa-club/ui';
 import type { AdminReservationListItem, ReservationStatus } from '@activa-club/shared-types';
 import { useAuth } from '../../auth/AuthContext';
 import {
   RESERVATION_STATUSES,
   RESERVATION_STATUS_LABEL,
 } from '../../reservations/reservation-status';
-import { AdminReservationCard } from './AdminReservationCard';
-import { describeReservation } from './reservation-display';
+import { AdminReservationsTable } from './AdminReservationsTable';
 import {
   endOfDayInLimaUtcIso,
   startOfDayInLimaUtcIso,
   type AdminReservationFilters,
 } from './admin-reservations-client';
-import { toAdminActionFeedback, toAdminLoadError } from './admin-reservations-errors';
-import {
-  useAdminCancelReservationMutation,
-  useAdminReservationsQuery,
-  useRefreshAfterReservationChange,
-} from './admin-reservations-query';
-import { ReservationNotice, type ReservationNoticeData } from './ReservationNotice';
-
-/** Estados en los que la cancelación administrativa tiene sentido. */
-const CANCELLABLE_STATUSES: ReadonlySet<ReservationStatus> = new Set([
-  'CONFIRMED',
-  'APPROVED',
-  'PENDING_APPROVAL',
-]);
+import { toAdminLoadError } from './admin-reservations-errors';
+import { useAdminReservationsQuery } from './admin-reservations-query';
 
 const SELECT_CLASS =
-  'mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500';
+  'mt-1 block min-h-11 w-full rounded-control border border-line-strong bg-surface-card px-3 text-sm text-ink focus-ring';
+
+const DEFAULT_STATUS: ReservationStatus = 'CONFIRMED';
 
 interface AllReservationsSectionProps {
   now: Date;
   resourceNames: ReadonlyMap<string, string>;
+  onOpen: (reservation: AdminReservationListItem) => void;
 }
 
-const describe = describeReservation;
-
-export function AllReservationsSection({ now, resourceNames }: AllReservationsSectionProps) {
+export function AllReservationsSection({
+  now,
+  resourceNames,
+  onOpen,
+}: AllReservationsSectionProps) {
   const { signOut } = useAuth();
-  const refreshAfterChange = useRefreshAfterReservationChange();
-  const cancelMutation = useAdminCancelReservationMutation();
   const ids = useId();
+  const [params, setParams] = useSearchParams();
 
-  const [status, setStatus] = useState<ReservationStatus | ''>('CONFIRMED');
-  const [resourceId, setResourceId] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [cancelTarget, setCancelTarget] = useState<AdminReservationListItem | null>(null);
-  const [notice, setNotice] = useState<ReservationNoticeData | null>(null);
-  const inFlightRef = useRef(false);
+  // `estado` ausente = confirmadas; `estado=` (vacío) = "Todos los estados".
+  const rawStatus = params.get('estado');
+  const status: ReservationStatus | '' =
+    rawStatus === null
+      ? DEFAULT_STATUS
+      : (RESERVATION_STATUSES.find((value) => value === rawStatus) ?? '');
+  const resourceId = params.get('instalacion') ?? '';
+  const fromDate = params.get('desde') ?? '';
+  const toDate = params.get('hasta') ?? '';
+
+  function setFilter(key: string, value: string) {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (key !== 'estado' && value === '') {
+          next.delete(key);
+        } else {
+          next.set(key, value);
+        }
+        next.delete('reserva');
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function clearFilters() {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        for (const key of ['estado', 'instalacion', 'desde', 'hasta']) {
+          next.delete(key);
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const hasRequiredFilter = status !== '' || resourceId !== '';
   const rangeInvalid = fromDate !== '' && toDate !== '' && fromDate > toDate;
@@ -91,52 +105,12 @@ export function AllReservationsSection({ now, resourceNames }: AllReservationsSe
     [resourceNames],
   );
 
-  function clearFilters() {
-    setStatus('CONFIRMED');
-    setResourceId('');
-    setFromDate('');
-    setToDate('');
-  }
-
-  async function confirmCancel() {
-    if (inFlightRef.current || !cancelTarget) {
-      return;
-    }
-    inFlightRef.current = true;
-    const target = cancelTarget;
-    try {
-      await cancelMutation.mutateAsync(target.reservationId);
-      setCancelTarget(null);
-      setNotice({
-        type: 'success',
-        title: 'Reserva cancelada',
-        message: `${describe(target, resourceNames)}. La franja quedó libre y se devolvió el cupo de invitados.`,
-      });
-      refreshAfterChange(target.resourceId);
-    } catch (error) {
-      const feedback = toAdminActionFeedback(error, 'cancel');
-      setCancelTarget(null);
-      setNotice({ type: 'error', title: feedback.title, message: feedback.message });
-      if (feedback.refresh) {
-        refreshAfterChange(target.resourceId);
-      }
-      if (feedback.sessionExpired) {
-        signOut();
-      }
-    } finally {
-      inFlightRef.current = false;
-    }
-  }
-
   const hasActiveFilters =
-    status !== 'CONFIRMED' || resourceId !== '' || fromDate !== '' || toDate !== '';
+    status !== DEFAULT_STATUS || resourceId !== '' || fromDate !== '' || toDate !== '';
 
   return (
-    <section aria-labelledby="all-reservations-heading" className="flex flex-col gap-4">
-      <h2 id="all-reservations-heading" className="text-lg font-semibold text-slate-900">
-        Todas las reservas
-      </h2>
-      <p className="text-sm text-slate-600">
+    <section aria-label="Todas las reservas" className="flex flex-col gap-4">
+      <p className="text-sm text-ink-muted">
         Combina estado, instalación y fechas (hora de Lima). Debes elegir al menos un estado o una
         instalación.
       </p>
@@ -148,13 +122,13 @@ export function AllReservationsSection({ now, resourceNames }: AllReservationsSe
           onSubmit={(event) => event.preventDefault()}
         >
           <div>
-            <label htmlFor={`${ids}-status`} className="text-sm font-medium text-slate-700">
+            <label htmlFor={`${ids}-status`} className="text-sm font-medium text-ink">
               Estado
             </label>
             <select
               id={`${ids}-status`}
               value={status}
-              onChange={(event) => setStatus(event.target.value as ReservationStatus | '')}
+              onChange={(event) => setFilter('estado', event.target.value)}
               className={SELECT_CLASS}
             >
               <option value="">Todos los estados</option>
@@ -166,13 +140,13 @@ export function AllReservationsSection({ now, resourceNames }: AllReservationsSe
             </select>
           </div>
           <div>
-            <label htmlFor={`${ids}-resource`} className="text-sm font-medium text-slate-700">
+            <label htmlFor={`${ids}-resource`} className="text-sm font-medium text-ink">
               Instalación
             </label>
             <select
               id={`${ids}-resource`}
               value={resourceId}
-              onChange={(event) => setResourceId(event.target.value)}
+              onChange={(event) => setFilter('instalacion', event.target.value)}
               className={SELECT_CLASS}
             >
               <option value="">Todas las instalaciones</option>
@@ -187,13 +161,13 @@ export function AllReservationsSection({ now, resourceNames }: AllReservationsSe
             type="date"
             label="Desde"
             value={fromDate}
-            onChange={(event) => setFromDate(event.target.value)}
+            onChange={(event) => setFilter('desde', event.target.value)}
           />
           <Input
             type="date"
             label="Hasta"
             value={toDate}
-            onChange={(event) => setToDate(event.target.value)}
+            onChange={(event) => setFilter('hasta', event.target.value)}
             errorMessage={
               rangeInvalid ? 'La fecha "Hasta" no puede ser anterior a "Desde".' : undefined
             }
@@ -206,120 +180,35 @@ export function AllReservationsSection({ now, resourceNames }: AllReservationsSe
         ) : null}
       </Card>
 
-      {notice ? <ReservationNotice notice={notice} /> : null}
-
       {!hasRequiredFilter ? (
-        <Card>
-          <EmptyState
-            title="Elige un estado o una instalación"
-            description="Para consultar reservas necesitas filtrar al menos por estado o por instalación."
-          />
-        </Card>
+        <EmptyState
+          title="Elige un estado o una instalación"
+          description="Para consultar reservas necesitas filtrar al menos por estado o por instalación."
+        />
       ) : null}
 
-      {queryEnabled && query.isPending ? (
-        <div className="flex justify-center py-10">
-          <Spinner size="lg" label="Cargando reservas…" />
-        </div>
+      {queryEnabled ? (
+        <AdminReservationsTable
+          caption="Todas las reservas"
+          variant="all"
+          rows={reservations}
+          now={now}
+          resourceNames={resourceNames}
+          onOpen={onOpen}
+          isLoading={query.isPending}
+          loadingLabel="Cargando reservas…"
+          isError={loadError !== null}
+          errorTitle="No pudimos cargar las reservas"
+          errorDescription={loadError?.message}
+          onRetry={loadError?.sessionExpired ? signOut : () => void query.refetch()}
+          retryLabel={loadError?.sessionExpired ? 'Iniciar sesión' : 'Reintentar'}
+          emptyTitle="No hay reservas con esos filtros"
+          emptyDescription="Prueba con otro estado, otra instalación u otro rango de fechas."
+          hasMore={Boolean(query.hasNextPage)}
+          onLoadMore={() => void query.fetchNextPage()}
+          isLoadingMore={query.isFetchingNextPage}
+        />
       ) : null}
-
-      {loadError ? (
-        <Card>
-          <ErrorState
-            title="No pudimos cargar las reservas"
-            description={loadError.message}
-            action={
-              loadError.sessionExpired ? (
-                <Button onClick={signOut}>Iniciar sesión</Button>
-              ) : (
-                <Button onClick={() => void query.refetch()}>Reintentar</Button>
-              )
-            }
-          />
-        </Card>
-      ) : null}
-
-      {queryEnabled && query.data && reservations.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="No hay reservas con esos filtros"
-            description="Prueba con otro estado, otra instalación u otro rango de fechas."
-          />
-        </Card>
-      ) : null}
-
-      {queryEnabled && reservations.length > 0 ? (
-        <ul className="flex flex-col gap-3">
-          {reservations.map((reservation) => (
-            <li key={reservation.reservationId}>
-              <AdminReservationCard
-                reservation={reservation}
-                resourceName={resourceNames.get(reservation.resourceId) ?? null}
-                now={now}
-                actions={
-                  CANCELLABLE_STATUSES.has(reservation.reservationStatus) ? (
-                    <Button
-                      type="button"
-                      variant="danger"
-                      onClick={() => {
-                        setNotice(null);
-                        setCancelTarget(reservation);
-                      }}
-                    >
-                      Cancelar reserva
-                    </Button>
-                  ) : undefined
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {queryEnabled && query.hasNextPage ? (
-        <Button
-          type="button"
-          variant="secondary"
-          className="self-center"
-          isLoading={query.isFetchingNextPage}
-          onClick={() => void query.fetchNextPage()}
-        >
-          Cargar más
-        </Button>
-      ) : null}
-
-      <ConfirmDialog
-        open={cancelTarget !== null}
-        title="¿Cancelar esta reserva?"
-        description={
-          cancelTarget ? (
-            <>
-              {describe(cancelTarget, resourceNames)}. La cancelación administrativa no tiene
-              ventana de 24 horas: la franja quedará libre y el cupo mensual de los invitados se
-              devolverá. Esta acción no se puede deshacer.
-              {cancelTarget.reservationStatus === 'PENDING_APPROVAL' ? (
-                <>
-                  {' '}
-                  <strong>
-                    Esta solicitud está pendiente: si quieres dejar constancia del motivo, lo
-                    correcto es rechazarla desde la bandeja de pendientes.
-                  </strong>
-                </>
-              ) : null}
-            </>
-          ) : undefined
-        }
-        confirmLabel="Sí, cancelar reserva"
-        cancelLabel="Mantener reserva"
-        confirmVariant="danger"
-        isLoading={cancelMutation.isPending}
-        onConfirm={() => void confirmCancel()}
-        onCancel={() => {
-          if (!cancelMutation.isPending) {
-            setCancelTarget(null);
-          }
-        }}
-      />
     </section>
   );
 }

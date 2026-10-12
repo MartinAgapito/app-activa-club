@@ -1,24 +1,26 @@
-// Reservas y aprobaciones — interfaz administrativa de US-034 (criterios 1 y
-// 13) y US-036 (criterios 8 y 12).
+// Reservas y aprobaciones — US-077 (rehace la interfaz de US-034 y US-036).
 //
-// Dos vistas: la bandeja de solicitudes pendientes (por defecto, es lo que el
-// administrador debe resolver) y la consulta de todas las reservas con
-// filtros y cancelación administrativa. Contrato: docs/api/contratos-api.md §7.
+// Dos pestañas: "Por aprobar" (con contador) y "Todas". La pestaña activa, los
+// filtros y la reserva abierta en el panel de detalle viven en la URL
+// (`?tab=`, `?estado=`, `?instalacion=`, `?desde=`, `?hasta=`, `?reserva=`).
+// Aprobar, rechazar (con motivo) y cancelar usan las mismas ventanas desde la
+// tabla y desde el panel. Contrato: docs/api/contratos-api.md §7.
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { PageHeader, cn } from '@activa-club/ui';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { PageHeader, Tabs, TabsContent, TabsList, TabsTrigger } from '@activa-club/ui';
+import type { AdminReservationListItem } from '@activa-club/shared-types';
 import { AllReservationsSection } from '../../admin/reservations/AllReservationsSection';
 import { PendingReservationsInbox } from '../../admin/reservations/PendingReservationsInbox';
+import { ReservationDetailDrawer } from '../../admin/reservations/ReservationDetailDrawer';
+import { useAdminReservationsQuery } from '../../admin/reservations/admin-reservations-query';
+import { useReservationDecisions } from '../../admin/reservations/useReservationDecisions';
 import { useResourcesQuery } from '../../resources/resources-query';
 
 const NOW_REFRESH_MS = 60_000;
 
-type AdminReservationsTab = 'pending' | 'all';
-
-const TABS: { id: AdminReservationsTab; label: string }[] = [
-  { id: 'pending', label: 'Pendientes de aprobación' },
-  { id: 'all', label: 'Todas las reservas' },
-];
+const TAB_VALUES = ['pendientes', 'todas'] as const;
+type AdminReservationsTab = (typeof TAB_VALUES)[number];
 
 /** Reloj de la pantalla: se refresca cada minuto para que el marcador de
  * "vencida sin decisión" no quede viejo con la pantalla abierta. */
@@ -32,9 +34,15 @@ function useNow(): Date {
 }
 
 export function ReservationsAdminPage() {
-  const [tab, setTab] = useState<AdminReservationsTab>('pending');
+  const [params, setParams] = useSearchParams();
   const now = useNow();
   const resourcesQuery = useResourcesQuery();
+  const pendingQuery = useAdminReservationsQuery({ status: 'PENDING_APPROVAL' });
+
+  // `pestana` es el nombre que usa la historia US-071 en sus enlaces.
+  const requestedTab = params.get('tab') ?? params.get('pestana');
+  const tab: AdminReservationsTab = TAB_VALUES.find((v) => v === requestedTab) ?? 'pendientes';
+  const openReservationId = params.get('reserva');
 
   const resourceNames = useMemo(
     () =>
@@ -46,14 +54,41 @@ export function ReservationsAdminPage() {
     [resourcesQuery.data],
   );
 
-  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-      event.preventDefault();
-      const next: AdminReservationsTab = tab === 'pending' ? 'all' : 'pending';
-      setTab(next);
-      document.getElementById(`admin-reservations-tab-${next}`)?.focus();
-    }
+  function openDetail(reservation: Pick<AdminReservationListItem, 'reservationId'>) {
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set('reserva', reservation.reservationId);
+      return next;
+    });
   }
+
+  function closeDetail() {
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        next.delete('reserva');
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function changeTab(next: string) {
+    // Cada pestaña conserva solo su propio estado: se limpian filtros y panel.
+    setParams(next === 'pendientes' ? {} : { tab: next }, { replace: true });
+  }
+
+  const decisions = useReservationDecisions({
+    resourceNames,
+    onDecided: (_kind, reservationId) => {
+      if (reservationId === openReservationId) {
+        closeDetail();
+      }
+    },
+  });
+
+  const pendingItems = pendingQuery.data?.pages.flatMap((page) => page.items) ?? [];
+  const pendingCount = pendingQuery.data ? pendingItems.length : undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,48 +97,40 @@ export function ReservationsAdminPage() {
         description="Resuelve las solicitudes de parrillas y salón social, y consulta o cancela cualquier reserva del club."
       />
 
-      <div
-        role="tablist"
-        aria-label="Vistas de reservas"
-        className="flex gap-2 border-b border-slate-200"
-      >
-        {TABS.map((item) => {
-          const selected = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              id={`admin-reservations-tab-${item.id}`}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              aria-controls={`admin-reservations-panel-${item.id}`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => setTab(item.id)}
-              onKeyDown={handleTabKeyDown}
-              className={cn(
-                '-mb-px min-h-11 border-b-2 px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
-                selected
-                  ? 'border-brand-600 text-brand-700'
-                  : 'border-transparent text-slate-600 hover:text-slate-900',
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+      <Tabs value={tab} onValueChange={changeTab}>
+        <TabsList aria-label="Vistas de reservas">
+          <TabsTrigger
+            value="pendientes"
+            {...(pendingCount !== undefined && pendingCount > 0 && { count: pendingCount })}
+          >
+            Por aprobar
+          </TabsTrigger>
+          <TabsTrigger value="todas">Todas</TabsTrigger>
+        </TabsList>
 
-      <div
-        role="tabpanel"
-        id={`admin-reservations-panel-${tab}`}
-        aria-labelledby={`admin-reservations-tab-${tab}`}
-      >
-        {tab === 'pending' ? (
-          <PendingReservationsInbox now={now} resourceNames={resourceNames} />
-        ) : (
-          <AllReservationsSection now={now} resourceNames={resourceNames} />
-        )}
-      </div>
+        <TabsContent value="pendientes" className="pt-4">
+          <PendingReservationsInbox
+            query={pendingQuery}
+            now={now}
+            resourceNames={resourceNames}
+            onOpen={openDetail}
+            onApprove={(reservation) => decisions.request('approve', reservation)}
+            onReject={(reservation) => decisions.request('reject', reservation)}
+          />
+        </TabsContent>
+        <TabsContent value="todas" className="pt-4">
+          <AllReservationsSection now={now} resourceNames={resourceNames} onOpen={openDetail} />
+        </TabsContent>
+      </Tabs>
+
+      <ReservationDetailDrawer
+        reservationId={openReservationId}
+        now={now}
+        resourceNames={resourceNames}
+        onClose={closeDetail}
+        onDecision={decisions.request}
+      />
+      {decisions.dialogs}
     </div>
   );
 }

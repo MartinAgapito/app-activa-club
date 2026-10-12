@@ -12,6 +12,12 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Reservas del administrador en pestañas "Por aprobar" (con contador) y
+  "Todas", con tabla (`DataTable`), filtros y pestaña guardados en la URL,
+  panel lateral de detalle (`?reserva=<id>`) con participantes, y las
+  decisiones aprobar, rechazar con motivo obligatorio y cancelar en ventanas
+  con aviso efímero y errores (409, 404) dentro de la ventana (US-077,
+  EP-08). Sin cambios en el servidor.
 - Estructura de aplicación por rol (US-068, EP-08): barra lateral de 232 px
   con iconos (`lucide-react`) y elemento activo con `aria-current`, cabecera
   con título de sección y menú de usuario ("Mi perfil", "Cerrar sesión"),

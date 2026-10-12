@@ -37,7 +37,10 @@ export function participantsSummary(
 
 /** Descripción corta para diálogos y avisos: instalación, fecha, hora, titular. */
 export function describeReservation(
-  reservation: AdminReservationListItem,
+  reservation: Pick<
+    AdminReservationListItem,
+    'resourceId' | 'resourceType' | 'startsAt' | 'endsAt' | 'holder'
+  >,
   resourceNames: ReadonlyMap<string, string>,
 ): string {
   const name =
@@ -46,4 +49,21 @@ export function describeReservation(
     reservation.startsAt,
     reservation.endsAt,
   )}, titular ${holderName(reservation)}`;
+}
+
+/** Antigüedad de la solicitud: "hace 5 min", "hace 3 h", "hace 2 días". */
+export function formatRequestAge(createdAt: string, now: Date): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60_000));
+  if (minutes < 1) {
+    return 'hace instantes';
+  }
+  if (minutes < 60) {
+    return `hace ${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `hace ${hours} h`;
+  }
+  const days = Math.floor(hours / 24);
+  return `hace ${days} ${days === 1 ? 'día' : 'días'}`;
 }
