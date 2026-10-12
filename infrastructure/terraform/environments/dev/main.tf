@@ -147,8 +147,7 @@ locals {
     # API Gateway prioriza el segmento literal ("lookup") sobre el
     # parámetro de ruta cuando ambos cuelgan del mismo padre, así que no
     # colisiona con GET /members/{memberId} (admin).
-    "members/lookup"  = { parent = "members", part = "lookup" }
-    "admin/migration" = { parent = "admin", part = "migration" }
+    "members/lookup" = { parent = "members", part = "lookup" }
     # EP-04, US-027 (docs/api/contratos-api.md §6 y §7).
     "resources/{resourceId}"       = { parent = "resources", part = "{resourceId}" }
     "reservations/{reservationId}" = { parent = "reservations", part = "{reservationId}" }
@@ -167,7 +166,6 @@ locals {
   api_resource_level3 = {
     "members/{memberId}/approve" = { parent = "members/{memberId}", part = "approve" }
     "members/{memberId}/reject"  = { parent = "members/{memberId}", part = "reject" }
-    "admin/migration/run"        = { parent = "admin/migration", part = "run" }
     # PATCH /members/me/auto-renew (US-019, docs/api/contratos-api.md §4).
     "members/me/auto-renew" = { parent = "members/me", part = "auto-renew" }
     # EP-04, US-027 (docs/api/contratos-api.md §6 y §7).
@@ -217,7 +215,6 @@ locals {
       "members-get-by-id",
       "members-approve",
       "members-reject",
-      "admin-migration-run",
       # EP-03, US-019 (docs/api/contratos-api.md §5, §4).
       "memberships-plans",
       "payments-create",
@@ -788,58 +785,6 @@ module "endpoint_members_reject" {
       # PutItem: registra el AuditLog "MEMBER_REJECTED" (US-017, ADR-0008)
       # tras la transición PENDING -> REJECTED, con el motivo en `metadata`.
       actions   = ["dynamodb:PutItem"]
-      resources = [local.dynamodb_table_arn]
-    },
-  ]
-}
-
-# --- Administración operativa (docs/api/contratos-api.md §10) -------------
-#
-# OBSOLETO (ADR-0012): POST /admin/migration/run fue reemplazado por la
-# Lambda de invocación directa "job_migration_run" (más abajo). Este módulo
-# se elimina en la FASE 2 (PR siguiente) y entretanto responde 501
-# (handlers/not-implemented.ts).
-#
-# Por qué dos fases: el deployment/stage de API Gateway registran en el state
-# una dependencia de este módulo; quitarlo en el mismo `apply` que reemplaza
-# el deployment produce `Error: Cycle` en el plan. La fase 1 (este cambio)
-# desacopla el módulo del deployment (api_method_trigger_ids) y la fase 2 lo
-# destruye ya sin dependientes.
-
-module "endpoint_admin_migration_run" {
-  source = "../../modules/endpoint"
-
-  project     = var.project
-  environment = var.environment
-
-  function_name   = "admin-migration-run"
-  source_zip_path = local.lambda_zip_path["admin-migration-run"]
-  http_method     = "POST"
-  resource_path   = "api/admin/migration/run"
-  requires_auth   = true
-  allowed_groups  = ["admin"]
-
-  rest_api_id            = aws_api_gateway_rest_api.this.id
-  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
-  parent_resource_id     = local.api_resource_id["admin/migration/run"]
-  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
-
-  # Timeout más alto: la migración procesa el JSON completo del bucket S3 en
-  # una sola invocación síncrona (RN-MIG, docs/data/mapeo-migracion.md §5).
-  timeout = 60
-
-  environment_variables = {
-    DYNAMODB_TABLE_NAME   = local.dynamodb_table_name
-    MIGRATION_BUCKET_NAME = local.migration_bucket_name
-  }
-
-  iam_policy_statements = [
-    {
-      actions   = ["s3:GetObject"]
-      resources = ["${local.migration_bucket_arn}/*"]
-    },
-    {
-      actions   = ["dynamodb:PutItem", "dynamodb:TransactWriteItems"]
       resources = [local.dynamodb_table_arn]
     },
   ]
