@@ -28,6 +28,17 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Motor de notificaciones del backend (US-040, EP-05): módulo
+  `apps/api/src/notifications/` con `emitNotification()`, que escribe en una
+  transacción idempotente la `Notification` (`createdBy=SYSTEM`) y la
+  `MemberNotification` del socio y envía el correo por SES de forma
+  best-effort (un fallo de SES nunca revierte la bandeja ni la operación de
+  negocio), más el catálogo de textos en español de los 13 `NotificationEvent`
+  con escape de HTML. El correo se arma en código (SES v2 `SendEmail` simple,
+  solo `ses:SendEmail`), sin plantillas SES en Terraform. Atributo
+  `dedupeKey` documentado en `Notification`. Aún no lo invoca ningún handler
+  (US-042..US-047). Dependencia nueva: `@aws-sdk/client-sesv2@3.1141.0`.
+
 - Infraestructura de notificaciones en `dev` (US-039, EP-05): cuatro endpoints
   serverless (`GET /notifications` y `POST /notifications/{notificationId}/read`
   para socios; `POST /notifications` y `GET /notifications/sent` para

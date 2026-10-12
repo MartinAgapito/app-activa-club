@@ -163,6 +163,7 @@
 | `alsoEmail`      | boolean                  | no   | Si además se envió correo SES         |
 | `createdBy`      | string                   | no   | Admin id o `SYSTEM`                   |
 | `recipientCount` | number                   | sí   | Nº de destinatarios (Notification)    |
+| `dedupeKey`      | string                   | sí   | Solo Notification automática (US-040) |
 | `readStatus`     | `NotificationReadStatus` | no   | Solo en MemberNotification            |
 | `readAt`         | string (ISO)             | sí   | Momento de lectura                    |
 

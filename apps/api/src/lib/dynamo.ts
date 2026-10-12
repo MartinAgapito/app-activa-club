@@ -122,6 +122,12 @@ export const keys = {
     SK: 'METADATA',
   }),
 
+  // GSI2 de Notification: analytics de "notificaciones enviadas" (RN-ANL-08).
+  notificationSent: (createdAt: string, notificationId: string) => ({
+    GSI2PK: 'NOTIFICATION#SENT',
+    GSI2SK: `${createdAt}#${notificationId}`,
+  }),
+
   // 3.13 MemberNotification
   memberNotification: (memberId: string, createdAt: string, notificationId: string) => ({
     PK: `MEMBER#${memberId}`,
