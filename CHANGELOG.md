@@ -28,6 +28,17 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Aviso de mantenimiento a los socios afectados (US-045, EP-05):
+  `POST /resources/{resourceId}/maintenance` y `PATCH /resources/{resourceId}`
+  (al pasar a `MAINTENANCE`) emiten `RESOURCE_MAINTENANCE` al titular de cada
+  reserva activa afectada (una por reserva, con su franja en hora de Lima y
+  la indicación de que no se canceló automáticamente). Reutiliza la lectura de
+  ocupación ya hecha, resuelve titulares con un `GetItem` por socio y emite en
+  paralelo acotado (máx. 100 avisos, 10 en paralelo, 6 s por petición; el
+  exceso se omite con la métrica `MAINTENANCE_NOTIFY_TRUNCATED`). Idempotente
+  y best-effort: un fallo de bandeja o correo no cambia la respuesta ni el
+  bloqueo. Sin cambios de contrato ni de IAM.
+
 - Avisos de cambio de estado de una reserva (US-044, EP-05): al crear una
   reserva con confirmación automática (`RESERVATION_CONFIRMED`) y al aprobarla,
   rechazarla (con el motivo) o cancelarla (`RESERVATION_CANCELLED`, indicando si
