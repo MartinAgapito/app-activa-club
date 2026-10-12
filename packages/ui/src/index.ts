@@ -35,6 +35,11 @@ export type { ErrorStateProps } from './ErrorState';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 
+export { DataTable } from './DataTable';
+export type { DataTableProps, DataTableColumn, DataTableAlign } from './DataTable';
+export { Stepper } from './Stepper';
+export type { StepperProps, StepperStep, StepperStepState } from './Stepper';
+
 export { cn } from './cn';
 
 export { ToastProvider, useToast } from './Toast';

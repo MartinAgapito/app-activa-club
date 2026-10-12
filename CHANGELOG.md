@@ -12,6 +12,10 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Componente `Stepper` (indicador de pasos) en `@activa-club/ui`: lista
+  ordenada con `aria-current="step"`, estados completado/actual/pendiente sin
+  depender del color, completados clicables opcionalmente y forma compacta
+  en pantallas pequeñas (US-067, EP-08).
 - Fundación técnica y documental inicial (Sprint 0): estructura de monorepo
   con npm workspaces, estándares de calidad (TypeScript, ESLint, Prettier),
   documentación de producto y Scrum, y gobierno Git (Conventional Commits,
@@ -43,6 +47,9 @@ backlog en `docs/scrum/`.
   (avisos efímeros accesibles: 5 s, error persistente, pausa al hover/foco,
   máximo 3, regiones ARIA live) y muestra en `/_dev/design-system`. Aún no
   montado en la raíz de la app.
+- Sprint 4B (EP-08, US-065): componente `DataTable` en `@activa-club/ui`, tabla
+  responsive (tarjetas bajo 640 px), fila accionable por teclado, columna de
+  acciones, estados de carga, error y vacío, y pie "Cargar más" por cursor.
 
 ### Changed
 
