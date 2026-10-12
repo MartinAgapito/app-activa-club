@@ -19,18 +19,17 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const baseClasses =
-  'inline-flex items-center justify-center gap-2 rounded-lg font-medium ' +
-  'transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex items-center justify-center gap-2 rounded-control font-medium ' +
+  'transition-colors duration-(--motion-fast) ease-(--motion-ease) focus-ring state-disabled';
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-700 text-white hover:bg-brand-800 focus-visible:ring-brand-500',
-  positive: 'bg-positive-600 text-white hover:bg-positive-700 focus-visible:ring-positive-500',
-  warning: 'bg-warning-500 text-warning-900 hover:bg-warning-600 focus-visible:ring-warning-400',
-  danger: 'bg-danger-600 text-white hover:bg-danger-700 focus-visible:ring-danger-500',
+  primary: 'bg-action text-ink-on-brand hover:bg-action-hover active:bg-action-pressed',
+  positive: 'bg-positive-700 text-ink-on-brand hover:bg-positive-800 active:bg-positive-900',
+  warning: 'bg-warning-500 text-warning-900 hover:bg-warning-400 active:bg-warning-300',
+  danger: 'bg-status-problem text-ink-on-brand hover:bg-danger-600 active:bg-danger-700',
   secondary:
-    'bg-white text-brand-800 border border-brand-200 hover:bg-brand-50 focus-visible:ring-brand-400',
-  ghost: 'bg-transparent text-brand-700 hover:bg-brand-50 focus-visible:ring-brand-400',
+    'bg-surface-card text-action border border-line-strong hover:bg-surface-brand-soft active:bg-brand-100',
+  ghost: 'bg-transparent text-action hover:bg-surface-brand-soft active:bg-brand-100',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

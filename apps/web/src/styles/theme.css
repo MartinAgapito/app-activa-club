@@ -1,7 +1,7 @@
 /*
  * Design foundation — tokens de Activa Club (Tailwind CSS v4, config CSS-first).
  * Documentado en apps/web/docs/design-foundation.md. No modificar valores sin
- * actualizar ese documento.
+ * actualizar ese documento (y su tabla de contrastes).
  *
  * Dirección visual (audiencia: deportistas adultos 25-52 años; moderna,
  * activa, confiable, social — sin apariencia infantil ni agresiva):
@@ -9,13 +9,23 @@
  *   - positive: verde/turquesa (confirmaciones, pagos exitosos, estado activo)
  *   - warning:  ámbar (alertas, vencimientos próximos, estados pendientes)
  *   - danger:   rojo sobrio (errores, deuda, restricciones — nunca estridente)
+ *
+ * Estructura (US-008 + US-061):
+ *   1. Escalas de color (@theme): brand, positive, warning, danger.
+ *   2. Tokens semánticos (:root + @theme inline): superficie, texto, borde,
+ *      acción y estados. Los componentes usan SOLO estos nombres.
+ *   3. Radios, elevación, capas, movimiento, estados y escala tipográfica.
  */
 @theme {
-  /* ---- Tipografía ---- */
-  /* Inter como preferida; fallback a system-ui para no depender de una carga
-     de fuente externa en esta fase de fundación (evaluar auto-hosting en
-     Sprint 1). */
-  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  /* ---- Familias tipográficas (US-061) ---- */
+  /* Hanken Grotesk para la interfaz; Barlow Semi Condensed para títulos,
+     cifras y horas. Ambas se sirven desde el propio sitio (@fontsource,
+     importadas en index.css); el respaldo son fuentes del sistema. */
+  --font-sans:
+    'Hanken Grotesk', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-display:
+    'Barlow Semi Condensed', 'Arial Narrow', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue',
+    Arial, sans-serif;
 
   /* ---- Azul profundo institucional (brand) ---- */
   --color-brand-50: #eef2fb;
@@ -64,6 +74,232 @@
   --color-danger-700: #71252c;
   --color-danger-800: #591d1c;
   --color-danger-900: #401413;
+}
+
+/*
+ * ===========================================================================
+ * Tokens semánticos (US-061, EP-08 bloque A)
+ *
+ * Dos capas, para que un modo oscuro sea posible más adelante sin tocar los
+ * componentes:
+ *   1. Variables "crudas" en :root (--surface-app, --ink, --line...) con los
+ *      valores del modo claro. Un tema oscuro sobrescribiría solo estas.
+ *   2. Alias de Tailwind (@theme inline) que generan las utilidades
+ *      (bg-surface-app, text-ink, border-line...) leyendo esas variables.
+ * El modo oscuro NO está activo (fuera de alcance de US-061).
+ * Relación semántico -> escala documentada en design-foundation.md §3.
+ * ===========================================================================
+ */
+:root {
+  /* Superficies */
+  --surface-app: #f3f5f9;
+  --surface-card: #ffffff;
+  --surface-raised: #f7f8fb;
+  --surface-brand-soft: #e9eefa;
+
+  /* Texto */
+  --ink: #13203b;
+  --ink-muted: #566280;
+  --ink-disabled: #7f8aa3;
+  --ink-on-brand: #ffffff;
+
+  /* Bordes */
+  --line: #dde3ee;
+  --line-strong: #7f8aa3;
+  --line-focus: #5178c9;
+
+  /* Acción (color de marca como acción principal) */
+  --action: #243d7a; /* brand-600 */
+  --action-hover: #1b2e5e; /* brand-700 */
+  --action-pressed: #142347; /* brand-800 */
+
+  /* Estados semánticos: texto (fg) sobre fondo suave (soft) */
+  --status-confirmed: #0c6e5b; /* positive-700 */
+  --status-confirmed-soft: #dcf6ee;
+  --status-pending: #8a4b00;
+  --status-pending-soft: #fdf0d2;
+  --status-problem: #a3231b;
+  --status-problem-soft: #fbe4e1;
+
+  /* Color de las sombras (parametrizado para poder cambiarlo en un tema oscuro) */
+  --shadow-color: 19 32 59;
+}
+
+@theme inline {
+  --color-surface-app: var(--surface-app);
+  --color-surface-card: var(--surface-card);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-brand-soft: var(--surface-brand-soft);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-disabled: var(--ink-disabled);
+  --color-ink-on-brand: var(--ink-on-brand);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-focus: var(--line-focus);
+
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-action-pressed: var(--action-pressed);
+
+  --color-status-confirmed: var(--status-confirmed);
+  --color-status-confirmed-soft: var(--status-confirmed-soft);
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-soft: var(--status-pending-soft);
+  --color-status-problem: var(--status-problem);
+  --color-status-problem-soft: var(--status-problem-soft);
+}
+
+/* Radios, elevaciones, capas, movimiento, estados y tipografía: `static` para
+   que se emitan siempre como variables CSS (la página /_dev/design-system las
+   lee aunque ninguna utilidad las use). */
+@theme static {
+  /* ---- Radios ---- */
+  --radius-control: 8px; /* botones, campos, badges rectangulares */
+  --radius-card: 12px; /* tarjetas, paneles */
+  --radius-dialog: 14px; /* ventanas y hojas superpuestas */
+
+  /* ---- Elevación ---- */
+  --shadow-card:
+    0 1px 2px rgb(var(--shadow-color) / 0.06), 0 1px 3px rgb(var(--shadow-color) / 0.05);
+  --shadow-panel: 0 8px 24px rgb(var(--shadow-color) / 0.14);
+  --shadow-dialog: 0 16px 40px rgb(var(--shadow-color) / 0.18);
+  --shadow-toast: 0 6px 18px rgb(var(--shadow-color) / 0.2);
+
+  /* ---- Capas (z-index): contenido < cabecera < panel < ventana < aviso ---- */
+  --layer-content: 0;
+  --layer-header: 20;
+  --layer-panel: 40;
+  --layer-dialog: 50;
+  --layer-toast: 80;
+
+  /* ---- Movimiento ---- */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---- Estados de interacción ---- */
+  --state-disabled-opacity: 0.55;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* ---- Escala tipográfica nombrada (tamaño / interlineado / peso) ---- */
+  --type-page-title-size: 1.625rem;
+  --type-page-title-leading: 1.2;
+  --type-page-title-weight: 600;
+  --type-section-title-size: 1.25rem;
+  --type-section-title-leading: 1.3;
+  --type-section-title-weight: 600;
+  --type-card-title-size: 1.0625rem;
+  --type-card-title-leading: 1.35;
+  --type-card-title-weight: 600;
+  --type-body-size: 0.9375rem; /* 15px: tamaño base */
+  --type-body-leading: 1.5;
+  --type-body-weight: 400;
+  --type-aux-size: 0.8125rem;
+  --type-aux-leading: 1.45;
+  --type-aux-weight: 400;
+  --type-figure-size: 2.25rem;
+  --type-figure-leading: 1.1;
+  --type-figure-weight: 700;
+  --measure: 65ch;
+}
+
+/* ---- Roles tipográficos (utilidades: type-page-title, type-body...) ---- */
+@utility type-page-title {
+  font-family: var(--font-display);
+  font-size: var(--type-page-title-size);
+  line-height: var(--type-page-title-leading);
+  font-weight: var(--type-page-title-weight);
+}
+@utility type-section-title {
+  font-family: var(--font-display);
+  font-size: var(--type-section-title-size);
+  line-height: var(--type-section-title-leading);
+  font-weight: var(--type-section-title-weight);
+}
+@utility type-card-title {
+  font-family: var(--font-display);
+  font-size: var(--type-card-title-size);
+  line-height: var(--type-card-title-leading);
+  font-weight: var(--type-card-title-weight);
+}
+@utility type-body {
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-leading);
+  font-weight: var(--type-body-weight);
+}
+@utility type-aux {
+  font-family: var(--font-sans);
+  font-size: var(--type-aux-size);
+  line-height: var(--type-aux-leading);
+  font-weight: var(--type-aux-weight);
+}
+@utility type-figure {
+  font-family: var(--font-display);
+  font-size: var(--type-figure-size);
+  line-height: var(--type-figure-leading);
+  font-weight: var(--type-figure-weight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Líneas de lectura de hasta 65 caracteres. */
+@utility measure {
+  max-width: var(--measure);
+}
+
+/* ---- Capas: z-layer-header, z-layer-panel, ... ---- */
+@utility z-layer-content {
+  z-index: var(--layer-content);
+}
+@utility z-layer-header {
+  z-index: var(--layer-header);
+}
+@utility z-layer-panel {
+  z-index: var(--layer-panel);
+}
+@utility z-layer-dialog {
+  z-index: var(--layer-dialog);
+}
+@utility z-layer-toast {
+  z-index: var(--layer-toast);
+}
+
+/* ---- Movimiento: se usa con las utilidades de transición de Tailwind, p. ej.
+   `transition-colors duration-(--motion-fast) ease-(--motion-ease)`. Todas las
+   transiciones se anulan con reducir movimiento (regla al final). ---- */
+
+/* ---- Estado: foco visible aplicable a cualquier control ---- */
+@utility focus-ring {
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--line-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+/* ---- Estado: deshabilitado común ---- */
+@utility state-disabled {
+  &:disabled,
+  &[aria-disabled='true'] {
+    cursor: not-allowed;
+    opacity: var(--state-disabled-opacity);
+  }
+}
+
+/* Reducir movimiento: se anulan todas las transiciones y los desplazamientos
+   animados. El spinner de carga (animate-spin) se conserva porque comunica
+   progreso y no es decorativo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ---- Utilidades semánticas reutilizables (Tailwind v4 @utility) ---- */

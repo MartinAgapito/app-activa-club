@@ -1,7 +1,9 @@
 # Design foundation — Activa Club (Frontend)
 
-> Entregable de [US-008](../../../docs/scrum/historias/US-008-mapa-rutas-design-foundation.md)
-> (Sprint 0, fundación). Sin lógica de negocio: tokens y componentes visuales
+> **Versión 2.0** (US-061, Sprint 4B). Entregable original de
+> [US-008](../../../docs/scrum/historias/US-008-mapa-rutas-design-foundation.md)
+> (Sprint 0, fundación), ampliado por
+> [US-061](../../../docs/scrum/historias/US-061-ampliar-tokens-diseno.md). Sin lógica de negocio: tokens y componentes visuales
 > únicamente. Audiencia: deportistas adultos 25-52 años. Dirección visual:
 > moderna, activa, confiable y social — sin apariencia infantil ni agresiva.
 
@@ -45,17 +47,148 @@ pantalla, no en Sprint 0):
 | Membresía `DEBT`/`EXPIRED`, pago `FAILED`, reserva `REJECTED`/`CANCELLED` | `danger`                     |
 | Socio `MIGRATED`/`APPROVED`, estados neutros                              | `neutral` / `info`           |
 
-## 3. Tipografía
+## 3. Tokens semánticos (US-061)
 
-- `--font-sans`: `'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif`.
-- Se prioriza `Inter` (moderna, alta legibilidad en pantallas móviles) con
-  fallback a fuentes del sistema. **Decisión de Sprint 0**: no se carga desde
-  un CDN externo (evita una dependencia de red y de CSP en esta fase de
-  fundación); el auto-hosting de la fuente (`@fontsource/inter` o archivos
-  locales) queda como tarea de Sprint 1 si se prioriza.
-- Escala tipográfica: se usa la escala por defecto de Tailwind (`text-sm`,
-  `text-base`, `text-xl`, `text-2xl`, etc.), sin tokens adicionales — es
-  suficiente para el MVP y evita sobre-ingeniería.
+Los componentes y pantallas usan **solo estos nombres**, no `slate-*` ni
+colores a mano. Viven en `apps/web/src/styles/theme.css` en dos capas:
+variables `:root` con los valores del modo claro y alias `@theme inline` que
+generan las utilidades de Tailwind. Un modo oscuro futuro solo sobrescribiría
+las variables `:root` (**no está activo**: fuera de alcance de US-061; no hay
+reglas en `prefers-color-scheme`).
+
+### 3.1 Color
+
+| Token (utilidad)             | Valor                 | Relación con la escala / uso                             |
+| ---------------------------- | --------------------- | -------------------------------------------------------- |
+| `surface-app` (`bg-`)        | `#f3f5f9`             | Fondo de aplicación (antes `slate-50`)                   |
+| `surface-card`               | `#ffffff`             | Tarjetas, cabecera, campos                               |
+| `surface-raised`             | `#f7f8fb`             | Superficie elevada/secundaria, campo deshabilitado       |
+| `surface-brand-soft`         | `#e9eefa`             | Fondo suave de marca (hover de secundario, badge `info`) |
+| `ink` (`text-`)              | `#13203b`             | Texto principal                                          |
+| `ink-muted`                  | `#566280`             | Texto secundario, ayudas, placeholder                    |
+| `ink-disabled`               | `#7f8aa3`             | Texto deshabilitado (exento de AA, WCAG 1.4.3)           |
+| `ink-on-brand`               | `#ffffff`             | Texto sobre `action`/marca                               |
+| `line` (`border-`)           | `#dde3ee`             | Separación decorativa (tarjeta, cabecera)                |
+| `line-strong`                | `#7f8aa3`             | Borde de controles (3:1, WCAG 1.4.11)                    |
+| `focus` (`ring-`, contorno)  | `#5178c9`             | = `brand-400`. Anillo de foco                            |
+| `action`                     | `#243d7a`             | = `brand-600`. Acción principal                          |
+| `action-hover`               | `#1b2e5e`             | = `brand-700`                                            |
+| `action-pressed`             | `#142347`             | = `brand-800`                                            |
+| `status-confirmed` / `-soft` | `#0c6e5b` / `#dcf6ee` | texto = `positive-700`                                   |
+| `status-pending` / `-soft`   | `#8a4b00` / `#fdf0d2` | Ámbar oscuro (fuera de la escala `warning`)              |
+| `status-problem` / `-soft`   | `#a3231b` / `#fbe4e1` | Rojo de estado (más vivo que `danger-600`)               |
+
+Las escalas `brand`, `positive`, `warning` y `danger` (sección 2) se conservan
+sin cambios; los semánticos las evolucionan, no las reemplazan. Los estados de
+dominio se muestran con `Badge` (variantes `positive`/`warning`/`danger` usan
+ahora `status-*`) y nunca solo con color: siempre con texto.
+
+### 3.2 Tipografía
+
+Familias, servidas desde el propio sitio con `@fontsource` (subconjunto
+`latin`, `font-display: swap`; sin CDN ni Google Fonts):
+
+- `font-display` (`--font-display`): **Barlow Semi Condensed** 500/600/700 —
+  títulos, cifras y horas.
+- `font-sans` (`--font-sans`): **Hanken Grotesk** 400/500/600/700 — interfaz.
+- Respaldo: `Segoe UI`, `system-ui`, `Arial`...
+
+Base 15px, interlineado 1.5, líneas de lectura de hasta 65ch (utilidad
+`measure`).
+
+| Rol (utilidad)       | Familia | Tamaño           | Interlineado | Peso                   |
+| -------------------- | ------- | ---------------- | ------------ | ---------------------- |
+| `type-page-title`    | display | 1.625rem (26px)  | 1.2          | 600                    |
+| `type-section-title` | display | 1.25rem (20px)   | 1.3          | 600                    |
+| `type-card-title`    | display | 1.0625rem (17px) | 1.35         | 600                    |
+| `type-body`          | sans    | 0.9375rem (15px) | 1.5          | 400                    |
+| `type-aux`           | sans    | 0.8125rem (13px) | 1.45         | 400                    |
+| `type-figure`        | display | 2.25rem (36px)   | 1.1          | 700 (cifras tabulares) |
+
+La escala por defecto de Tailwind (`text-sm`, `text-xl`...) sigue disponible
+para pantallas aún no migradas.
+
+### 3.3 Radios, elevación y capas
+
+| Token             | Valor                          | Uso               |
+| ----------------- | ------------------------------ | ----------------- |
+| `rounded-control` | 8px                            | Botones, campos   |
+| `rounded-card`    | 12px                           | Tarjetas, paneles |
+| `rounded-dialog`  | 14px                           | Ventanas          |
+| `shadow-card`     | 0 1px 2px y 0 1px 3px (6%, 5%) | Tarjeta           |
+| `shadow-panel`    | 0 8px 24px (14%)               | Panel lateral     |
+| `shadow-dialog`   | 0 16px 40px (18%)              | Ventana           |
+| `shadow-toast`    | 0 6px 18px (20%)               | Aviso efímero     |
+
+Orden único de capas (`z-index`; variables `--layer-*`, utilidades
+`z-layer-*`): contenido (0) < cabecera fija (20) < panel lateral (40) <
+ventana (50) < aviso efímero (80).
+
+### 3.4 Estados de interacción y movimiento
+
+- **Hover / presionado**: `hover:bg-action-hover`, `active:bg-action-pressed`
+  (acción principal); `hover:bg-surface-brand-soft` en secundario y ghost.
+- **Deshabilitado**: utilidad `state-disabled` (opacidad
+  `--state-disabled-opacity` 0.55, cursor `not-allowed`); texto `ink-disabled`.
+- **Foco visible**: utilidad `focus-ring` y regla global `:focus-visible`:
+  contorno de 2px `focus`, desfase 2px.
+- **Movimiento**: `--motion-fast` 120ms (controles), `--motion-base` 200ms
+  (paneles, ventanas), curva `--motion-ease`. Uso:
+  `transition-colors duration-(--motion-fast) ease-(--motion-ease)`. Con
+  `prefers-reduced-motion: reduce` toda transición se reduce a 0.01ms (regla
+  global en `theme.css`). El spinner de carga se conserva (comunica progreso).
+
+### 3.5 Contraste WCAG 2.1 AA
+
+Verificado con cálculo de luminancia relativa real
+(`node apps/web/scripts/check-contrast.mjs`, que lee `theme.css` y sale con
+error si un par falla). Mínimos: 4.5:1 texto normal; 3:1 texto grande y
+componentes de interfaz/foco.
+
+| Par                                      | Primer plano | Fondo     | Ratio   | Mínimo | Resultado |
+| ---------------------------------------- | ------------ | --------- | ------- | ------ | --------- |
+| Texto principal / app                    | `#13203b`    | `#f3f5f9` | 14.83:1 | 4.5:1  | cumple    |
+| Texto principal / tarjeta                | `#13203b`    | `#ffffff` | 16.19:1 | 4.5:1  | cumple    |
+| Texto principal / elevada                | `#13203b`    | `#f7f8fb` | 15.24:1 | 4.5:1  | cumple    |
+| Texto principal / marca suave            | `#13203b`    | `#e9eefa` | 13.93:1 | 4.5:1  | cumple    |
+| Texto secundario / app                   | `#566280`    | `#f3f5f9` | 5.57:1  | 4.5:1  | cumple    |
+| Texto secundario / tarjeta               | `#566280`    | `#ffffff` | 6.08:1  | 4.5:1  | cumple    |
+| Texto secundario / elevada               | `#566280`    | `#f7f8fb` | 5.72:1  | 4.5:1  | cumple    |
+| Texto secundario / marca suave           | `#566280`    | `#e9eefa` | 5.23:1  | 4.5:1  | cumple    |
+| Texto sobre marca / acción               | `#ffffff`    | `#243d7a` | 10.38:1 | 4.5:1  | cumple    |
+| Texto sobre marca / acción hover         | `#ffffff`    | `#1b2e5e` | 13.13:1 | 4.5:1  | cumple    |
+| Texto sobre marca / acción presionada    | `#ffffff`    | `#142347` | 15.43:1 | 4.5:1  | cumple    |
+| Acción (enlace, secundario) / tarjeta    | `#243d7a`    | `#ffffff` | 10.38:1 | 4.5:1  | cumple    |
+| Acción (enlace) / app                    | `#243d7a`    | `#f3f5f9` | 9.51:1  | 4.5:1  | cumple    |
+| Acción / marca suave                     | `#243d7a`    | `#e9eefa` | 8.93:1  | 4.5:1  | cumple    |
+| Confirmado / fondo suave                 | `#0c6e5b`    | `#dcf6ee` | 5.43:1  | 4.5:1  | cumple    |
+| Pendiente / fondo suave                  | `#8a4b00`    | `#fdf0d2` | 6.02:1  | 4.5:1  | cumple    |
+| Problema / fondo suave                   | `#a3231b`    | `#fbe4e1` | 6.14:1  | 4.5:1  | cumple    |
+| Problema (error en formulario) / tarjeta | `#a3231b`    | `#ffffff` | 7.46:1  | 4.5:1  | cumple    |
+| Problema (error) / app                   | `#a3231b`    | `#f3f5f9` | 6.84:1  | 4.5:1  | cumple    |
+| Texto sobre botón positivo               | `#ffffff`    | `#0c6e5b` | 6.18:1  | 4.5:1  | cumple    |
+| Texto sobre botón destructivo            | `#ffffff`    | `#a3231b` | 7.46:1  | 4.5:1  | cumple    |
+| Texto sobre botón alerta                 | `#5c350c`    | `#f0980f` | 4.67:1  | 4.5:1  | cumple    |
+| Texto sobre botón alerta hover           | `#5c350c`    | `#f7b12e` | 5.73:1  | 4.5:1  | cumple    |
+| Foco / tarjeta (no texto)                | `#5178c9`    | `#ffffff` | 4.30:1  | 3:1    | cumple    |
+| Foco / app (no texto)                    | `#5178c9`    | `#f3f5f9` | 3.94:1  | 3:1    | cumple    |
+| Foco / marca suave (no texto)            | `#5178c9`    | `#e9eefa` | 3.70:1  | 3:1    | cumple    |
+| Borde de control / tarjeta (no texto)    | `#7f8aa3`    | `#ffffff` | 3.46:1  | 3:1    | cumple    |
+| Borde de control / app (no texto)        | `#7f8aa3`    | `#f3f5f9` | 3.17:1  | 3:1    | cumple    |
+
+Notas y desviaciones:
+
+- Ningún valor aprobado por el dueño del producto fue modificado.
+- `line` (`#dde3ee`, 1.29:1 sobre blanco) es **solo separación decorativa**
+  (tarjetas, cabecera). Los bordes de controles de formulario usan
+  `line-strong` para cumplir 3:1 (WCAG 1.4.11).
+- `line-strong` e `ink-disabled` no estaban en los valores aprobados; se fijaron
+  en `#7f8aa3`, el gris azulado más claro que alcanza 3:1 sobre el fondo de
+  aplicación. `ink-disabled` es texto inactivo, exento de contraste.
+- Ajustes a componentes existentes por contraste: el botón `positive` pasó de
+  `positive-600` (4.29:1 con blanco, no cumplía) a `positive-700` (6.18:1); el
+  hover del botón `warning` pasó de `warning-600` (3.23:1) a `warning-400`
+  (5.73:1).
 
 ## 4. Espaciado y layout
 
@@ -137,3 +270,10 @@ Ninguno decide reglas de negocio ni conoce las entidades de
 ## 9. Historial de cambios
 
 - 2026-07-10: Versión inicial (US-008, Sprint 0).
+- 2026-10-11: Versión 2.0 (US-061, Sprint 4B). Tokens semánticos de superficie,
+  texto, borde, acción y estado; escala tipográfica nombrada; radios,
+  elevación, capas y movimiento; fuentes Barlow Semi Condensed y Hanken
+  Grotesk autoalojadas (reemplazan la preferencia por Inter); `Button`,
+  `Card`, `Badge`, `Input`, `Textarea` y `PageLayout` migrados sin cambiar su
+  API; tabla de contrastes AA; muestra en `/_dev/design-system`. Modo oscuro
+  preparado en la estructura, no activado.
