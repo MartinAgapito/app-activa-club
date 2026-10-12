@@ -12,6 +12,12 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Estructura de aplicación por rol (US-068, EP-08): barra lateral de 232 px
+  con iconos (`lucide-react`) y elemento activo con `aria-current`, cabecera
+  con título de sección y menú de usuario ("Mi perfil", "Cerrar sesión"),
+  menú móvil en `Drawer` izquierdo por debajo de 760 px y enlace "Saltar al
+  contenido" en los layouts de socio, administrador y público. `PageLayout`
+  acepta `mainId`.
 - Componente `Drawer` (panel lateral) en `@activa-club/ui`, sobre Radix
   Dialog: borde derecho o izquierdo, título obligatorio, cuerpo con scroll y
   pie fijo, foco atrapado y devuelto, animación que respeta

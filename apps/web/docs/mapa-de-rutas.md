@@ -68,8 +68,8 @@ Según [ADR-0002](../../../docs/architecture/adr/ADR-0002-autenticacion-cognito-
 
 ## 4. Rutas de socio (`member`)
 
-Layout compartido: `MemberLayout` (navegación de sección + botón de cerrar
-sesión). Guard: `RequireRole allow={['member']}`.
+Layout compartido: `MemberLayout` (barra lateral/menú móvil, cabecera con menú
+de usuario y cierre de sesión; US-068). Guard: `RequireRole allow={['member']}`.
 
 | Ruta                    | Página                                  | Contrato relacionado                                                                                                              | Notas                                                               |
 | ----------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -110,7 +110,8 @@ motivo si está disponible).
 
 ## 5. Rutas de administración (`admin`)
 
-Layout compartido: `AdminLayout`. Guard: `RequireRole allow={['admin']}`.
+Layout compartido: `AdminLayout` (misma estructura; en el menú "Pagos" apunta a
+`/admin/membresias`; US-068). Guard: `RequireRole allow={['admin']}`.
 
 | Ruta                    | Página                   | Contrato relacionado                                                                                                                                           | Notas                                                                                                                                                                                                                       |
 | ----------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -39,7 +39,7 @@ src/
   auth/           Contexto de sesión (placeholder; Cognito se integra en Sprint 1)
   components/     Componentes locales de apps/web (p. ej. UnderConstructionPage)
   examples/       Patrones de referencia (RHF+Zod, TanStack Query) — no son pantallas reales
-  layouts/        PublicLayout, MemberLayout, AdminLayout
+  layouts/        PublicLayout, MemberLayout, AdminLayout y AppShell (barra lateral, cabecera y menú móvil por rol)
   lib/            Cliente HTTP base y configuración de TanStack Query
   pages/
     public/       Inicio, login, activación, registro, recuperar contraseña, verificar correo
