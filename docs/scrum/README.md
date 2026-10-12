@@ -161,6 +161,7 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | [US-076](./historias/US-076-admin-bloqueos-mantenimiento-modal.md)              | Crear y liberar bloqueos de mantenimiento desde ventanas                 | C      | Frontend      | Media     | US-062, US-064, US-065, US-066         |
 | [US-077](./historias/US-077-admin-reservas-pestanas-detalle-decision.md)        | Revisar y decidir reservas desde pestañas, panel de detalle y ventanas   | C      | Frontend      | Alta      | US-062..US-066                         |
 | [US-078](./historias/US-078-admin-solicitudes-socios-panel-decision.md)         | Revisar y decidir solicitudes de socios desde panel de detalle y ventana | C      | Frontend      | Media     | US-062, US-063, US-065, US-066         |
+| [US-079](./historias/US-079-pantallas-acceso-estilo-nuevo.md)                   | Entrar al club con pantallas de acceso del nuevo estilo visual           | B      | Frontend      | Alta      | US-061                                 |
 
 > **EP-08 es solo frontend** sobre endpoints ya desplegados: bloque A (base de diseño), B (inicio útil) y C (flujos rehechos con ventanas y paneles). El bloque A bloquea a B y C. US-070 y US-071 se construyen como bloques que US-056 y US-059 (EP-07) enriquecerán sin rehacerlos.
 
@@ -181,3 +182,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 - 2026-10-11: EP-04 con las diez historias implementadas (backend y pantallas); pendiente la verificación extremo a extremo.
 - 2026-10-11: Creación de EP-05 (notificaciones), EP-06 (administración) y EP-07 (dashboards y analytics) y de los Sprints 4 y 5 con las historias US-038..US-060. US-038 (vencimiento de membresía) y US-050 (pantalla de historial de pagos del socio) son deuda técnica de EP-03. Cada épica registra sus preguntas abiertas.
 - 2026-10-11: Propuesta de EP-08 (experiencia de usuario e interfaz, transversal y solo frontend) y del Sprint 4B con las historias US-061..US-078, tras el reclamo del dueño del producto en la primera prueba extremo a extremo en `dev` (inicio vacío, estilos básicos, CRUD sin ventanas). Pendiente de aprobación del Product Owner, incluida su posición respecto del Sprint 4. Notas de coordinación agregadas en EP-07, US-056 y US-059.
+- 2026-10-11: US-079 (pantallas de acceso con el nuevo estilo visual), pedido del dueño del producto; se agrega a EP-08 (bloque B) y al Sprint 4B, adelantada de la Ola 4 a la Ola 3.
