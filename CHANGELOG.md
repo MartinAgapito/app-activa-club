@@ -28,6 +28,18 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Consola de notificaciones del administrador (US-049, EP-05):
+  `/admin/notificaciones` con pestañas "Publicar" y "Enviadas" (`?tab=`).
+  Publicar: título y mensaje con contador y validación de
+  `createNotificationSchema`, destinatarios por segmento (un socio por DNI con
+  su nombre confirmado, o titulares de reservas de una instalación), opción de
+  correo con aviso del tope de 15 y de SES, confirmación con resumen y
+  advertencia de que no se puede deshacer, resultado con aviso y resumen
+  (destinatarios, correos enviados, fallidos y omitidos, repetición) y errores
+  `NO_RECIPIENTS`, `RECIPIENT_LIMIT_EXCEEDED`, 404, 400, 403 y de red sin
+  perder lo escrito. Enviadas: tabla con fecha en hora de Lima, origen Manual o
+  Sistema y correo, "Cargar más" por cursor y panel de detalle. Sin cambios de
+  API.
 - Publicación de notificaciones segmentadas (US-048, EP-05): `POST /notifications`
   (admin) entrega un aviso a la bandeja de los socios de `ALL`, `ACTIVE`, `DEBT`,
   `EXPIRED`, `EXPIRING_SOON`, `SINGLE` o `BY_RESOURCE` (sin `Scan`: GSI2/GSI3 y
