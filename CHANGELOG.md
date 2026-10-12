@@ -28,6 +28,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Guarda de CI `check:handlers` (`scripts/check-handler-mapping.mjs`): falla
+  si un handler real de `apps/api` no está en el mapa `HANDLERS` de
+  `scripts/package-lambdas.mjs`, si una entrada apunta a un archivo
+  inexistente o si usa `not-implemented.ts` sin `// PLACEHOLDER(US-NNN)`.
+  Integrada en el job `lint` de `pr-quality.yml`; sus pruebas corren con
+  `npm run test:scripts` en el job `test`. Evita repetir el incidente de
+  endpoints de reservas desplegados con el placeholder 501 (PR #95).
+
 - Pantalla `/admin/membresias` como "Pagos" (US-053, EP-06): planes vigentes
   con su precio y consulta de pagos de los socios con tabla (fecha en hora de
   Lima, socio, plan, monto y estado), filtros por estado (por defecto

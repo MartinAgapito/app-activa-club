@@ -62,6 +62,11 @@ jobs:
       - name: Formato (Prettier --check)
         run: npm run format:check
 
+      # Evita desplegar un endpoint con el placeholder (501) por olvidar
+      # actualizar HANDLERS en scripts/package-lambdas.mjs.
+      - name: Handlers mapeados (check:handlers)
+        run: npm run check:handlers
+
   # ---------------------------------------------------------------------
   # Typecheck (TypeScript estricto) por workspace.
   # ---------------------------------------------------------------------
@@ -109,6 +114,9 @@ jobs:
 
       - name: Pruebas por workspace
         run: npm run test
+
+      - name: Pruebas de scripts de repositorio
+        run: npm run test:scripts
 
   # ---------------------------------------------------------------------
   # Build de frontend y backend (por workspace, vía --if-present).
