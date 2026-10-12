@@ -2,6 +2,7 @@
 // (import.meta.env.DEV). No forma parte del mapa de rutas del MVP — ver
 // apps/web/docs/mapa-de-rutas.md, sección "Herramientas internas de desarrollo".
 
+import { useState } from 'react';
 import {
   Badge,
   Button,
@@ -9,6 +10,7 @@ import {
   CardHeader,
   Input,
   PageHeader,
+  Stepper,
   type BadgeVariant,
 } from '@activa-club/ui';
 import { ReferenceForm } from '../../examples/ReferenceForm';
@@ -17,6 +19,39 @@ import { TokensShowcase } from './TokensShowcase';
 import { DataTableShowcase } from './DataTableShowcase';
 
 const BADGE_VARIANTS: BadgeVariant[] = ['neutral', 'info', 'positive', 'warning', 'danger'];
+
+const STEPPER_DEMO_STEPS = [
+  { label: 'Instalación' },
+  { label: 'Día y franja' },
+  { label: 'Participantes' },
+  { label: 'Confirmar' },
+];
+
+function StepperDemo() {
+  const [step, setStep] = useState(2);
+  return (
+    <div className="flex flex-col gap-4">
+      <Stepper steps={STEPPER_DEMO_STEPS} currentStep={step} onStepClick={setStep} />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={step === 0}
+          onClick={() => setStep((s) => s - 1)}
+        >
+          Anterior
+        </Button>
+        <Button
+          size="sm"
+          disabled={step === STEPPER_DEMO_STEPS.length - 1}
+          onClick={() => setStep((s) => s + 1)}
+        >
+          Siguiente
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function DesignSystemPage() {
   return (
@@ -63,6 +98,10 @@ export function DesignSystemPage() {
       </Card>
 
       <DataTableShowcase />
+      <Card>
+        <CardHeader title="Stepper (indicador de pasos)" />
+        <StepperDemo />
+      </Card>
 
       <ReferenceForm />
       <ReferenceQueryDemo />

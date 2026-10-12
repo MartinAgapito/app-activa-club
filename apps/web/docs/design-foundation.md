@@ -266,6 +266,29 @@ Los estados de carga, error y vacío reemplazan a la tabla (reutilizan
 `Spinner`, `ErrorState`, `EmptyState`); `aria-busy` se marca mientras carga.
 Estados de fila: usar `Badge` con texto, nunca solo color. No ordena ni filtra.
 
+### 7.1 `Stepper` (US-067)
+
+Indicador de pasos para secuencias cortas (primer uso: asistente de reserva,
+US-072). Props: `steps` (`{ label, id? }[]`), `currentStep` (índice base 0,
+acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
+"Progreso").
+
+- Estado derivado de `currentStep`: anteriores `completed`, igual `current`,
+  posteriores `pending`.
+- Semántica: `<nav>` con `<ol>`; el actual lleva `aria-current="step"`. Cada
+  paso agrega texto solo para lectores de pantalla (": completado",
+  ": paso actual", ": pendiente").
+- No depende del color: completado con marca de verificado, actual y
+  pendiente con su número (la numeración es información en una secuencia).
+- Solo los pasos completados son clicables, y solo si se pasa `onStepClick`;
+  el actual y los pendientes nunca lo son. El llamador decide si permitir
+  volver atrás.
+- Menos de 640 px (`sm`): forma compacta "Paso 2 de 4: Día y franja", sin
+  desbordar. Desde `sm`: lista completa con conectores.
+- Tokens: `action`/`ink-on-brand` (actual), `status-confirmed(-soft)`
+  (completado), `ink-muted`, `line` (pendiente y conectores), `type-aux`,
+  `focus-ring`. No usa colores literales.
+
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
