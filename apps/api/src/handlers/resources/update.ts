@@ -15,6 +15,7 @@ import { requireResourceIdPathParam } from './path-params';
 
 async function handleUpdateResource(
   event: APIGatewayProxyWithCognitoAuthorizerEvent,
+  ctx: { requestId: string },
 ): Promise<APIGatewayProxyResult> {
   const identity = extractIdentity(event);
   requireRole(identity, ['admin']);
@@ -31,6 +32,7 @@ async function handleUpdateResource(
       ...(body.resourceStatus !== undefined ? { resourceStatus: body.resourceStatus } : {}),
     },
     actor: { actorId: identity.sub, actorRole: 'admin' },
+    requestId: ctx.requestId,
   });
 
   return jsonResponse(200, result);

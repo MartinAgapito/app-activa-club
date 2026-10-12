@@ -3,8 +3,9 @@
 //
 // El bloqueo **no cancela** reservas existentes (criterio 10): solo informa
 // cuántas reservas activas caen en la ventana (`affectedReservationCount`) y
-// deja el rastro de auditoría `RESOURCE_MAINTENANCE` que EP-05 usará para
-// notificar a los socios afectados (criterio 12).
+// deja el rastro de auditoría `RESOURCE_MAINTENANCE` (criterio 12). Desde
+// US-045 además avisa a los titulares de esas reservas (best-effort, ver
+// `./maintenance-notify.ts`); un fallo de aviso no cambia la respuesta.
 
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { ulid } from 'ulid';
@@ -21,6 +22,7 @@ import {
   listMaintenanceBlocks as queryMaintenanceBlocks,
   putMaintenanceBlock,
 } from './maintenance-repository';
+import { notifyAffectedReservations } from './maintenance-notify';
 import { getResourceById } from './repository';
 
 export interface CreateMaintenanceInput {
@@ -33,6 +35,8 @@ export interface CreateMaintenanceInput {
   now?: Date;
   /** `blockId` inyectable para pruebas deterministas. */
   blockId?: string;
+  /** Correlación con la solicitud HTTP (logs de los avisos). */
+  requestId?: string;
 }
 
 export async function createMaintenanceBlock(
@@ -83,6 +87,17 @@ export async function createMaintenanceBlock(
       reason: block.reason,
       affectedReservationCount: activeReservations.length,
     },
+    now,
+  });
+
+  // US-045: un aviso por reserva afectada, sin revertir el bloqueo ni la
+  // respuesta ante fallos (nunca lanza). Reutiliza la lectura de ocupación.
+  await notifyAffectedReservations({
+    client,
+    resourceName: resource.name,
+    reservations: activeReservations,
+    factId: block.blockId,
+    requestId: input.requestId,
     now,
   });
 

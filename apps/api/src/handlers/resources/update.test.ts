@@ -104,6 +104,7 @@ describe('PATCH /resources/{resourceId}', () => {
       resourceId: 'futbol-1',
       changes: { capacity: 10 },
       actor: { actorId: 'admin-sub', actorRole: 'admin' },
+      requestId: expect.any(String),
     });
   });
 

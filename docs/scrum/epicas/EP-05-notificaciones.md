@@ -112,3 +112,4 @@ Cada una trae una propuesta del Product Analyst para que la Planning no arranque
 - 2026-10-11: Creación de la épica EP-05 y asociación de las historias del Sprint 4 (US-039..US-049), con US-038 como deuda técnica de EP-03 de la que depende.
 - 2026-10-12: US-039 con infraestructura desplegada, pendiente lógica (endpoints en 501 hasta US-041, US-048 y US-049; `ses:SendEmail` concedido a las Lambdas emisoras).
 - 2026-10-12: US-040 implementada (motor de emisión: bandeja idempotente + correo best-effort + 13 textos), pendiente consumo por US-042..US-047.
+- 2026-10-12: US-045 implementada (aviso de mantenimiento a titulares de reservas afectadas desde el bloqueo y desde el PATCH a MAINTENANCE), pendiente verificación en `dev`.

@@ -81,6 +81,7 @@ describe('POST /resources/{resourceId}/maintenance', () => {
       endsAt: validBody.endsAt,
       reason: validBody.reason,
       actor: { actorId: 'admin-sub', actorRole: 'admin' },
+      requestId: expect.any(String),
     });
   });
 
