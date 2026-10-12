@@ -12,6 +12,11 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Componente `Drawer` (panel lateral) en `@activa-club/ui`, sobre Radix
+  Dialog: borde derecho o izquierdo, título obligatorio, cuerpo con scroll y
+  pie fijo, foco atrapado y devuelto, animación que respeta
+  `prefers-reduced-motion` (US-063, EP-08). `ToastProvider` montado en la raíz
+  de `apps/web` y aviso elevado para no tapar los botones de un diálogo.
 - Componente `Stepper` (indicador de pasos) en `@activa-club/ui`: lista
   ordenada con `aria-current="step"`, estados completado/actual/pendiente sin
   depender del color, completados clicables opcionalmente y forma compacta

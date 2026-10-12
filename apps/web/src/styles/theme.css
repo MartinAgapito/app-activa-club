@@ -180,6 +180,63 @@
   --motion-base: 200ms;
   --motion-ease: cubic-bezier(0.2, 0, 0, 1);
 
+  /* ---- Animaciones del panel lateral (US-063): utilidades animate-drawer-* ---- */
+  --animate-drawer-in-right: drawer-in-right var(--motion-base) var(--motion-ease) both;
+  --animate-drawer-out-right: drawer-out-right var(--motion-fast) var(--motion-ease) both;
+  --animate-drawer-in-left: drawer-in-left var(--motion-base) var(--motion-ease) both;
+  --animate-drawer-out-left: drawer-out-left var(--motion-fast) var(--motion-ease) both;
+  --animate-drawer-fade-in: drawer-fade-in var(--motion-base) var(--motion-ease) both;
+  --animate-drawer-fade-out: drawer-fade-out var(--motion-fast) var(--motion-ease) both;
+
+  @keyframes drawer-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes drawer-out-right {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes drawer-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes drawer-out-left {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes drawer-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes drawer-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
   /* ---- Estados de interacción ---- */
   --state-disabled-opacity: 0.55;
   --focus-ring-width: 2px;

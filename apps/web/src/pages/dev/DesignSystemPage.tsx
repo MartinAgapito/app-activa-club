@@ -11,13 +11,13 @@ import {
   Input,
   Modal,
   PageHeader,
-  ToastProvider,
   useToast,
   Stepper,
   type BadgeVariant,
 } from '@activa-club/ui';
 import { ReferenceForm } from '../../examples/ReferenceForm';
 import { ReferenceQueryDemo } from '../../examples/ReferenceQueryDemo';
+import { DrawerDemo } from './DrawerDemo';
 import { TabsDemo } from './TabsDemo';
 import { TokensShowcase } from './TokensShowcase';
 import { DataTableShowcase } from './DataTableShowcase';
@@ -104,15 +104,14 @@ export function DesignSystemPage() {
       </Card>
 
       <ModalDemo />
-      <ToastProvider>
-        <Card>
-          <CardHeader
-            title="Avisos efímeros (toast)"
-            description="Confirman una acción propia; no son notificaciones persistentes."
-          />
-          <ToastDemo />
-        </Card>
-      </ToastProvider>
+      <DrawerDemo />
+      <Card>
+        <CardHeader
+          title="Avisos efímeros (toast)"
+          description="Confirman una acción propia; no son notificaciones persistentes."
+        />
+        <ToastDemo />
+      </Card>
       <DataTableShowcase />
       <Card>
         <CardHeader title="Stepper (indicador de pasos)" />
