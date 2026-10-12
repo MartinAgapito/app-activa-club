@@ -28,6 +28,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Avisos de renovación (US-047, EP-05): nuevo proceso diario
+  `memberships-notify` (EventBridge 08:00 America/Lima, módulo
+  `scheduled-job`, alarma de errores) que consume el rastro
+  `MembershipTransition` de US-038 y emite `RENEWAL_DUE` (por vencer) y
+  `RENEWAL_OVERDUE` (vencida) al socio, una vez por ciclo de vigencia. No avisa
+  a socios sin cuenta digital ni a quien ya renovó; un fallo por socio no
+  detiene al resto y el rastro queda pendiente para el día siguiente. Sin
+  cambios de API ni nuevos índices.
 - Recordatorio de reserva próxima (US-046, EP-05): nuevo proceso programado
   `reservations-remind` (EventBridge, 18:00 America/Lima = 23:00 UTC, módulo
   `scheduled-job`) que emite `RESERVATION_REMINDER` al titular de cada reserva

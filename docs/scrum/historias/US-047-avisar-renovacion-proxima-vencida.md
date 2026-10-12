@@ -60,6 +60,10 @@ Es el aviso con impacto económico más directo para el club: un socio que renue
 - Socio con `autoRenew=true` → texto sin promesa de cobro automático.
 - Socio `MIGRATED` → sin aviso.
 
+## Historial de cambios
+
+- 2026-10-12: Implementada, pendiente verificación en `dev`. Proceso programado `memberships-notify` (EventBridge `cron(0 13 * * ? *)` = 08:00 Lima, módulo `scheduled-job`, alarma de errores) que consume el rastro `MembershipTransition` de US-038 (patrón #27) y emite `RENEWAL_DUE`/`RENEWAL_OVERDUE` con `entityId = membershipEndsAt`. Decisión: job aparte y a las 08:00 para que el aviso llegue en horario de vigilia y un fallo de SES/bandeja no toque el proceso crítico de US-038. Solo avisa a socios `ACTIVE` (con cuenta digital); un socio que renovó o un `RENEWAL_DUE` ya superado por el vencimiento se descartan sin aviso. El texto de `RENEWAL_DUE` incluye la fecha de vencimiento, pero no los días restantes (el catálogo de US-040 solo recibe `membershipEndsAt`); pendiente confirmar con el Product Owner si basta.
+
 ## Trazabilidad
 
 - Épica: EP-05

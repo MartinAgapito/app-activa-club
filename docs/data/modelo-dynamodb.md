@@ -397,27 +397,45 @@ o un reintento, no duplica el aviso. El consumidor (US-047) lee
 retira `GSI2PK/GSI2SK` del ítem al procesarlo (queda como historial). Esta
 historia **no** emite notificaciones.
 
+**Consumidor (US-047)**: el proceso `memberships-notify` (08:00 Lima, módulo
+`apps/api/src/memberships/notify-renewals.ts`) lee el patrón #27, resuelve al
+socio con un `GetItem` (patrón #1) y emite `RENEWAL_DUE`/`RENEWAL_OVERDUE`
+con `entityId = membershipEndsAt` (estable por ciclo: la clave de deduplicación
+del motor, `evento#socio#vigencia`, hace que un reintento no duplique). Luego
+ejecuta un `UpdateItem` condicionado a `GSI2PK = MEMBERSHIP#TRANSITION#PENDING`:
+`REMOVE GSI2PK, GSI2SK` y `SET processedAt, processedOutcome`. Atributos
+agregados por el consumidor (solo se escriben al procesar):
+
+| Atributo           | Valores                                                                                                                                                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `processedAt`      | ISO-8601 UTC del procesamiento.                                                                                                                                                                                                                      |
+| `processedOutcome` | `NOTIFIED`, `SKIPPED_RENEWED` (la vigencia actual ya no es la del rastro), `SKIPPED_NOT_ELIGIBLE` (`memberStatus != ACTIVE`, p. ej. `MIGRATED`), `SKIPPED_SUPERSEDED` (`RENEWAL_DUE` de un socio que ya está `EXPIRED`), `SKIPPED_MEMBER_NOT_FOUND`. |
+
+Un rastro cuyo aviso falla (bandeja `FAILED`, error de lectura) **no** se
+retira: sigue pendiente y se reintenta en la siguiente ejecución. No se agregan
+índices ni patrones.
+
 ## 4. Índices y patrones de acceso (resumen)
 
 ### Tabla base (PK/SK)
 
-| #   | Patrón de acceso                                           | Consulta                                                                                                                            | Regla                   |
-| --- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| 1   | Obtener socio por id                                       | `GetItem` PK=`MEMBER#<id>`, SK=`PROFILE`                                                                                            | RN-ADM-01               |
-| 2   | Buscar socio por DNI (activación y lookup de participante) | `GetItem` PK=`UNIQ#DNI#<dni>` → memberId                                                                                            | RN-ACT-01/03, RN-RES-03 |
-| 3   | Historial de pagos del socio                               | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"PAYMENT#")`                                                                              | RN-ADM-07               |
-| 4   | Historial de membresías del socio                          | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"MEMBERSHIP#")`                                                                           | RN-PAG-01               |
-| 5   | Inbox de notificaciones del socio                          | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"NOTIF#")`                                                                                | RN-NOT-01               |
-| 6   | Idempotencia de pago                                       | `GetItem`/`Put condicional` PK=`IDEMP#<key>`                                                                                        | RN-PAG-07               |
-| 7   | Unicidad DNI/email                                         | `TransactWrite` `attribute_not_exists`                                                                                              | RN-ACT-03               |
-| 8   | Participantes de una reserva                               | `Query` PK=`RESERVATION#<id>`, `begins_with(SK,"PARTICIPANT#")`                                                                     | RN-RES-06               |
-| 9   | Contador mensual de invitado                               | `Update` condicional PK=`GUEST#<dni>`, SK=`MONTH#<yyyy-mm>`                                                                         | RN-RES-05               |
-| 10  | Auditoría por día                                          | `Query` PK=`AUDIT#<fecha>`                                                                                                          | RN-ADM                  |
-| 23  | Resolver socio participante por DNI                        | `GetItem` PK=`UNIQ#DNI#<dni>` → `GetItem` PK=`MEMBER#<id>`, SK=`PROFILE` (proyecta solo nombre)                                     | RN-RES-03               |
-| 24  | Resolver perfil de invitado por DNI                        | `GetItem` PK=`GUEST#<dni>`, SK=`PROFILE`                                                                                            | RN-RES-03/04            |
-| 25  | Alta idempotente de invitado                               | `Update` con `if_not_exists` PK=`GUEST#<dni>`, SK=`PROFILE`, dentro del `TransactWrite` de la reserva                               | RN-RES-03/04            |
-| 26  | Candado de concurrencia por franja exacta (§3.16)          | `Put condicional` `attribute_not_exists(PK)` PK=`RESOURCE#<id>`, SK=`SLOTLOCK#<startsAt>`, dentro del `TransactWrite` de la reserva | RN-RES-07 (criterio 14) |
-| 27  | Transiciones de vigencia pendientes de avisar (§3.17)      | `Query` GSI2PK=`MEMBERSHIP#TRANSITION#PENDING`, rango `occurredAt` (las escribe el proceso con `Put condicional`)                   | RN-NOT-04 (US-047)      |
+| #   | Patrón de acceso                                           | Consulta                                                                                                                            | Regla                                               |
+| --- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | Obtener socio por id                                       | `GetItem` PK=`MEMBER#<id>`, SK=`PROFILE`                                                                                            | RN-ADM-01                                           |
+| 2   | Buscar socio por DNI (activación y lookup de participante) | `GetItem` PK=`UNIQ#DNI#<dni>` → memberId                                                                                            | RN-ACT-01/03, RN-RES-03                             |
+| 3   | Historial de pagos del socio                               | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"PAYMENT#")`                                                                              | RN-ADM-07                                           |
+| 4   | Historial de membresías del socio                          | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"MEMBERSHIP#")`                                                                           | RN-PAG-01                                           |
+| 5   | Inbox de notificaciones del socio                          | `Query` PK=`MEMBER#<id>`, `begins_with(SK,"NOTIF#")`                                                                                | RN-NOT-01                                           |
+| 6   | Idempotencia de pago                                       | `GetItem`/`Put condicional` PK=`IDEMP#<key>`                                                                                        | RN-PAG-07                                           |
+| 7   | Unicidad DNI/email                                         | `TransactWrite` `attribute_not_exists`                                                                                              | RN-ACT-03                                           |
+| 8   | Participantes de una reserva                               | `Query` PK=`RESERVATION#<id>`, `begins_with(SK,"PARTICIPANT#")`                                                                     | RN-RES-06                                           |
+| 9   | Contador mensual de invitado                               | `Update` condicional PK=`GUEST#<dni>`, SK=`MONTH#<yyyy-mm>`                                                                         | RN-RES-05                                           |
+| 10  | Auditoría por día                                          | `Query` PK=`AUDIT#<fecha>`                                                                                                          | RN-ADM                                              |
+| 23  | Resolver socio participante por DNI                        | `GetItem` PK=`UNIQ#DNI#<dni>` → `GetItem` PK=`MEMBER#<id>`, SK=`PROFILE` (proyecta solo nombre)                                     | RN-RES-03                                           |
+| 24  | Resolver perfil de invitado por DNI                        | `GetItem` PK=`GUEST#<dni>`, SK=`PROFILE`                                                                                            | RN-RES-03/04                                        |
+| 25  | Alta idempotente de invitado                               | `Update` con `if_not_exists` PK=`GUEST#<dni>`, SK=`PROFILE`, dentro del `TransactWrite` de la reserva                               | RN-RES-03/04                                        |
+| 26  | Candado de concurrencia por franja exacta (§3.16)          | `Put condicional` `attribute_not_exists(PK)` PK=`RESOURCE#<id>`, SK=`SLOTLOCK#<startsAt>`, dentro del `TransactWrite` de la reserva | RN-RES-07 (criterio 14)                             |
+| 27  | Transiciones de vigencia pendientes de avisar (§3.17)      | `Query` GSI2PK=`MEMBERSHIP#TRANSITION#PENDING`, rango `occurredAt` (las escribe el proceso con `Put condicional`)                   | RN-NOT-04 (US-047, consumidor `memberships-notify`) |
 
 > La numeración de patrones es incremental y global (no se reinicia por
 > sección): los patrones 23–26, aunque son de la tabla base, se agregaron

@@ -90,3 +90,4 @@ Cierra un hueco que hoy deja reservar a socios con la membresía vencida, que es
 ## Historial de cambios
 
 - 2026-10-12: Implementada, pendiente verificación en `dev`. Regla de vigencia única en `apps/api/src/memberships/vigency.ts`; proceso diario `memberships-expire` (EventBridge `cron(15 5 * * ? *)` = 00:15 Lima, módulo `scheduled-job`); defensa por fecha en `POST /reservations`. Rastro para US-047: ítem `MembershipTransition` (modelo-dynamodb.md §3.17, patrón #27), escrito en la misma transacción que el cambio de estado.
+- 2026-10-12: US-047 consume el rastro: patrón #27 lo lee el proceso `memberships-notify` (08:00 Lima), que retira `GSI2PK/GSI2SK` al avisar. Sin cambios en US-038.

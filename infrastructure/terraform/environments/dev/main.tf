@@ -275,6 +275,9 @@ locals {
       # EP-03, US-038: proceso programado (no HTTP), ver module
       # "job_memberships_expire" al final de este archivo.
       "memberships-expire",
+      # EP-05, US-047: proceso programado de avisos de renovación (no HTTP),
+      # ver module "job_memberships_notify".
+      "memberships-notify",
       # EP-05, US-046: recordatorio diario de reservas (no HTTP), ver module
       # "job_reservations_remind" al final de este archivo.
       "reservations-remind",
@@ -2061,6 +2064,59 @@ module "job_reservations_remind" {
       # Solo GSI3 (patrón #21), no el wildcard de todos los índices.
       actions   = ["dynamodb:Query"]
       resources = ["${local.dynamodb_table_arn}/index/GSI3"]
+    },
+    local.ses_send_email_statement,
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Proceso programado de avisos de renovación (US-047, EP-05).
+#
+# Lambda NO HTTP invocada por EventBridge una vez al día a las 08:00 hora de
+# Lima = 13:00 UTC (las reglas evalúan cron en UTC; Lima es UTC-5 fijo). Es un
+# job APARTE de memberships-expire (00:15) por dos razones: (1) el aviso (y su
+# correo) llega en horario de vigilia del socio, no a las 00:15; (2) un fallo
+# de SES/bandeja no puede tocar al proceso que mantiene `membershipStatus`
+# correcto (US-038 es crítico para RN-PAG-06; este solo avisa y es reintentable
+# porque el rastro queda pendiente en GSI2 hasta ser procesado).
+#
+# IAM = exactamente lo que usan apps/api/src/memberships/notify-renewals.ts y
+# apps/api/src/notifications/**:
+# - dynamodb:Query sobre GSI2 (patrón #27: GSI2PK=MEMBERSHIP#TRANSITION#PENDING).
+# - dynamodb:GetItem sobre la tabla (Member por memberId, patrón #1).
+# - dynamodb:UpdateItem (retira GSI2PK/GSI2SK del rastro) y dynamodb:PutItem
+#   (Notification + MemberNotification en la TransactWriteItems del motor;
+#   TransactWrite exige el permiso de cada operación individual).
+# - ses:SendEmail solo sobre la identidad del remitente (best-effort, ADR-0006).
+# Sin Scan, sin DeleteItem, sin ningún otro servicio.
+#
+# Alarma de errores ACTIVA (ADR-0008): el handler termina en error si algún
+# rastro no pudo avisarse; sin alarma, esos avisos se perderían en silencio.
+# ---------------------------------------------------------------------------
+module "job_memberships_notify" {
+  source = "../../modules/scheduled-job"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name       = "memberships-notify"
+  description         = "Avisa renovación próxima/vencida (US-047), diario 08:00 America/Lima."
+  source_zip_path     = local.lambda_zip_path["memberships-notify"]
+  schedule_expression = "cron(0 13 * * ? *)"
+
+  environment_variables = merge({
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }, local.ses_sender_env)
+
+  iam_policy_statements = [
+    {
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+    {
+      # Solo GSI2 (patrón #27), no el wildcard de todos los índices.
+      actions   = ["dynamodb:Query"]
+      resources = ["${local.dynamodb_table_arn}/index/GSI2"]
     },
     local.ses_send_email_statement,
   ]

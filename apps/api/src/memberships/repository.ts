@@ -3,6 +3,9 @@
 //
 // - Lectura: `Query` sobre GSI2 con GSI2PK=`MEMBERSHIP#ACTIVE` y rango
 //   `endsAt` (patrón #15). Nunca un `Scan`.
+// - Consumidor de US-047: `Query` sobre GSI2 con GSI2PK=
+//   `MEMBERSHIP#TRANSITION#PENDING` (patrón #27) y retiro de `GSI2PK/GSI2SK`
+//   del rastro una vez avisado (`markTransitionProcessed`).
 // - Escritura por transición: una `TransactWriteItems` que (1) actualiza el
 //   `Member` condicionada a la vigencia leída (criterio 7: no pisa una
 //   renovación concurrente), (2) deja el rastro `MembershipTransition` para
@@ -197,6 +200,108 @@ export async function removePeriodFromActiveIndex(
         ConditionExpression: 'attribute_exists(PK) AND GSI2SK = :endsAt',
         UpdateExpression: 'REMOVE GSI2PK, GSI2SK',
         ExpressionAttributeValues: { ':endsAt': period.endsAt },
+      }),
+    );
+    return true;
+  } catch (error) {
+    if (isConditionalCheckFailure(error)) return false;
+    throw error;
+  }
+}
+
+/** Evento de renovación que registra una transición (modelo-dynamodb.md §3.17). */
+export type RenewalTransitionEvent = 'RENEWAL_DUE' | 'RENEWAL_OVERDUE';
+
+/** Rastro `MembershipTransition` pendiente de avisar (solo lo que el consumidor necesita). */
+export interface PendingTransition {
+  PK: string;
+  SK: string;
+  memberId: string;
+  event: RenewalTransitionEvent;
+  /** Vigencia que originó la transición: identifica el ciclo de membresía. */
+  membershipEndsAt: string;
+}
+
+/** Cómo terminó el procesamiento de un rastro (queda como historial en el ítem). */
+export type TransitionProcessedOutcome =
+  | 'NOTIFIED'
+  | 'SKIPPED_RENEWED'
+  | 'SKIPPED_SUPERSEDED'
+  | 'SKIPPED_NOT_ELIGIBLE'
+  | 'SKIPPED_MEMBER_NOT_FOUND';
+
+function isRenewalEvent(value: unknown): value is RenewalTransitionEvent {
+  return value === 'RENEWAL_DUE' || value === 'RENEWAL_OVERDUE';
+}
+
+/**
+ * Lista TODOS los rastros pendientes (patrón #27), paginando con
+ * `LastEvaluatedKey`. La cola es corta por construcción: cada rastro sale del
+ * índice al procesarse y el proceso corre a diario. Nunca un `Scan`.
+ * Descarta (sin lanzar) ítems mal formados.
+ */
+export async function listPendingTransitions(
+  client: DynamoDBDocumentClient,
+): Promise<PendingTransition[]> {
+  const pending: PendingTransition[] = [];
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+
+  do {
+    const result = await client.send(
+      new QueryCommand({
+        TableName: tableName(),
+        IndexName: 'GSI2',
+        KeyConditionExpression: 'GSI2PK = :pk',
+        ExpressionAttributeValues: { ':pk': TRANSITION_PENDING_GSI2PK },
+        ExclusiveStartKey: exclusiveStartKey,
+      }),
+    );
+
+    for (const item of result.Items ?? []) {
+      const pk = String(item['PK'] ?? '');
+      const event = item['event'];
+      const endsAt = item['membershipEndsAt'];
+      if (!pk.startsWith('MEMBER#') || !isRenewalEvent(event) || typeof endsAt !== 'string') {
+        continue;
+      }
+      pending.push({
+        PK: pk,
+        SK: String(item['SK']),
+        memberId: pk.slice('MEMBER#'.length),
+        event,
+        membershipEndsAt: endsAt,
+      });
+    }
+    exclusiveStartKey = result.LastEvaluatedKey;
+  } while (exclusiveStartKey);
+
+  return pending;
+}
+
+/**
+ * Retira `GSI2PK/GSI2SK` del rastro para que no se reprocese y deja constancia
+ * (`processedAt`, `processedOutcome`). Condicionado a que el ítem siga en la
+ * cola: devuelve `false` si otro proceso ya lo retiró (ejecución concurrente).
+ */
+export async function markTransitionProcessed(
+  client: DynamoDBDocumentClient,
+  transition: Pick<PendingTransition, 'PK' | 'SK'>,
+  outcome: TransitionProcessedOutcome,
+  processedAt: string,
+): Promise<boolean> {
+  try {
+    await client.send(
+      new UpdateCommand({
+        TableName: tableName(),
+        Key: { PK: transition.PK, SK: transition.SK },
+        ConditionExpression: 'attribute_exists(PK) AND GSI2PK = :pending',
+        UpdateExpression:
+          'REMOVE GSI2PK, GSI2SK SET processedAt = :processedAt, processedOutcome = :outcome',
+        ExpressionAttributeValues: {
+          ':pending': TRANSITION_PENDING_GSI2PK,
+          ':processedAt': processedAt,
+          ':outcome': outcome,
+        },
       }),
     );
     return true;

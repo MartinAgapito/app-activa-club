@@ -6,8 +6,13 @@ vi.mock('../lib/dynamo', async () => {
   return { ...actual, tableName: () => 'activa-club-test' };
 });
 
-const { applyVigencyTransition, listActivePeriodsEndingBefore, removePeriodFromActiveIndex } =
-  await import('./repository');
+const {
+  applyVigencyTransition,
+  listActivePeriodsEndingBefore,
+  listPendingTransitions,
+  markTransitionProcessed,
+  removePeriodFromActiveIndex,
+} = await import('./repository');
 
 function fakeClient(send: ReturnType<typeof vi.fn>): DynamoDBDocumentClient {
   return { send } as unknown as DynamoDBDocumentClient;
@@ -144,5 +149,105 @@ describe('removePeriodFromActiveIndex', () => {
         Object.assign(new Error('x'), { name: 'ConditionalCheckFailedException' }),
       );
     await expect(removePeriodFromActiveIndex(fakeClient(send), period)).resolves.toBe(false);
+  });
+});
+
+describe('listPendingTransitions (patrón #27)', () => {
+  it('consulta GSI2 por MEMBERSHIP#TRANSITION#PENDING (nunca Scan), pagina y descarta ítems mal formados', async () => {
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({
+        Items: [
+          {
+            PK: 'MEMBER#m1',
+            SK: 'MEMBERSHIP_TRANSITION#2026-07-09#EXPIRED',
+            event: 'RENEWAL_OVERDUE',
+            membershipEndsAt: '2026-07-09',
+          },
+          { PK: 'MEMBER#m2', SK: 'x', event: 'OTRO', membershipEndsAt: '2026-07-09' },
+        ],
+        LastEvaluatedKey: { PK: 'x' },
+      })
+      .mockResolvedValueOnce({
+        Items: [
+          {
+            PK: 'MEMBER#m3',
+            SK: 'MEMBERSHIP_TRANSITION#2026-07-14#EXPIRING_SOON',
+            event: 'RENEWAL_DUE',
+            membershipEndsAt: '2026-07-14',
+          },
+        ],
+      });
+
+    const pending = await listPendingTransitions(fakeClient(send));
+
+    expect(pending).toEqual([
+      {
+        PK: 'MEMBER#m1',
+        SK: 'MEMBERSHIP_TRANSITION#2026-07-09#EXPIRED',
+        memberId: 'm1',
+        event: 'RENEWAL_OVERDUE',
+        membershipEndsAt: '2026-07-09',
+      },
+      {
+        PK: 'MEMBER#m3',
+        SK: 'MEMBERSHIP_TRANSITION#2026-07-14#EXPIRING_SOON',
+        memberId: 'm3',
+        event: 'RENEWAL_DUE',
+        membershipEndsAt: '2026-07-14',
+      },
+    ]);
+    const first = (send.mock.calls[0]?.[0] as CommandLike).input;
+    expect(first['IndexName']).toBe('GSI2');
+    expect(first['KeyConditionExpression']).toBe('GSI2PK = :pk');
+    expect(first['ExpressionAttributeValues']).toEqual({ ':pk': 'MEMBERSHIP#TRANSITION#PENDING' });
+    expect((send.mock.calls[1]?.[0] as CommandLike).input['ExclusiveStartKey']).toEqual({
+      PK: 'x',
+    });
+  });
+
+  it('cola vacía: devuelve lista vacía', async () => {
+    const send = vi.fn().mockResolvedValue({});
+    await expect(listPendingTransitions(fakeClient(send))).resolves.toEqual([]);
+  });
+});
+
+describe('markTransitionProcessed', () => {
+  const key = { PK: 'MEMBER#m1', SK: 'MEMBERSHIP_TRANSITION#2026-07-09#EXPIRED' };
+  const at = '2026-07-10T13:00:00.000Z';
+
+  it('retira GSI2PK/GSI2SK condicionado a seguir pendiente y deja constancia', async () => {
+    const send = vi.fn().mockResolvedValue({});
+
+    await expect(markTransitionProcessed(fakeClient(send), key, 'NOTIFIED', at)).resolves.toBe(
+      true,
+    );
+
+    const input = (send.mock.calls[0]?.[0] as CommandLike).input;
+    expect(input['Key']).toEqual(key);
+    expect(input['ConditionExpression']).toBe('attribute_exists(PK) AND GSI2PK = :pending');
+    expect(input['UpdateExpression']).toBe(
+      'REMOVE GSI2PK, GSI2SK SET processedAt = :processedAt, processedOutcome = :outcome',
+    );
+    expect(input['ExpressionAttributeValues']).toEqual({
+      ':pending': 'MEMBERSHIP#TRANSITION#PENDING',
+      ':processedAt': at,
+      ':outcome': 'NOTIFIED',
+    });
+  });
+
+  it('devuelve false si otro proceso ya lo retiró', async () => {
+    const error = Object.assign(new Error('cond'), { name: 'ConditionalCheckFailedException' });
+    const send = vi.fn().mockRejectedValue(error);
+    await expect(markTransitionProcessed(fakeClient(send), key, 'NOTIFIED', at)).resolves.toBe(
+      false,
+    );
+  });
+
+  it('propaga otros errores', async () => {
+    const send = vi.fn().mockRejectedValue(new Error('boom'));
+    await expect(markTransitionProcessed(fakeClient(send), key, 'NOTIFIED', at)).rejects.toThrow(
+      'boom',
+    );
   });
 });
