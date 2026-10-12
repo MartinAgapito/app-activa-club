@@ -72,6 +72,10 @@ No está en el contrato ni en el Contexto Maestro y no se implementa sin aprobac
 - **EP-05** (Sprint 4): bandeja del socio (US-041) para los avisos recientes; historial de avisos enviados (US-049) para la métrica de notificaciones.
 - **EP-06** (Sprint 5, en paralelo): las pantallas de destino de los accesos directos del inicio del administrador (US-051, US-052, US-053). Si alguna no está lista, el acceso se omite; no bloquea.
 
+## Relación con EP-08 (experiencia de usuario e interfaz)
+
+[EP-08](./EP-08-experiencia-usuario-interfaz.md) (propuesta, Sprint 4B) entrega antes de este sprint un inicio útil del socio (US-070) y del administrador (US-071) con endpoints ya existentes, construidos como bloques independientes, y los componentes de tabla, pestañas, panel lateral, ventana y avisos efímeros. Si EP-08 se aprueba, **US-056 y US-059 no rehacen esas páginas**: reemplazan la fuente de datos de los bloques existentes por `GET /dashboard/member` y `GET /dashboard/admin` y agregan los bloques que faltan (avisos recientes, resumen de pagos, métricas). US-060 usa los componentes de EP-08. Si EP-08 no se aprueba, estas historias se ejecutan tal como están escritas.
+
 ## Preguntas abiertas
 
 1. **Período de las métricas del administrador** (Product Owner). El contrato de `GET /dashboard/admin` no recibe parámetros. Propuesta: pagos y notificaciones del mes calendario en curso; reservas y ocupación de los últimos 30 días hasta hoy; socios, vencimientos y pendientes como foto del momento. La pantalla siempre indica el período.
@@ -85,3 +89,4 @@ No está en el contrato ni en el Contexto Maestro y no se implementa sin aprobac
 ## Historial de cambios
 
 - 2026-10-11: Creación de la épica EP-07 y asociación de las historias US-054..US-060 (Sprint 5).
+- 2026-10-11: Se agrega la sección "Relación con EP-08": si se aprueba EP-08, US-056 y US-059 enriquecen los inicios de US-070 y US-071 en lugar de construirlos desde cero. No cambia ningún criterio de EP-07.

@@ -12,6 +12,8 @@
 | Estimación relativa | 3                                                |
 | Dependencias        | US-057                                           |
 
+> **Nota de coordinación (EP-08, propuesta 2026-10-11):** si se aprueba [US-071](./US-071-inicio-admin-pendientes.md), esta historia no construye la página desde cero: reemplaza los contadores de pendientes (primera página de cada listado) por las cifras exactas de `GET /dashboard/admin` y agrega los bloques de socios por estado, membresías por vencer, pagos y notificaciones. Los criterios no cambian; puede reducirse su estimación en la Planning del Sprint 5.
+
 ## Historia
 
 Como **administrador**, quiero **que mi inicio muestre los indicadores clave del club con acceso directo a lo que requiere acción**, para **empezar el día sabiendo qué atender primero**.

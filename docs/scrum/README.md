@@ -26,17 +26,21 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 | [EP-05](./epicas/EP-05-notificaciones.md)                            | Notificaciones                                             | MVP             | Planificada |
 | [EP-06](./epicas/EP-06-administracion.md)                            | Administración                                             | MVP             | Planificada |
 | [EP-07](./epicas/EP-07-dashboards-analytics.md)                      | Dashboards y analytics                                     | MVP             | Planificada |
+| [EP-08](./epicas/EP-08-experiencia-usuario-interfaz.md)              | Experiencia de usuario e interfaz (transversal)            | MVP (propuesta) | Propuesta   |
 
 ## Sprints
 
-| Sprint                            | Nombre                                   | Épica        | Estado      |
-| --------------------------------- | ---------------------------------------- | ------------ | ----------- |
-| [Sprint 0](./sprints/sprint-0.md) | Fundación técnica y documental           | EP-01        | Cerrado     |
-| [Sprint 1](./sprints/sprint-1.md) | Migración de socios, activación y acceso | EP-02        | Cerrado     |
-| [Sprint 2](./sprints/sprint-2.md) | Membresías y pagos                       | EP-03        | Cerrado     |
-| [Sprint 3](./sprints/sprint-3.md) | Reservas de instalaciones                | EP-04        | En curso    |
-| [Sprint 4](./sprints/sprint-4.md) | Notificaciones                           | EP-05        | Planificado |
-| [Sprint 5](./sprints/sprint-5.md) | Administración, dashboards y analytics   | EP-06, EP-07 | Planificado |
+| Sprint                                                   | Nombre                                   | Épica        | Estado      |
+| -------------------------------------------------------- | ---------------------------------------- | ------------ | ----------- |
+| [Sprint 0](./sprints/sprint-0.md)                        | Fundación técnica y documental           | EP-01        | Cerrado     |
+| [Sprint 1](./sprints/sprint-1.md)                        | Migración de socios, activación y acceso | EP-02        | Cerrado     |
+| [Sprint 2](./sprints/sprint-2.md)                        | Membresías y pagos                       | EP-03        | Cerrado     |
+| [Sprint 3](./sprints/sprint-3.md)                        | Reservas de instalaciones                | EP-04        | En curso    |
+| [Sprint 4](./sprints/sprint-4.md)                        | Notificaciones                           | EP-05        | Planificado |
+| [Sprint 4B](./sprints/sprint-4b-experiencia-interfaz.md) | Experiencia e interfaz                   | EP-08        | Propuesto   |
+| [Sprint 5](./sprints/sprint-5.md)                        | Administración, dashboards y analytics   | EP-06, EP-07 | Planificado |
+
+> **Sprint 4B** es una propuesta tras el reclamo del dueño del producto en la primera prueba extremo a extremo. Su posición (antes de continuar el Sprint 4, en paralelo o después) la decide el Product Owner; la recomendación y las alternativas están en el propio sprint. El orden de la tabla no implica una decisión.
 
 ## Historias del Sprint 0 (EP-01)
 
@@ -135,6 +139,31 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 
 > **US-050 es deuda de EP-03**: el servidor del historial de pagos (US-025) está implementado, pero la pantalla del socio nunca se construyó. EP-06 agrupa US-051..US-053 y EP-07 agrupa US-054..US-060.
 
+## Historias del Sprint 4B (EP-08, propuesto)
+
+| ID                                                                              | Título                                                                   | Bloque | Responsable   | Prioridad | Depende de                             |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------ | ------------- | --------- | -------------------------------------- |
+| [US-061](./historias/US-061-ampliar-tokens-diseno.md)                           | Ampliar los tokens de diseño (superficies, tipografía, capas y estados)  | A      | Frontend      | Crítica   | —                                      |
+| [US-062](./historias/US-062-componente-modal-accesible.md)                      | Componente de ventana modal accesible                                    | A      | Frontend      | Crítica   | US-061                                 |
+| [US-063](./historias/US-063-componente-drawer-panel-lateral.md)                 | Componente de panel lateral (drawer)                                     | A      | Frontend      | Alta      | US-062                                 |
+| [US-064](./historias/US-064-componente-tabs.md)                                 | Componente de pestañas                                                   | A      | Frontend      | Alta      | US-061                                 |
+| [US-065](./historias/US-065-componente-tabla-datos-responsive.md)               | Componente de tabla de datos responsive                                  | A      | Frontend      | Alta      | US-061                                 |
+| [US-066](./historias/US-066-componente-toast-avisos-efimeros.md)                | Componente de avisos efímeros (toast)                                    | A      | Frontend      | Alta      | US-061                                 |
+| [US-067](./historias/US-067-componente-stepper.md)                              | Componente indicador de pasos (stepper)                                  | A      | Frontend      | Alta      | US-061                                 |
+| [US-068](./historias/US-068-estructura-aplicacion-por-rol.md)                   | Navegar con barra lateral y cabecera según mi rol                        | A      | Frontend      | Alta      | US-061, US-063                         |
+| [US-069](./historias/US-069-catalogo-componentes-verificacion-accesibilidad.md) | Catálogo de componentes y verificación automática de accesibilidad       | A      | Frontend + QA | Media     | US-062..US-067                         |
+| [US-070](./historias/US-070-inicio-socio-datos-existentes.md)                   | Ver mi situación y mi próxima reserva al entrar (inicio del socio)       | B      | Frontend      | Alta      | US-068                                 |
+| [US-071](./historias/US-071-inicio-admin-pendientes.md)                         | Ver lo que requiere mi atención al entrar (inicio del administrador)     | B      | Frontend      | Alta      | US-065, US-068                         |
+| [US-072](./historias/US-072-asistente-reserva-en-ventana.md)                    | Reservar una instalación con un asistente por pasos en ventana           | C      | Frontend      | Crítica   | US-062, US-066, US-067                 |
+| [US-073](./historias/US-073-catalogo-instalaciones-entrada-asistente.md)        | Elegir la instalación desde un catálogo visual que abre el asistente     | C      | Frontend      | Media     | US-072                                 |
+| [US-074](./historias/US-074-mis-reservas-panel-detalle.md)                      | Consultar mis reservas en pestañas con panel de detalle y cancelación    | C      | Frontend      | Alta      | US-062, US-063, US-064, US-065, US-066 |
+| [US-075](./historias/US-075-admin-editar-recurso-modal.md)                      | Editar una instalación desde una ventana                                 | C      | Frontend      | Media     | US-062, US-064, US-065, US-066         |
+| [US-076](./historias/US-076-admin-bloqueos-mantenimiento-modal.md)              | Crear y liberar bloqueos de mantenimiento desde ventanas                 | C      | Frontend      | Media     | US-062, US-064, US-065, US-066         |
+| [US-077](./historias/US-077-admin-reservas-pestanas-detalle-decision.md)        | Revisar y decidir reservas desde pestañas, panel de detalle y ventanas   | C      | Frontend      | Alta      | US-062..US-066                         |
+| [US-078](./historias/US-078-admin-solicitudes-socios-panel-decision.md)         | Revisar y decidir solicitudes de socios desde panel de detalle y ventana | C      | Frontend      | Media     | US-062, US-063, US-065, US-066         |
+
+> **EP-08 es solo frontend** sobre endpoints ya desplegados: bloque A (base de diseño), B (inicio útil) y C (flujos rehechos con ventanas y paneles). El bloque A bloquea a B y C. US-070 y US-071 se construyen como bloques que US-056 y US-059 (EP-07) enriquecerán sin rehacerlos.
+
 ## Convenciones de trazabilidad
 
 - Épica: `EP-NN`
@@ -151,3 +180,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 - 2026-10-10: Cierre documental de EP-01..EP-03 (Cerradas) y avance de EP-04 / Sprint 3 (en curso): implementadas en backend US-027..US-031, US-033 y US-034 (más US-037 Stripe); pendientes US-032 (flujo de reserva en la interfaz), US-035, US-036 y la verificación E2E.
 - 2026-10-11: EP-04 con las diez historias implementadas (backend y pantallas); pendiente la verificación extremo a extremo.
 - 2026-10-11: Creación de EP-05 (notificaciones), EP-06 (administración) y EP-07 (dashboards y analytics) y de los Sprints 4 y 5 con las historias US-038..US-060. US-038 (vencimiento de membresía) y US-050 (pantalla de historial de pagos del socio) son deuda técnica de EP-03. Cada épica registra sus preguntas abiertas.
+- 2026-10-11: Propuesta de EP-08 (experiencia de usuario e interfaz, transversal y solo frontend) y del Sprint 4B con las historias US-061..US-078, tras el reclamo del dueño del producto en la primera prueba extremo a extremo en `dev` (inicio vacío, estilos básicos, CRUD sin ventanas). Pendiente de aprobación del Product Owner, incluida su posición respecto del Sprint 4. Notas de coordinación agregadas en EP-07, US-056 y US-059.
