@@ -207,10 +207,41 @@ Notas y desviaciones:
 
 - Todas las utilidades y componentes se escriben mobile-first: estilos base
   para viewport angosto, con variantes `sm:`/`lg:` para ensanchar.
-- Navegación de socio/administrador: fila horizontal con scroll en móvil
-  (`overflow-x-auto`), columna fija en escritorio (`lg:flex-col`).
+- Navegación de socio/administrador: menú en panel lateral (`Drawer`) por
+  debajo de 760 px y barra lateral fija desde 760 px (ver §5.1).
 - Formularios de referencia (`ReferenceForm`) usan controles de altura
   cómoda para touch (`h-11`/`h-12`) y una sola columna en móvil.
+
+### 5.1 Estructura de aplicación autenticada (US-068)
+
+`AppShell` (`apps/web/src/layouts/AppShell.tsx`) compone los layouts de socio
+y administrador; cada uno aporta solo su lista de navegación
+(`layouts/navigation.ts`) y los datos del usuario.
+
+- **Breakpoint `shell` = 760 px** (`--breakpoint-shell` en `theme.css`, utilidad
+  `shell:`). Es la única medida propia; el resto usa los de Tailwind.
+- **Desde 760 px**: barra lateral fija de 232 px (`w-58`, `surface-raised`,
+  borde derecho `line`) con marca "Activa Club" e icono arriba, navegación en
+  medio y bloque de usuario (nombre y rol) abajo. La cabecera (`z-layer-header`,
+  64 px) muestra el título de la sección y el menú de usuario.
+- **Por debajo de 760 px**: la barra se oculta; un botón "Abrir menú" en la
+  cabecera abre un `Drawer side="left"` (`z-layer-panel`) con la misma
+  navegación, que se cierra al elegir un enlace, con Escape o al pasar a
+  escritorio. Foco atrapado y devuelto al botón (contrato de `Drawer`).
+- **Elemento activo**: fondo `surface-brand-soft`, texto `action` y peso 600;
+  no depende solo del color porque `NavLink` añade `aria-current="page"`.
+  Contador opcional por ítem (`badge`), preparado y sin datos.
+- **Iconos**: `lucide-react` (versión exacta, importación nominal para
+  tree-shaking), siempre `aria-hidden`. Objetivos táctiles de 44 px.
+- **Skip link**: "Saltar al contenido" es el primer elemento enfocable y
+  enfoca `<main id="contenido-principal" tabIndex=-1>`. En `PublicLayout` se
+  usa `PageLayout mainId`.
+- **Contenido**: `<main>` conserva `max-w-6xl` y gutters de `PageLayout`; las
+  pantallas siguen usando `PageHeader` (el único `h1`). El título de la
+  cabecera es un `<p>`, para no duplicar el encabezado de la página.
+- **Nombre de usuario**: socio = nombre de pila de `GET /members/me`
+  ("Socio" si falla); administrador = "Administrador" (la sesión de Cognito
+  aún no expone nombre ni correo en `useAuth()`).
 
 ## 6. Accesibilidad
 
@@ -470,3 +501,5 @@ acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
 - 2026-10-11: US-063. Componente `Drawer` (§7.1); `ToastProvider` montado en
   la raíz de la app y aviso elevado sobre los botones de ventanas abiertas.
 - 2026-10-11: US-065. Componente `DataTable` responsive (§7.1).
+- 2026-10-11: US-068. Estructura de aplicación por rol (§5.1), breakpoint
+  `shell` de 760 px, `PageLayout` con `mainId`.

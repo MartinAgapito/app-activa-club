@@ -12,9 +12,11 @@ export interface PageLayoutProps {
   children: ReactNode;
   /** Clase adicional para el contenedor de contenido (p. ej. ancho máximo distinto). */
   className?: string;
+  /** `id` del `<main>`; con él, el contenido es destino de un enlace "Saltar al contenido". */
+  mainId?: string;
 }
 
-export function PageLayout({ header, footer, children, className }: PageLayoutProps) {
+export function PageLayout({ header, footer, children, className, mainId }: PageLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col bg-surface-app text-ink">
       {header ? (
@@ -22,7 +24,14 @@ export function PageLayout({ header, footer, children, className }: PageLayoutPr
           {header}
         </header>
       ) : null}
-      <main className={cn('mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-8', className)}>
+      <main
+        {...(mainId ? { id: mainId, tabIndex: -1 } : {})}
+        className={cn(
+          'mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-8',
+          mainId && 'focus:outline-none',
+          className,
+        )}
+      >
         {children}
       </main>
       {footer ? <footer className="border-t border-line bg-surface-card">{footer}</footer> : null}

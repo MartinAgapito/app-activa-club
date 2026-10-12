@@ -16,4 +16,12 @@ describe('PageLayout', () => {
     expect(screen.getByText('Contenido')).toBeInTheDocument();
     expect(screen.getByText('Pie')).toBeInTheDocument();
   });
+
+  it('expone el <main> como destino de "Saltar al contenido" con mainId', () => {
+    render(<PageLayout mainId="contenido">Contenido</PageLayout>);
+
+    const main = screen.getByRole('main');
+    expect(main).toHaveAttribute('id', 'contenido');
+    expect(main).toHaveAttribute('tabindex', '-1');
+  });
 });

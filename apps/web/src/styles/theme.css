@@ -17,6 +17,11 @@
  *   3. Radios, elevación, capas, movimiento, estados y escala tipográfica.
  */
 @theme {
+  /* ---- Breakpoint de estructura (US-068): desde 760px la navegación
+     autenticada pasa de menú en panel a barra lateral fija. Utilidad
+     `shell:`; el resto de breakpoints son los de Tailwind. ---- */
+  --breakpoint-shell: 47.5rem;
+
   /* ---- Familias tipográficas (US-061) ---- */
   /* Hanken Grotesk para la interfaz; Barlow Semi Condensed para títulos,
      cifras y horas. Ambas se sirven desde el propio sitio (@fontsource,
