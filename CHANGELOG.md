@@ -28,6 +28,13 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Bandeja de notificaciones del socio en `/socio/notificaciones` (US-041,
+  EP-05): tabla con fecha en hora de Lima y estado Leída/No leída en texto,
+  pestañas Todas / No leídas (`?tab=`), "Cargar más", panel lateral con el
+  detalle y acceso a Mis reservas o Membresía según el evento. Abrir una
+  notificación la marca como leída de forma optimista (con rollback y aviso
+  solo si falla). Sin contador de no leídas en el menú.
+
 - Bandeja de notificaciones del socio, parte backend (US-041, EP-05):
   `GET /notifications` (más reciente primero, paginado por cursor, filtro
   `unread=true`) y `POST /notifications/{notificationId}/read` (idempotente;

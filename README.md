@@ -126,7 +126,7 @@ Configuración: `index.html` (entrada), `vite.config.ts` (Vite + Tailwind v4),
 | Carpeta   | Pantallas                                                                                                                                                                                                                                                                                                                                         |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `public/` | `HomePage`, `LoginPage`, `RegisterPage`, `ActivationPage`, `ForgotPasswordPage`, `VerifyEmailPage` (placeholder).                                                                                                                                                                                                                                 |
-| `member/` | `ProfilePage`, `MembershipPage`, `CheckoutPage`, `ReservationsPage` (reservar con participantes), `MyReservationsPage` (listar y cancelar). `MemberDashboardPage`, `PaymentsPage` y `NotificationsPage` son placeholders.                                                                                                                         |
+| `member/` | `ProfilePage`, `MembershipPage`, `CheckoutPage`, `ReservationsPage` (reservar con participantes), `MyReservationsPage` (listar y cancelar). `PaymentsPage` (historial de pagos) y `NotificationsPage` (bandeja con pestañas y detalle). `MemberDashboardPage` es placeholder.                                                                     |
 | `admin/`  | `PendingRequestsPage` (aprobar o rechazar socios), `ReservationsAdminPage` (bandeja de pendientes y todas las reservas) y `ResourcesMaintenancePage` (editar recursos y bloqueos de mantenimiento). El resto (`AdminDashboardPage`, `MembersManagementPage`, `MembershipsAdminPage`, `NotificationsAdminPage`, `AnalyticsPage`) son placeholders. |
 | `shared/` | `ForbiddenPage`, `NotFoundPage`, `PendingApprovalPage`.                                                                                                                                                                                                                                                                                           |
 | `dev/`    | `DesignSystemPage`: referencia interna, solo en modo desarrollo.                                                                                                                                                                                                                                                                                  |
@@ -160,6 +160,7 @@ Configuración: `index.html` (entrada), `vite.config.ts` (Vite + Tailwind v4),
 | `payments/payments-client.ts`                                          | `POST /payments`.                                       |
 | `payments/stripe.ts`                                                   | Integración con Stripe.js / Elements.                   |
 | `payments/payment-outcome.ts`                                          | Traduce el resultado del cobro a un estado de pantalla. |
+| `notifications/notifications-client.ts` / `notifications-query.ts`     | Bandeja del socio y marcar como leída (optimista).      |
 | `resources/resources-client.ts` / `resources-query.ts`                 | Catálogo y disponibilidad de instalaciones.             |
 | `admin/pending-members-client.ts`                                      | Solicitudes pendientes de socios nuevos.                |
 
@@ -244,6 +245,17 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `payments/stripe-client.ts`                           | Cliente de cargos de Stripe test mode.                      |
 | `payments/stripe-secret-key.ts` / `webhook-secret.ts` | Resuelven los secretos de Stripe desde SSM.                 |
 | `payments/webhook.ts` / `webhook-event-schema.ts`     | Procesa y valida el evento del webhook.                     |
+
+</details>
+
+<details>
+<summary><code>src/notifications/</code> — bandeja del socio (EP-05)</summary>
+
+| Archivo         | Para qué sirve                                                                       |
+| --------------- | ------------------------------------------------------------------------------------ |
+| `list.ts`       | Bandeja del socio autenticado, paginada por cursor, con filtro de no leídas.         |
+| `read.ts`       | Marca una notificación propia como leída (idempotente; ajena o inexistente: 404).    |
+| `repository.ts` | Consulta de la bandeja (`MEMBER#<id>`, `NOTIF#`) y escritura condicional de lectura. |
 
 </details>
 
