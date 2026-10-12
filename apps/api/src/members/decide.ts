@@ -4,17 +4,19 @@
 // atómica de `transitionMemberStatus` (evita la doble transición si dos
 // admins actúan sobre la misma solicitud) y deja constancia en `AuditLog`.
 //
-// No implementa el pago de la primera membresía (RN-ACT-07) ni el envío de
-// notificaciones (`MEMBER_APPROVED`/`MEMBER_REJECTED`): quedan fuera de
-// alcance de esta historia, igual que se dejó pendiente en US-013/US-016 para
-// SES/pagos.
+// No implementa el pago de la primera membresía (RN-ACT-07). Tras una
+// decisión exitosa emite `MEMBER_APPROVED`/`MEMBER_REJECTED` al socio afectado
+// (US-042) de forma best-effort: un fallo del aviso nunca cambia la respuesta.
+// Solo el administrador que gana la transición emite (el otro recibe 409), y
+// `entityId = memberId` hace idempotente cualquier reintento.
 
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import type { ApproveMemberResponse } from '@activa-club/shared-types';
+import type { ApproveMemberResponse, Member } from '@activa-club/shared-types';
 
 import { recordAuditLog, type AuditActor } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
+import { safeEmitNotification, type NotificationEmitter } from '../notifications';
 import { getMemberById, transitionMemberStatus } from './repository';
 
 export interface DecideMemberInput {
@@ -22,6 +24,8 @@ export interface DecideMemberInput {
   actor: AuditActor;
   /** Cliente DynamoDB inyectable; por defecto el singleton compartido (`lib/dynamo`). */
   client?: DynamoDBDocumentClient;
+  /** Emisor de notificaciones inyectable (US-042), para pruebas sin SES/DynamoDB reales. */
+  emitNotification?: NotificationEmitter;
   /** Fecha de referencia inyectable, para pruebas deterministas. */
   now?: Date;
 }
@@ -33,11 +37,12 @@ export interface RejectMemberInput extends DecideMemberInput {
 async function requireExistingMember(
   client: DynamoDBDocumentClient,
   memberId: string,
-): Promise<void> {
+): Promise<Member> {
   const existing = await getMemberById(client, memberId);
   if (!existing) {
     throw new AppError('NOT_FOUND', 'No se encontró el socio indicado.');
   }
+  return existing;
 }
 
 /**
@@ -49,7 +54,7 @@ export async function approveMember(input: DecideMemberInput): Promise<ApproveMe
   const client = input.client ?? getDocumentClient();
   const now = (input.now ?? new Date()).toISOString();
 
-  await requireExistingMember(client, input.memberId);
+  const existing = await requireExistingMember(client, input.memberId);
 
   const outcome = await transitionMemberStatus(client, input.memberId, { to: 'APPROVED' }, now);
   if (outcome === 'NOT_PENDING') {
@@ -65,6 +70,18 @@ export async function approveMember(input: DecideMemberInput): Promise<ApproveMe
     now,
   });
 
+  await safeEmitNotification(
+    {
+      event: 'MEMBER_APPROVED',
+      data: {},
+      entityId: input.memberId,
+      member: { memberId: input.memberId, email: existing.email, firstName: existing.firstName },
+      now,
+      requestId: 'members-approve',
+    },
+    { client, emit: input.emitNotification },
+  );
+
   return { memberId: outcome.memberId, memberStatus: outcome.memberStatus };
 }
 
@@ -76,7 +93,7 @@ export async function rejectMember(input: RejectMemberInput): Promise<ApproveMem
   const client = input.client ?? getDocumentClient();
   const now = (input.now ?? new Date()).toISOString();
 
-  await requireExistingMember(client, input.memberId);
+  const existing = await requireExistingMember(client, input.memberId);
 
   const outcome = await transitionMemberStatus(
     client,
@@ -96,6 +113,18 @@ export async function rejectMember(input: RejectMemberInput): Promise<ApproveMem
     metadata: { reason: input.reason },
     now,
   });
+
+  await safeEmitNotification(
+    {
+      event: 'MEMBER_REJECTED',
+      data: { reason: input.reason },
+      entityId: input.memberId,
+      member: { memberId: input.memberId, email: existing.email, firstName: existing.firstName },
+      now,
+      requestId: 'members-reject',
+    },
+    { client, emit: input.emitNotification },
+  );
 
   return { memberId: outcome.memberId, memberStatus: outcome.memberStatus };
 }
