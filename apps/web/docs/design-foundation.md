@@ -270,6 +270,40 @@ animación de entrada, por lo que no hay movimiento que reducir con
 `prefers-reduced-motion`. No se admite una ventana dentro de otra.
 `ConfirmDialog` se apoya en `Modal` y conserva su API.
 
+### 7.1 `Drawer` (US-063)
+
+Panel lateral construido sobre la misma primitiva que `Modal`
+(`@radix-ui/react-dialog`, ADR-0013) y con el mismo contrato de foco: foco
+inicial en el primer control o en el título, foco atrapado, Escape, foco
+devuelto al control que lo abrió, `role="dialog"` y `aria-modal="true"`
+explícitos. Usos previstos: detalle de una reserva o solicitud (derecha) y
+menú de navegación móvil (izquierda, US-068).
+
+| Prop                  | Tipo                          | Por defecto | Notas                                                                |
+| --------------------- | ----------------------------- | ----------- | -------------------------------------------------------------------- |
+| `open`/`onOpenChange` | `boolean`/`(boolean) => void` | —           | Controlado por el llamador                                           |
+| `title`               | `ReactNode`                   | —           | Obligatorio; nombra el panel (`aria-labelledby`)                     |
+| `description`         | `ReactNode`                   | —           | Opcional (`aria-describedby` solo si existe)                         |
+| `children`            | `ReactNode`                   | —           | Cuerpo con scroll interno                                            |
+| `footer`              | `ReactNode`                   | —           | Acciones fijas al pie                                                |
+| `side`                | `right` \| `left`             | `right`     | Borde de origen; el atributo `data-drawer-side` lo refleja           |
+| `dismissible`         | `boolean`                     | `true`      | `false` bloquea Escape, clic fuera y X (operación en curso)          |
+| `closeOnOverlayClick` | `boolean`                     | `true`      | A diferencia de `Modal`: un detalle no suele tener datos sin guardar |
+| `showCloseButton`     | `boolean`                     | `true`      | Botón X con nombre accesible `closeLabel` ("Cerrar")                 |
+
+- Medidas: 100% del ancho por debajo de 640px; desde 640px, 30rem (480px)
+  fijos, con el fondo atenuado (`bg-ink/50`) a la vista. Capa `z-layer-panel`
+  (por debajo de `Modal`, de modo que un diálogo de confirmación abierto desde
+  un panel queda encima).
+- Movimiento: entrada con `--motion-base` y salida con `--motion-fast`,
+  mediante keyframes `drawer-*` de `theme.css` (utilidades
+  `animate-drawer-*`). Se usan keyframes y no transiciones porque Radix
+  espera a que termine la animación de salida antes de desmontar. Con
+  `prefers-reduced-motion` la clase `motion-reduce:animate-none` elimina la
+  animación y el panel aparece y desaparece sin desplazamiento.
+- Carga: el panel se abre sin esperar datos; el llamador pone un `Spinner`
+  en `children`. Mientras guarda, `dismissible={false}`.
+
 ### 7.1 Tabs (US-064)
 
 Construido sobre `@radix-ui/react-tabs` (ADR-0013, en US-062): Radix aporta
@@ -325,9 +359,14 @@ notificaciones de EP-05 (no se guardan, no llegan por correo).
 
 - API: `const toast = useToast()` con
   `toast.success | info | warning | error(mensaje, { id?, duration?, action? })`
-  y `toast.dismiss(id?)`. El proveedor se montará en la raíz de `apps/web`
-  en la historia de layout; mientras tanto solo la página de referencia lo
-  monta.
+  y `toast.dismiss(id?)`. El proveedor está montado en la raíz de `apps/web`
+  (`src/app/providers.tsx`, dentro de `AuthProvider`), así que `useToast()`
+  funciona en toda la aplicación; no se debe anidar otro `ToastProvider`.
+- Con una ventana (`Modal`) o un panel (`Drawer`) abierto, el aviso sube
+  sobre la zona de acciones fija al pie (`pb` de 6rem más el área segura),
+  para no tapar los botones del diálogo, en móvil y en escritorio. La
+  detección es puramente CSS: Radix marca el `body` con `data-scroll-locked`
+  mientras hay una capa modal abierta.
 - Duración: 5 s por defecto; los errores permanecen hasta cerrarse
   (`duration: null`). Se pausa con el puntero encima o con foco dentro.
 - Máximo 3 visibles: al llegar el cuarto sale el más antiguo.
@@ -428,4 +467,6 @@ acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
   preparado en la estructura, no activado.
 - 2026-10-11: US-062. Componente `Modal` (§7.1) y `ConfirmDialog` sobre él.
 - 2026-10-11: §7.1 componente `Tabs` (US-064).
+- 2026-10-11: US-063. Componente `Drawer` (§7.1); `ToastProvider` montado en
+  la raíz de la app y aviso elevado sobre los botones de ventanas abiertas.
 - 2026-10-11: US-065. Componente `DataTable` responsive (§7.1).
