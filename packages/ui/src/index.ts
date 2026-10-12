@@ -35,6 +35,8 @@ export type { ErrorStateProps } from './ErrorState';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
+export type { TabsProps, TabsListProps, TabsTriggerProps, TabsContentProps } from './Tabs';
 export { DataTable } from './DataTable';
 export type { DataTableProps, DataTableColumn, DataTableAlign } from './DataTable';
 export { Stepper } from './Stepper';

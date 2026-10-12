@@ -17,6 +17,7 @@ import {
 } from '@activa-club/ui';
 import { ReferenceForm } from '../../examples/ReferenceForm';
 import { ReferenceQueryDemo } from '../../examples/ReferenceQueryDemo';
+import { TabsDemo } from './TabsDemo';
 import { TokensShowcase } from './TokensShowcase';
 import { DataTableShowcase } from './DataTableShowcase';
 
@@ -90,6 +91,8 @@ export function DesignSystemPage() {
           ))}
         </div>
       </Card>
+
+      <TabsDemo />
 
       <Card>
         <CardHeader title="Input" />

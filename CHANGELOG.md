@@ -43,6 +43,11 @@ backlog en `docs/scrum/`.
   Barlow Semi Condensed y Hanken Grotesk autoalojadas, muestra en
   `/_dev/design-system`, script de verificación de contraste AA y
   `design-foundation.md` v2.0. Modo oscuro preparado en estructura, no activo.
+- Sprint 4B (EP-08, US-064): componente `Tabs` (`Tabs`, `TabsList`,
+  `TabsTrigger`, `TabsContent`) en `@activa-club/ui`, sobre
+  `@radix-ui/react-tabs` (ADR-0013, en US-062): patrón WAI-ARIA, modo
+  controlado para guardar la pestaña en la URL, contador por pestaña, scroll
+  horizontal propio y pestañas deshabilitadas.
 - Sprint 4B (EP-08, US-066): `ToastProvider` y `useToast()` en `packages/ui`
   (avisos efímeros accesibles: 5 s, error persistente, pausa al hover/foco,
   máximo 3, regiones ARIA live) y muestra en `/_dev/design-system`. Aún no
