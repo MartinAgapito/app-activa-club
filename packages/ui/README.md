@@ -23,6 +23,7 @@ en el proyecto que lo consume.
 | `Spinner`                  | Estado de carga                                                                                      |
 | `EmptyState`               | Estado vacío (listados sin datos, placeholders de Sprint 0)                                          |
 | `ErrorState`               | Estado de error, alineado al formato de error del contrato de API                                    |
+| `Stepper`                  | Indicador de pasos (lista ordenada, forma compacta en móvil); completados clicables opcionalmente    |
 
 > **US-061**: `Button`, `Card`, `Badge`, `Input`, `Textarea` y `PageLayout`
 > usan los tokens semánticos (`bg-surface-card`, `text-ink`, `border-line`,
