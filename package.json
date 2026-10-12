@@ -21,7 +21,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "package:lambdas": "node scripts/package-lambdas.mjs"
+    "package:lambdas": "node scripts/package-lambdas.mjs",
+    "check:handlers": "node scripts/check-handler-mapping.mjs",
+    "test:scripts": "vitest run --root scripts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
