@@ -9,6 +9,9 @@ vi.mock('../lib/dynamo', async () => {
 
 const { createPayment } = await import('./charge');
 
+// US-043: estos tests no verifican avisos (ver notifications.test.ts); se inyecta un doble inerte.
+const noopNotifier = async (): Promise<void> => {};
+
 function fakeClient(
   send: (command: unknown) => Promise<unknown>,
 ): DynamoDBDocumentClient & { send: ReturnType<typeof vi.fn> } {
@@ -91,6 +94,7 @@ describe('createPayment', () => {
       cognitoSub: 'sub-1',
       request: validRequest,
       client,
+      notifier: noopNotifier,
       chargeClient,
       now: new Date('2026-08-09T15:00:00.000Z'),
       paymentId: 'payment-1',
@@ -146,6 +150,7 @@ describe('createPayment', () => {
       cognitoSub: 'sub-1',
       request: { ...validRequest, membershipType: 'ANNUAL' },
       client,
+      notifier: noopNotifier,
       chargeClient,
       now: new Date('2026-08-09T15:00:00.000Z'),
       paymentId: 'payment-2',
@@ -175,6 +180,7 @@ describe('createPayment', () => {
       cognitoSub: 'sub-1',
       request: validRequest,
       client,
+      notifier: noopNotifier,
       chargeClient,
       now: new Date('2026-08-09T15:00:00.000Z'),
       paymentId: 'payment-3',
@@ -211,6 +217,7 @@ describe('createPayment', () => {
         cognitoSub: 'sub-1',
         request: validRequest,
         client,
+        notifier: noopNotifier,
         chargeClient,
         now: new Date('2026-08-09T15:00:00.000Z'),
       }),
@@ -247,6 +254,7 @@ describe('createPayment', () => {
         cognitoSub: 'sub-1',
         request: validRequest,
         client,
+        notifier: noopNotifier,
         chargeClient,
         now: new Date('2026-08-09T15:00:00.000Z'),
         paymentId: 'payment-4',
@@ -287,6 +295,7 @@ describe('createPayment', () => {
       cognitoSub: 'sub-1',
       request: validRequest,
       client,
+      notifier: noopNotifier,
       chargeClient,
       now: new Date('2026-08-09T15:00:00.000Z'),
       paymentId: 'payment-5',
@@ -338,6 +347,7 @@ describe('createPayment', () => {
       cognitoSub: 'sub-1',
       request: validRequest,
       client,
+      notifier: noopNotifier,
       chargeClient,
       now: new Date('2026-08-09T15:00:00.000Z'),
       paymentId: 'payment-6',
@@ -371,6 +381,7 @@ describe('createPayment', () => {
       cognitoSub: 'sub-1',
       request: { ...validRequest, autoRenew: true },
       client,
+      notifier: noopNotifier,
       chargeClient,
       now: new Date('2026-08-09T15:00:00.000Z'),
       paymentId: 'payment-7',
@@ -397,6 +408,7 @@ describe('createPayment', () => {
         cognitoSub: 'sub-1',
         request: { ...validRequest, membershipType: 'WEEKLY' as never },
         client,
+        notifier: noopNotifier,
         chargeClient,
       }),
     ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });

@@ -19,6 +19,9 @@ interface CommandLike {
   };
 }
 
+// US-043: estos tests no verifican avisos (ver notifications.test.ts); se inyecta un doble inerte.
+const noopNotifier = async (): Promise<void> => {};
+
 function fakeClient(
   send: (command: unknown) => Promise<unknown>,
 ): DynamoDBDocumentClient & { send: ReturnType<typeof vi.fn> } {
@@ -106,6 +109,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-1',
       client,
+      notifier: noopNotifier,
       now: new Date('2026-08-09T15:00:00.000Z'),
       membershipId: 'membership-1',
     });
@@ -147,6 +151,7 @@ describe('processStripeWebhookEvent', () => {
       event: failedEvent,
       requestId: 'req-2',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('FAILED_RECORDED');
@@ -167,6 +172,7 @@ describe('processStripeWebhookEvent', () => {
       event: { type: 'charge.refunded', data: { object: { id: 'ch_1', metadata: {} } } },
       requestId: 'req-ignored',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('IGNORED');
@@ -182,6 +188,7 @@ describe('processStripeWebhookEvent', () => {
       event: { type: 'payment_intent.succeeded', data: { object: { id: 'pi_x', metadata: {} } } },
       requestId: 'req-no-correlation',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('PAYMENT_NOT_FOUND');
@@ -204,6 +211,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-3',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('ALREADY_RESOLVED');
@@ -225,6 +233,7 @@ describe('processStripeWebhookEvent', () => {
       event: failedEvent,
       requestId: 'req-4',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('ALREADY_RESOLVED');
@@ -254,6 +263,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-5a',
       client,
+      notifier: noopNotifier,
       now: new Date('2026-08-09T15:00:00.000Z'),
       membershipId: 'membership-1',
     });
@@ -261,6 +271,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-5b',
       client,
+      notifier: noopNotifier,
       now: new Date('2026-08-09T15:05:00.000Z'),
       membershipId: 'membership-1',
     });
@@ -293,6 +304,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-6',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('ALREADY_RESOLVED');
@@ -309,6 +321,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-7',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('PAYMENT_NOT_FOUND');
@@ -329,6 +342,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-8',
       client,
+      notifier: noopNotifier,
     });
 
     expect(outcome).toBe('PAYMENT_NOT_FOUND');
@@ -358,6 +372,7 @@ describe('processStripeWebhookEvent', () => {
       event: succeededEvent,
       requestId: 'req-9',
       client,
+      notifier: noopNotifier,
       now: new Date('2026-08-09T15:00:00.000Z'),
       membershipId: 'membership-1',
     });

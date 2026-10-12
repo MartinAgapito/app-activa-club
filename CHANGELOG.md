@@ -28,6 +28,16 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Avisos del resultado de un pago (US-043, EP-05): `POST /payments` y el
+  webhook `POST /payments/webhook` emiten `PAYMENT_SUCCEEDED` (plan, monto y
+  nueva vigencia) o `PAYMENT_FAILED` (motivo del catálogo propio) al socio
+  titular, con `entityId = paymentId`, solo en la primera transición del pago a
+  su estado final: un webhook repetido, un pago ya confirmado por el cobro
+  síncrono o un `PAYMENT_DUPLICATE` no generan un segundo aviso, y un pago en
+  `PENDING_CONFIRMATION` no avisa hasta que el webhook lo resuelve. Un fallo
+  de bandeja o de SES nunca cambia la respuesta HTTP ni el estado del pago. Sin
+  cambios de contrato ni de infraestructura.
+
 - Motor de notificaciones del backend (US-040, EP-05): módulo
   `apps/api/src/notifications/` con `emitNotification()`, que escribe en una
   transacción idempotente la `Notification` (`createdBy=SYSTEM`) y la

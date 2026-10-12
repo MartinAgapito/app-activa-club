@@ -275,6 +275,11 @@ SSM `SecureString`, nunca a la llave en texto plano. Reemplazan a
   llave secreta `sk_test_...`) y `STRIPE_WEBHOOK_SECRET_PARAM_NAME` (Lambda
   `payments-webhook`, signing secret `whsec_...`), ambas apuntando a
   parámetros SSM `SecureString` (nunca la llave en el repo).
+  **Avisos (US-043)**: `notify.ts` emite `PAYMENT_SUCCEEDED`/`PAYMENT_FAILED`
+  con `emitNotification` (`entityId = paymentId`) solo tras ganar la
+  transición a un estado final, desde `charge.ts` y `webhook.ts`; nunca lanza
+  ni altera la respuesta. Ambas Lambdas necesitan `dynamodb:PutItem`,
+  `ses:SendEmail` y `SES_SENDER_EMAIL` (ya concedidos en US-039).
 - **QA**: pruebas de integración contra API Gateway/DynamoDB reales (`docs/testing/`).
 
 ## 10. Scripts

@@ -17,6 +17,7 @@ import { logger } from '../lib/logger';
 import { getMemberById } from '../members/repository';
 import type { StripeWebhookEvent } from './webhook-event-schema';
 import { resolveMembershipCycle } from './membership-cycle';
+import { notifyPaymentResult, type PaymentNotifier } from './notify';
 import { confirmPaymentSuccess, findPaymentById, markPaymentFailed } from './repository';
 
 export interface ProcessStripeWebhookEventInput {
@@ -27,6 +28,8 @@ export interface ProcessStripeWebhookEventInput {
   now?: Date;
   /** `membershipId` del nuevo `MembershipPeriod` cuando el evento confirma un cargo; inyectable en pruebas. */
   membershipId?: string;
+  /** Emisor de avisos inyectable (US-043); por defecto, la bandeja y el correo reales. */
+  notifier?: PaymentNotifier;
 }
 
 export type ProcessStripeWebhookEventOutcome =
@@ -205,15 +208,40 @@ export async function processStripeWebhookEvent(
         paymentId: payment.paymentId,
         membershipCycleKind: cycle.kind,
       });
+      // US-043: solo este camino ganó la transición (si la perdió, la
+      // condición de `confirmPaymentSuccess` lanza y se sale por
+      // ALREADY_RESOLVED sin avisar). Nunca lanza ni cambia el resultado.
+      await notifyPaymentResult(
+        input.notifier,
+        {
+          memberId: member.memberId,
+          recipient: {
+            memberId: member.memberId,
+            email: member.email,
+            firstName: member.firstName,
+          },
+        },
+        {
+          event: 'PAYMENT_SUCCEEDED',
+          paymentId: payment.paymentId,
+          data: {
+            membershipType: payment.membershipType,
+            amount: payment.amount,
+            membershipEndsAt: cycle.endsAt,
+          },
+        },
+        { client, requestId: input.requestId },
+      );
       return 'CONFIRMED';
     }
 
     // event.type === 'payment_intent.payment_failed'
+    const failureReason = resolveFailureReason(event);
     await markPaymentFailed(client, {
       memberId: payment.memberId,
       paymentId: payment.paymentId,
       createdAt: payment.createdAt,
-      failureReason: resolveFailureReason(event),
+      failureReason,
     });
 
     logger.info('stripe webhook marked a payment as failed', {
@@ -224,6 +252,13 @@ export async function processStripeWebhookEvent(
       entityType: 'Payment',
       paymentId: payment.paymentId,
     });
+    // US-043: transición ganada; el emisor resuelve al socio por memberId.
+    await notifyPaymentResult(
+      input.notifier,
+      { memberId: payment.memberId },
+      { event: 'PAYMENT_FAILED', paymentId: payment.paymentId, data: { reason: failureReason } },
+      { client, requestId: input.requestId },
+    );
     return 'FAILED_RECORDED';
   } catch (error) {
     if (isConditionalCheckFailure(error)) {
