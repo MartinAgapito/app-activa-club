@@ -64,3 +64,7 @@ Un socio nuevo que espera la aprobación no tiene hoy ninguna forma de enterarse
 - Casos de prueba: A-07; parte de notificación de A-12 y A-13.
 - Depende de: US-040.
 - Habilita: cierre de los eventos pendientes del Sprint 1.
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en backend. `POST /activation/complete`, `POST /members/{memberId}/approve` y `POST /members/{memberId}/reject` emiten `ACCOUNT_ACTIVATED`, `MEMBER_APPROVED` y `MEMBER_REJECTED` (con motivo) tras la operación exitosa, mediante `safeEmitNotification` (el aviso nunca altera la respuesta). `entityId` = `memberId`; sin lecturas extra (se reutiliza el `Member` ya leído). Sin cambios de IAM: las tres Lambdas ya tenían `dynamodb:PutItem` y `ses:SendEmail` (US-039).
