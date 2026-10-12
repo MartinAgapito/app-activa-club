@@ -63,8 +63,8 @@ export function formatDateInLima(iso: string): string {
   );
 }
 
-/** Fecha y hora de un instante UTC en hora del club, p. ej. "9 jul 2026,
- * 00:00" (listados y detalles donde importa la hora, como los pagos). */
+/** Fecha y hora cortas en hora del club, p. ej. "9 jul 2026, 00:00"
+ * (pagos: un cobro de madrugada no cambia de día en Lima). */
 export function formatDateTimeInLima(iso: string): string {
   return new Intl.DateTimeFormat('es-PE', {
     timeZone: 'America/Lima',

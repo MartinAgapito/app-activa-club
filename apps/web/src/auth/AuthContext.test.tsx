@@ -14,13 +14,15 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 function TestConsumer() {
-  const { status, role, signIn, signOut } = useAuth();
+  const { status, role, email, displayName, signIn, signOut } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   return (
     <div>
       <p>Estado: {status}</p>
       <p>Rol: {role ?? 'ninguno'}</p>
+      <p>Correo: {email ?? 'ninguno'}</p>
+      <p>Nombre: {displayName ?? 'ninguno'}</p>
       {error ? <p role="alert">{error}</p> : null}
       <button
         type="button"
@@ -101,6 +103,38 @@ describe('AuthProvider', () => {
     const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(requestInit.body as string) as { AuthParameters: { PASSWORD: string } };
     expect(body.AuthParameters.PASSWORD).toBe('Sup3rSecreta!');
+  });
+
+  it('expone correo y nombre del ID token ya decodificado, y null si no los trae', async () => {
+    const idToken = createFakeIdToken({
+      sub: 'user-1',
+      'cognito:groups': ['admin'],
+      email: 'admin@activa.club',
+      given_name: 'Lucía',
+      family_name: 'Paredes',
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse(200, {
+          AuthenticationResult: { IdToken: idToken, AccessToken: 'a', ExpiresIn: 3600 },
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>,
+    );
+
+    await screen.findByText('Estado: anonymous');
+    expect(screen.getByText('Correo: ninguno')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Entrar' }));
+
+    expect(await screen.findByText('Correo: admin@activa.club')).toBeInTheDocument();
+    expect(screen.getByText('Nombre: Lucía Paredes')).toBeInTheDocument();
   });
 
   it('cierra sesión: descarta los tokens locales y revoca en Cognito (criterio 5)', async () => {

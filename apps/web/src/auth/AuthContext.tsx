@@ -49,6 +49,12 @@ export interface AuthSession {
    * dominio (ver ADR-0002, "cognitoSub → memberId"). Se completa cuando el
    * dashboard/perfil de socio (Sprint 1) consuma ese endpoint. */
   memberId: string | null;
+  /** Correo del ID token (claim `email`). Opcional: las sesiones simuladas y
+   * los tokens sin ese claim lo dejan sin definir. Solo para mostrar. */
+  email?: string | null;
+  /** Nombre para mostrar del ID token (`name`, o `given_name` + `family_name`
+   * / `given_name`). `null`/ausente si el token no lo trae. */
+  displayName?: string | null;
 }
 
 export interface SignInInput {
@@ -69,7 +75,13 @@ export interface AuthContextValue extends AuthSession {
   setSession: (session: AuthSession) => void;
 }
 
-const ANONYMOUS_SESSION: AuthSession = { status: 'anonymous', role: null, memberId: null };
+const ANONYMOUS_SESSION: AuthSession = {
+  status: 'anonymous',
+  role: null,
+  memberId: null,
+  email: null,
+  displayName: null,
+};
 
 /** Exportado además de `useAuth`/`AuthProvider` para poder inyectar sesiones
  * de prueba en tests. No debe consumirse directamente desde pantallas de
@@ -79,6 +91,10 @@ export const AuthContext = createContext<AuthContextValue | undefined>(undefined
 interface CognitoIdTokenClaims {
   sub: string;
   'cognito:groups'?: string[];
+  email?: string;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
 }
 
 /** Renueva el access/id token un minuto antes de que expiren, mientras la
@@ -92,6 +108,24 @@ function resolveRole(idToken: string): Role | null {
   if (groups.includes('admin')) return 'admin';
   if (groups.includes('member')) return 'member';
   return null;
+}
+
+function nonEmpty(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
+/** Correo y nombre para mostrar, leídos del ID token ya decodificado (sin
+ * llamadas nuevas). Solo UX: nunca es control de acceso. */
+function resolveIdentity(idToken: string): {
+  email: string | null;
+  displayName: string | null;
+} {
+  const claims = decodeJwtPayload<CognitoIdTokenClaims>(idToken);
+  const given = nonEmpty(claims?.given_name);
+  const family = nonEmpty(claims?.family_name);
+  const displayName =
+    nonEmpty(claims?.name) ?? (given ? (family ? `${given} ${family}` : given) : null);
+  return { email: nonEmpty(claims?.email), displayName };
 }
 
 interface StoredTokens {
@@ -134,7 +168,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...(tokens.refreshToken !== undefined ? { refreshToken: tokens.refreshToken } : {}),
     };
 
-    const nextSession: AuthSession = { status: 'authenticated', role, memberId: null };
+    const { email, displayName } = resolveIdentity(tokens.idToken);
+    const nextSession: AuthSession = {
+      status: 'authenticated',
+      role,
+      memberId: null,
+      email,
+      displayName,
+    };
     setSessionState(nextSession);
     setRefreshEpoch((epoch) => epoch + 1);
     return nextSession;

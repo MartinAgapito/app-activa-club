@@ -12,6 +12,12 @@ backlog en `docs/scrum/`.
 
 ### Changed
 
+- Pulido de textos y sesión del administrador: se quitan los códigos internos
+  de reglas de negocio (RN-XXX) de los textos visibles; la sesión
+  (`useAuth()`) expone `email` y `displayName` leídos del ID token, y el menú
+  de usuario del administrador muestra el correo (respaldo "Administrador");
+  `/verificar-correo` pasa de "en construcción" a una pantalla sobria que
+  orienta a activar con DNI o registrarse. Sin cambios de API.
 - Solicitudes de socios del administrador rehechas (US-078, EP-08):
   `/admin/solicitudes` usa `DataTable` (nombre, DNI, fecha, estado, "Cargar
   más"), panel lateral con el detalle en `?solicitud=<memberId>`, "Aprobar"
@@ -29,6 +35,22 @@ backlog en `docs/scrum/`.
   más" y panel lateral de detalle (`?pago=`) sin datos de tarjeta. Nunca
   consulta sin filtro, como exige el servidor. Admite `?socio=<memberId>` para
   llegar ya filtrada. Sin cambios en la API.
+- Historial de pagos del socio en `/socio/pagos` (US-050, EP-03, sobre US-025):
+  "Mis pagos" con tabla (tarjetas en móvil) de fecha en hora de Lima, concepto,
+  monto en soles y estado en español (Pagado, En verificación, Rechazado),
+  resumen del último pago, "Cargar más" por cursor, panel lateral con el detalle
+  (monto, plan, estado, fechas y referencia interna; sin datos de tarjeta ni
+  identificadores de Stripe), estado vacío con enlace a membresía y errores con
+  Reintentar. Un cursor inválido (400) vuelve a la primera página. Sin cambios
+  en el servidor.
+- Consulta de socios del administrador (US-051, EP-06, EP-08): `/admin/socios`
+  deja de ser un placeholder y muestra el padrón en pestañas por estado de
+  cuenta (Activos, Migrados, Aprobados, Pendientes, Rechazados; `?tab=`) con
+  tabla (nombre, DNI, origen, estado de membresía, fecha de alta) y "Cargar
+  más", búsqueda por DNI exacto (8 dígitos) y panel lateral de solo lectura
+  (`?socio=<memberId>`) con contacto, cuenta, membresía, vencimiento, días
+  restantes, saldo y renovación automática. Sin cambios de API.
+
 - Reservas del administrador en pestañas "Por aprobar" (con contador) y
   "Todas", con tabla (`DataTable`), filtros y pestaña guardados en la URL,
   panel lateral de detalle (`?reserva=<id>`) con participantes, y las
