@@ -44,6 +44,11 @@ const API_SRC_DIR = join(REPO_ROOT, 'apps', 'api', 'src');
 // environments/prd/main.tf). Mantener esta tabla sincronizada con esos
 // archivos: es la única fuente de verdad de qué handler compila a qué
 // artefacto.
+//
+// Guarda de CI (scripts/check-handler-mapping.mjs, `npm run check:handlers`):
+// todo handler real debe estar aqui, y una entrada que apunte a
+// handlers/not-implemented.ts debe llevar `// PLACEHOLDER(US-NNN)` en la linea
+// inmediatamente anterior.
 const HANDLERS = {
   'activation-verify': 'handlers/activation/verify.ts',
   'activation-complete': 'handlers/activation/complete.ts',
