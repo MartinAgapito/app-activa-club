@@ -109,6 +109,23 @@
 | Multi-club / multi-tenant               | Fuera de alcance |                          |
 | Módulo de e-commerce / tienda           | Fuera de alcance |                          |
 
+## 9. Experiencia de usuario e interfaz (propuesta EP-08, pendiente de aprobación)
+
+> Sección propuesta el 2026-10-11 tras el reclamo del dueño del producto en la primera prueba extremo a extremo. Deriva de "plataforma web responsive" del Contexto Maestro. Las clasificaciones son **propuestas** hasta que el Product Owner las apruebe; no se implementa nada de esta sección antes de esa aprobación.
+
+| Capacidad                                                                          | Clasificación (propuesta) | Nota                                                   |
+| ---------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------ |
+| Base de diseño ampliada y componentes accesibles (ventana, panel, pestañas, tabla) | MVP                       | EP-08 bloque A; solo frontend                          |
+| Navegación lateral y cabecera por rol, responsive                                  | MVP                       | EP-08 bloque A                                         |
+| Inicio del socio y del administrador con datos ya disponibles                      | MVP                       | EP-08 bloque B; EP-07 lo enriquece                     |
+| Flujos de reserva y CRUD administrativos en ventanas y paneles                     | MVP                       | EP-08 bloque C                                         |
+| Accesibilidad WCAG 2.1 AA en componentes base (teclado, foco, contraste)           | MVP                       |                                                        |
+| Modo oscuro / temas personalizables                                                | Fase posterior            | Pregunta abierta 3 de EP-08                            |
+| Rediseño de la página pública y de las pantallas de acceso                         | Fase posterior            | En el MVP solo heredan los tokens (pregunta abierta 8) |
+| Imágenes de instalaciones administrables por el administrador                      | Fase posterior            | Requiere campo y almacenamiento nuevos                 |
+| Animaciones elaboradas, ilustraciones a medida o fotografía profesional            | Fuera de alcance          |                                                        |
+
 ## Historial de cambios
 
 - 2026-07-09: Versión inicial derivada del Contexto Maestro (US-001, EP-01).
+- 2026-10-11: Se agrega la sección 9 (experiencia de usuario e interfaz) como **propuesta** de EP-08, pendiente de aprobación del Product Owner. No cambia ninguna clasificación existente.

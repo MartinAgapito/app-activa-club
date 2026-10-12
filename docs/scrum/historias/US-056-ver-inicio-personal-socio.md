@@ -12,6 +12,8 @@
 | Estimación relativa | 5                                                |
 | Dependencias        | US-055                                           |
 
+> **Nota de coordinación (EP-08, propuesta 2026-10-11):** si se aprueba [US-070](./US-070-inicio-socio-datos-existentes.md), esta historia no construye la página desde cero: cambia la fuente del bloque de membresía a `GET /dashboard/member` (con `canReserve` y `alerts` del servidor, criterios 3, 4 y 11), y agrega los bloques de avisos recientes (criterio 7) y resumen de pagos (criterio 8). Los criterios no cambian; puede reducirse su estimación en la Planning del Sprint 5.
+
 ## Historia
 
 Como **socio**, quiero **que al entrar a la plataforma mi inicio me muestre mi situación, mis próximas reservas, mis avisos y accesos directos a lo que más uso**, para **resolver lo que necesito sin tener que buscarlo**.
