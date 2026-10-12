@@ -6,6 +6,13 @@ import type { PaymentStatus, PaymentSummary } from '@activa-club/shared-types';
 import type { BadgeVariant } from '@activa-club/ui';
 import { MEMBERSHIP_TYPE_LABEL } from '../lib/format/membership-plan';
 
+/** Estados en el orden en que los muestran los filtros del administrador (US-053). */
+export const PAYMENT_STATUSES: ReadonlyArray<PaymentStatus> = [
+  'FAILED',
+  'PENDING_CONFIRMATION',
+  'SUCCEEDED',
+];
+
 export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   SUCCEEDED: 'Pagado',
   PENDING_CONFIRMATION: 'En verificación',

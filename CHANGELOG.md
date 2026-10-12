@@ -28,6 +28,13 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Pantalla `/admin/membresias` como "Pagos" (US-053, EP-06): planes vigentes
+  con su precio y consulta de pagos de los socios con tabla (fecha en hora de
+  Lima, socio, plan, monto y estado), filtros por estado (por defecto
+  "Rechazados y en verificación") y por socio mediante DNI exacto, "Cargar
+  más" y panel lateral de detalle (`?pago=`) sin datos de tarjeta. Nunca
+  consulta sin filtro, como exige el servidor. Admite `?socio=<memberId>` para
+  llegar ya filtrada. Sin cambios en la API.
 - Historial de pagos del socio en `/socio/pagos` (US-050, EP-03, sobre US-025):
   "Mis pagos" con tabla (tarjetas en móvil) de fecha en hora de Lima, concepto,
   monto en soles y estado en español (Pagado, En verificación, Rechazado),

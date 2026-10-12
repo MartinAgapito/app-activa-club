@@ -64,7 +64,7 @@ export function formatDateInLima(iso: string): string {
 }
 
 /** Fecha y hora cortas en hora del club, p. ej. "9 jul 2026, 00:00"
- * (historial de pagos: un cobro de madrugada no cambia de día en Lima). */
+ * (pagos: un cobro de madrugada no cambia de día en Lima). */
 export function formatDateTimeInLima(iso: string): string {
   return new Intl.DateTimeFormat('es-PE', {
     timeZone: 'America/Lima',
