@@ -12,6 +12,10 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Componente `Stepper` (indicador de pasos) en `@activa-club/ui`: lista
+  ordenada con `aria-current="step"`, estados completado/actual/pendiente sin
+  depender del color, completados clicables opcionalmente y forma compacta
+  en pantallas pequeñas (US-067, EP-08).
 - Fundación técnica y documental inicial (Sprint 0): estructura de monorepo
   con npm workspaces, estándares de calidad (TypeScript, ESLint, Prettier),
   documentación de producto y Scrum, y gobierno Git (Conventional Commits,
