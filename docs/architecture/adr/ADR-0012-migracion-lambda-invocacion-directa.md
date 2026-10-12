@@ -65,3 +65,5 @@ La migración pasa a ser la **Lambda `migration-run`**
   `apply` que reemplaza el deployment produce `Error: Cycle`. La fase 1
   (desacoplar del deployment y crear la nueva Lambda) y la fase 2 (destruir el
   módulo viejo, ruta y Lambda) van en `apply` separados.
+  Estado: la fase 1 se aplicó el 2026-10-11 (PR #102) y la fase 2 retira el
+  endpoint viejo (PR de cierre); el plan de la fase 2 salió sin ciclo.
