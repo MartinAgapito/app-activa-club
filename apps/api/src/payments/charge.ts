@@ -20,6 +20,7 @@ import { finalizeIdempotencyRecord, reserveIdempotencyKey } from './idempotency'
 import { resolveMembershipCycle } from './membership-cycle';
 import { resolveMembershipPlan } from './plans';
 import { confirmPaymentSuccess, createPendingPayment, markPaymentFailed } from './repository';
+import { notifyPaymentResult, type PaymentNotifier } from './notify';
 import { getDefaultStripeChargeClient } from './stripe-client';
 import type { StripeChargeClient, StripeChargeOutcome } from './stripe-client';
 
@@ -42,6 +43,8 @@ export interface CreatePaymentInput {
   paymentId?: string;
   /** `membershipId` del nuevo `MembershipPeriod`, inyectable, para pruebas deterministas. */
   membershipId?: string;
+  /** Emisor de avisos inyectable (US-043); por defecto, la bandeja y el correo reales. */
+  notifier?: PaymentNotifier;
 }
 
 /**
@@ -93,6 +96,10 @@ async function attemptCharge(
     });
     return { outcome: 'AMBIGUOUS' };
   }
+}
+
+function recipientOf(member: { memberId: string; email: string; firstName: string }) {
+  return { memberId: member.memberId, email: member.email, firstName: member.firstName };
 }
 
 /**
@@ -158,6 +165,13 @@ export async function createPayment(input: CreatePaymentInput): Promise<CreatePa
       failureReason: chargeOutcome.reason,
     });
     await finalizeIdempotencyRecord(client, input.request.idempotencyKey, 'FAILED');
+    // US-043: primera (y única) transición a FAILED de este pago.
+    await notifyPaymentResult(
+      input.notifier,
+      { memberId: member.memberId, recipient: recipientOf(member) },
+      { event: 'PAYMENT_FAILED', paymentId, data: { reason: chargeOutcome.reason } },
+      { client, requestId: paymentId },
+    );
     throw new AppError('PAYMENT_FAILED', chargeOutcome.reason);
   }
 
@@ -196,6 +210,18 @@ export async function createPayment(input: CreatePaymentInput): Promise<CreatePa
     autoRenewRequested,
   });
   await finalizeIdempotencyRecord(client, input.request.idempotencyKey, 'SUCCEEDED');
+  // US-043: primera transición a SUCCEEDED; el webhook posterior verá el pago
+  // resuelto y no volverá a avisar.
+  await notifyPaymentResult(
+    input.notifier,
+    { memberId: member.memberId, recipient: recipientOf(member) },
+    {
+      event: 'PAYMENT_SUCCEEDED',
+      paymentId,
+      data: { membershipType: plan.type, amount: plan.amount, membershipEndsAt: cycle.endsAt },
+    },
+    { client, requestId: paymentId },
+  );
 
   return {
     paymentId,

@@ -66,3 +66,7 @@ Un pago que quedó "en verificación" se confirma a veces por el webhook, minuto
 - Casos de prueba: P-11.
 - Depende de: US-040.
 - Habilita: cierre de los eventos pendientes del Sprint 2.
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en `apps/api/src/payments/` (`notify.ts`, invocado desde `charge.ts` y `webhook.ts`), con pruebas. Sin cambios de contrato ni de infraestructura: `payments-create` y `payments-webhook` ya tenían `dynamodb:PutItem`, `ses:SendEmail` y `SES_SENDER_EMAIL` (US-039).
