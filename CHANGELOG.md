@@ -22,6 +22,20 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Pantalla `/admin/recursos` con pestañas "Instalaciones" y "Mantenimiento"
+  (US-075 y US-076, EP-08), con la pestaña activa en `?tab=` y la instalación
+  elegida en `?recurso=`. Instalaciones: tabla con aforo, horario, duración
+  del bloque, aprobación y estado con etiqueta; "Editar" abre una ventana con
+  aforo, apertura, cierre y estado (datos fijos como solo lectura), validación
+  en línea, "Guardar" deshabilitado sin cambios, confirmación antes → después
+  al cambiar aforo, horario o pasar a mantenimiento, confirmación al cerrar
+  con cambios sin guardar, errores del servidor dentro de la ventana y aviso
+  efímero "Instalación actualizada". Mantenimiento: tabla de bloqueos por
+  instalación ordenada por inicio, "Nuevo bloqueo" en una ventana (valida fin
+  posterior al inicio e inicio no pasado), aviso persistente "N reservas
+  quedan dentro del bloqueo" con "Ver reservas" y "Liberar" con confirmación
+  y aviso "Bloqueo liberado". `?nuevo=1` abre la ventana de nuevo bloqueo.
+  Sin cambios en la API.
 - Mis reservas rehecha (US-074, EP-08): pestañas "Próximas" y "Pasadas" con
   contador y estado en la URL (`?tab=`), tabla responsive con "Cargar más",
   panel lateral de detalle con dirección propia (`?reserva=`) con
