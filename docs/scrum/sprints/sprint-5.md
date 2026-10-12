@@ -30,31 +30,34 @@ Cierra el MVP funcional: tras este sprint, todas las capacidades MVP de la matri
 
 ## Sprint Backlog
 
-| ID                                                                    | Título                                                                         | Responsable        | Prioridad | Depende de             | Estimación |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------ | --------- | ---------------------- | ---------- |
-| [US-050](../historias/US-050-ver-mi-historial-pagos.md)               | Ver mi historial de pagos en la plataforma                                     | Frontend           | Media     | US-025                 | 2          |
-| [US-051](../historias/US-051-consultar-socios-admin.md)               | Consultar los socios y su situación de membresía                               | Frontend           | Alta      | US-017                 | 3          |
-| [US-052](../historias/US-052-filtrar-socios-situacion-membresia.md)   | Filtrar socios con deuda, vencidos o por vencer                                | Backend + Frontend | Media     | US-038, US-048, US-051 | 3          |
-| [US-053](../historias/US-053-consultar-pagos-socios-admin.md)         | Consultar los pagos de los socios                                              | Frontend           | Media     | US-025                 | 3          |
-| [US-054](../historias/US-054-provisionar-endpoints-dashboards.md)     | Provisionar endpoints e infraestructura de dashboards                          | DevOps             | Crítica   | —                      | 2          |
-| [US-055](../historias/US-055-resumen-personal-socio-servidor.md)      | Obtener el resumen personal del socio (servidor)                               | Backend            | Alta      | US-038, US-041, US-054 | 5          |
-| [US-056](../historias/US-056-ver-inicio-personal-socio.md)            | Ver mi inicio personal (dashboard del socio)                                   | Frontend           | Alta      | US-055                 | 5          |
-| [US-057](../historias/US-057-metricas-socios-pagos-notificaciones.md) | Calcular las métricas de socios, membresías, pagos y notificaciones (servidor) | Backend            | Alta      | US-038, US-054         | 5          |
-| [US-058](../historias/US-058-metricas-reservas-ocupacion.md)          | Calcular las métricas de reservas y ocupación (servidor)                       | Backend            | Media     | US-054                 | 5          |
-| [US-059](../historias/US-059-ver-resumen-operativo-admin.md)          | Ver el resumen operativo en el inicio del administrador                        | Frontend           | Alta      | US-057                 | 3          |
-| [US-060](../historias/US-060-ver-analitica-reservas-ocupacion.md)     | Ver la analítica de reservas y ocupación                                       | Frontend           | Media     | US-058                 | 3          |
+| ID                                                                     | Título                                                                                  | Responsable        | Prioridad | Depende de             | Estimación |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------ | --------- | ---------------------- | ---------- |
+| [US-050](../historias/US-050-ver-mi-historial-pagos.md)                | Ver mi historial de pagos en la plataforma                                              | Frontend           | Media     | US-025                 | 2          |
+| [US-051](../historias/US-051-consultar-socios-admin.md)                | Consultar los socios y su situación de membresía                                        | Frontend           | Alta      | US-017                 | 3          |
+| [US-052](../historias/US-052-filtrar-socios-situacion-membresia.md)    | Filtrar socios con deuda, vencidos o por vencer                                         | Backend + Frontend | Media     | US-038, US-051         | 3          |
+| [US-053](../historias/US-053-consultar-pagos-socios-admin.md)          | Consultar los pagos de los socios                                                       | Frontend           | Media     | US-025                 | 3          |
+| [US-054](../historias/US-054-provisionar-endpoints-dashboards.md)      | Provisionar endpoints e infraestructura de dashboards                                   | DevOps             | Crítica   | —                      | 2          |
+| [US-055](../historias/US-055-resumen-personal-socio-servidor.md)       | Obtener el resumen personal del socio (servidor)                                        | Backend            | Alta      | US-038, US-041, US-054 | 5          |
+| [US-056](../historias/US-056-ver-inicio-personal-socio.md)             | Ver mi inicio personal (dashboard del socio)                                            | Frontend           | Alta      | US-055                 | 5          |
+| [US-057](../historias/US-057-metricas-socios-pagos-notificaciones.md)  | Calcular las métricas de socios, membresías, pagos y notificaciones (servidor)          | Backend            | Alta      | US-038, US-054         | 5          |
+| [US-058](../historias/US-058-metricas-reservas-ocupacion.md)           | Calcular las métricas de reservas y ocupación (servidor)                                | Backend            | Media     | US-054                 | 5          |
+| [US-059](../historias/US-059-ver-resumen-operativo-admin.md)           | Ver el resumen operativo en el inicio del administrador                                 | Frontend           | Alta      | US-057                 | 3          |
+| [US-060](../historias/US-060-ver-analitica-reservas-ocupacion.md)      | Ver la analítica de reservas y ocupación                                                | Frontend           | Media     | US-058                 | 3          |
+| [US-080](../historias/US-080-nombres-participantes-detalle-reserva.md) | Devolver el nombre de los socios participantes en el detalle de una reserva (servidor)  | Backend            | Media     | US-033                 | 2          |
+| [US-081](../historias/US-081-nombre-socio-rango-fechas-pagos-admin.md) | Nombre del socio y rango de fechas en la consulta de pagos del administrador (servidor) | Backend + DevOps   | Media     | US-025                 | 3          |
 
-Estimación total: **39 puntos relativos** (9 de EP-06, 28 de EP-07 y 2 de la deuda técnica US-050). Por debajo de la velocidad observada a propósito: deja margen para lo que el Sprint 4 sacrifique (US-046, US-045) y para las extensiones de contrato que este sprint necesita del Arquitecto.
+Estimación total: **44 puntos relativos** (12 de EP-06, 28 de EP-07, 2 de EP-04 y 2 de la deuda técnica US-050). US-080 y US-081 se agregaron el 2026-10-12 con la adenda de contrato (ver abajo). Por debajo de la velocidad observada a propósito: deja margen para lo que el Sprint 4 sacrifique (US-046, US-045) y para las extensiones de contrato que este sprint necesita del Arquitecto.
 
-**Orden de sacrificio si la velocidad no alcanza:** US-060 (vista de analítica) y US-058 (métricas de reservas y ocupación) pueden diferirse juntas sin romper el Sprint Goal del socio; luego US-052 (vista de cobranza). **US-054 a US-057, US-059, US-050, US-051 y US-053 son innegociables**: son las dos portadas y las consultas básicas del administrador.
+**Orden de sacrificio si la velocidad no alcanza:** US-060 (vista de analítica) y US-058 (métricas de reservas y ocupación) pueden diferirse juntas sin romper el Sprint Goal del socio; luego US-052 (vista de cobranza); luego US-081 y US-080 (mejoras de presentación sobre pantallas que ya funcionan). **US-054 a US-057, US-059, US-050, US-051 y US-053 son innegociables**: son las dos portadas y las consultas básicas del administrador.
 
 ## Grafo de dependencias
 
 ```
 (Sprint 4 cerrado: US-038 membresía al día, US-041 bandeja, US-048 segmentos)
 
-US-050 (deuda EP-03)            US-051 ──► US-052 ◄── US-048, US-038
-US-053
+US-050 (deuda EP-03)            US-051 ──► US-052 ◄── US-038
+US-053 ◄── US-081 (nombre y rango de fechas)
+US-074, US-077 ◄── US-080 (nombres de participantes)
 
 US-054 ──┬──► US-055 ──► US-056
          ├──► US-057 ──► US-059
@@ -92,10 +95,15 @@ US-054 ──┬──► US-055 ──► US-056
 - **Review:** recorrido completo del MVP en `dev`, del registro al dashboard, como ensayo de la demostración final.
 - **Retrospective:** cierre del MVP funcional: revisión de deudas abiertas (renovación automática desatendida, verificación extremo a extremo pendiente, decisiones de producto sin resolver) antes de planificar la estabilización.
 
+## Adenda de contrato (2026-10-12)
+
+La pregunta abierta 4 de EP-06 y las preguntas 1, 2 y 5 de EP-07 (en lo que toca a reservas y ocupación) quedan resueltas en `docs/api/contratos-api.md` §12 y [ADR-0014](../../architecture/adr/ADR-0014-filtros-secundarios-y-nombres-en-lectura.md). US-052 y US-058 pasan a **Ready**. La interfaz ya construida destapó además dos límites que se cubren con historias nuevas de backend: US-080 (nombre de los socios participantes en el detalle de reserva) y US-081 (nombre del socio y rango de fechas en los pagos del administrador). Todos los cambios son aditivos, sin índices ni rutas nuevas; solo US-081 toca Terraform (un permiso IAM). Los ajustes de pantalla para mostrar los nombres (US-053, US-074, US-077) son tareas de frontend pequeñas que el Product Owner debe priorizar.
+
 ## Notas para DevOps (US-054)
 
 - Solo dos Lambdas nuevas y ambas de solo lectura: no deben recibir ningún permiso de escritura.
 - `GET /dashboard/admin` consulta GSI2 y GSI3 sobre los diez recursos; dimensionar el tiempo máximo de ejecución y documentarlo en el PR.
+- La Lambda de `GET /dashboard/admin` necesita además `GetItem` y `Query` sobre la **tabla base** (catálogo por `resourceId` y bloqueos de mantenimiento, patrón #30), no solo sobre los índices (contratos §12.2).
 - Redespliegue del stage y verificación de CORS tras agregar las rutas, como en cada sprint.
 
 ## Riesgos del sprint
@@ -110,3 +118,4 @@ US-054 ──┬──► US-055 ──► US-056
 ## Historial de cambios
 
 - 2026-10-11: Creación del Sprint 5 con las historias de EP-06 (US-051..US-053), EP-07 (US-054..US-060) y la deuda técnica US-050 de EP-03.
+- 2026-10-12: Adenda de contrato del Arquitecto (contratos §12, ADR-0014): US-052 y US-058 pasan a Ready; se agregan US-080 (2 puntos) y US-081 (3 puntos); US-052 deja de depender de US-048.

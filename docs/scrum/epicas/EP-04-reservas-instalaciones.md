@@ -38,18 +38,19 @@ EP-04 también es donde el sistema demuestra que **las reglas de negocio se cump
 
 ## Historias asociadas
 
-| ID                                                                        | Título                                                       | Responsable        | Depende de             |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------ | ---------------------- |
-| [US-027](../historias/US-027-provisionar-endpoints-reservas.md)           | Provisionar endpoints e infraestructura de reservas          | DevOps             | —                      |
-| [US-028](../historias/US-028-catalogo-recursos-club.md)                   | Consultar el catálogo de instalaciones del club              | Backend + DevOps   | US-027                 |
-| [US-029](../historias/US-029-disponibilidad-recurso-por-dia.md)           | Consultar la disponibilidad de una instalación por día       | Backend + Frontend | US-028                 |
-| [US-030](../historias/US-030-crear-reserva-confirmacion-automatica.md)    | Reservar una instalación con validación completa en servidor | Backend            | US-028                 |
-| [US-031](../historias/US-031-participantes-socios-invitados.md)           | Agregar otros socios e invitados externos a una reserva      | Backend            | US-030                 |
-| [US-032](../historias/US-032-reservar-instalacion-desde-plataforma.md)    | Reservar una instalación desde la plataforma                 | Frontend           | US-029, US-030, US-031 |
-| [US-033](../historias/US-033-consultar-cancelar-mis-reservas.md)          | Consultar y cancelar mis reservas                            | Backend + Frontend | US-030                 |
-| [US-034](../historias/US-034-aprobacion-rechazo-reservas-admin.md)        | Aprobar o rechazar reservas de parrillas y salón social      | Backend + Frontend | US-030                 |
-| [US-035](../historias/US-035-bloqueo-recursos-mantenimiento.md)           | Bloquear temporalmente un recurso por mantenimiento          | Backend + Frontend | US-028, US-029         |
-| [US-036](../historias/US-036-gestion-recursos-consulta-reservas-admin.md) | Gestionar recursos y consultar todas las reservas como admin | Backend + Frontend | US-028, US-030         |
+| ID                                                                        | Título                                                                                 | Responsable        | Depende de             |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------ | ---------------------- |
+| [US-027](../historias/US-027-provisionar-endpoints-reservas.md)           | Provisionar endpoints e infraestructura de reservas                                    | DevOps             | —                      |
+| [US-028](../historias/US-028-catalogo-recursos-club.md)                   | Consultar el catálogo de instalaciones del club                                        | Backend + DevOps   | US-027                 |
+| [US-029](../historias/US-029-disponibilidad-recurso-por-dia.md)           | Consultar la disponibilidad de una instalación por día                                 | Backend + Frontend | US-028                 |
+| [US-030](../historias/US-030-crear-reserva-confirmacion-automatica.md)    | Reservar una instalación con validación completa en servidor                           | Backend            | US-028                 |
+| [US-031](../historias/US-031-participantes-socios-invitados.md)           | Agregar otros socios e invitados externos a una reserva                                | Backend            | US-030                 |
+| [US-032](../historias/US-032-reservar-instalacion-desde-plataforma.md)    | Reservar una instalación desde la plataforma                                           | Frontend           | US-029, US-030, US-031 |
+| [US-033](../historias/US-033-consultar-cancelar-mis-reservas.md)          | Consultar y cancelar mis reservas                                                      | Backend + Frontend | US-030                 |
+| [US-034](../historias/US-034-aprobacion-rechazo-reservas-admin.md)        | Aprobar o rechazar reservas de parrillas y salón social                                | Backend + Frontend | US-030                 |
+| [US-035](../historias/US-035-bloqueo-recursos-mantenimiento.md)           | Bloquear temporalmente un recurso por mantenimiento                                    | Backend + Frontend | US-028, US-029         |
+| [US-036](../historias/US-036-gestion-recursos-consulta-reservas-admin.md) | Gestionar recursos y consultar todas las reservas como admin                           | Backend + Frontend | US-028, US-030         |
+| [US-080](../historias/US-080-nombres-participantes-detalle-reserva.md)    | Devolver el nombre de los socios participantes en el detalle de una reserva (servidor) | Backend            | US-033                 |
 
 ## Criterios de aceptación de la épica
 
@@ -107,3 +108,4 @@ Decisión adicional derivada de la primera, del mismo ADR-0009: el **invitado ex
 - 2026-08-09: Creación de la épica EP-04 y asociación de las historias del Sprint 3 (US-027..US-036).
 - 2026-08-09: Cierre de las tres decisiones funcionales pendientes (ADR-0009 y ADR-0010); alta de la entidad `GuestProfile`, de los endpoints de resolución por DNI y del estado por franja en la disponibilidad.
 - 2026-10-11: US-027 a US-036 implementadas (backend y pantallas). La épica queda en progreso solo por la verificación extremo a extremo (Ola 6).
+- 2026-10-12: Se agrega US-080 (Sprint 5, adenda de contrato y ADR-0014): el detalle de reserva devuelve el nombre de los socios participantes.
