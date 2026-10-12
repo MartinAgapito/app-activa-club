@@ -60,3 +60,6 @@ Thumbs.db
 
 # ---- Datos locales de carga/reinicio de dev (DNI y correos reales: no se versionan) ----
 mock-data/local/
+
+# ---- Indice local de artefactos (enlaces compartidos por URL: el repo es publico) ----
+docs/local/
