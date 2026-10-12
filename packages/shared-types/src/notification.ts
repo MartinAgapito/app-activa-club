@@ -66,7 +66,28 @@ export interface CreateNotificationRequest {
   resourceId?: string;
 }
 
+/**
+ * Resumen de una publicación (`POST /notifications`, contratos-api.md §8).
+ * `recipientCount` es el número de bandejas en las que quedó el aviso; los
+ * contadores de correo solo son distintos de cero con `alsoEmail=true`.
+ */
 export interface CreateNotificationResponse {
   notificationId: string;
   recipientCount: number;
+  /** Correos aceptados por SES. */
+  emailsSent: number;
+  /** Correos intentados que SES rechazó (best-effort: no reducen `recipientCount`). */
+  emailsFailed: number;
+  /** Destinatarios sin correo enviado por el tope por publicación, el presupuesto de tiempo o falta de correo. */
+  emailsSkipped: number;
+  /** `true` si la solicitud repitió una publicación idéntica reciente (reintento idempotente). */
+  replayed: boolean;
+}
+
+/** Quién originó una notificación enviada: un administrador o un proceso automático. */
+export type NotificationOrigin = 'MANUAL' | 'SYSTEM';
+
+/** Elemento de `GET /notifications/sent`: la `Notification` más su origen. */
+export interface SentNotification extends Notification {
+  origin: NotificationOrigin;
 }

@@ -39,6 +39,8 @@ src/
     registration/post.ts      # POST /registration (público) — wiring de src/registration/register.ts.
     notifications/list.ts     # GET /notifications (member) — bandeja paginada, filtro unread (US-041).
     notifications/read.ts     # POST /notifications/{notificationId}/read (member) — marca leída, idempotente (US-041).
+    notifications/create.ts   # POST /notifications (admin) — publica un aviso segmentado (US-048).
+    notifications/sent.ts     # GET /notifications/sent (admin) — historial enviado, manual y automático (US-048).
     (Sprint 1+: members/, payments/, resources/, reservations/,
      notifications/, dashboard/ — un archivo por endpoint de
      docs/api/contratos-api.md.)
@@ -75,6 +77,10 @@ src/
     dedupe.ts          # dedupeKey `<evento>#<memberId>#<entityId>` y notificationId determinista.
     mailer.ts          # Envío SES v2 SendEmail (contenido Simple; solo requiere ses:SendEmail).
     safe-emit.ts       # safeEmitNotification(): envoltorio que usan los orquestadores (US-042+); nunca lanza.
+    segments.ts        # Resolución de destinatarios de un segmento (US-048): GSI2/GSI3, sin Scan, topes.
+    publish.ts         # POST /notifications: auditoría + Notification + bandejas en bloques + correo (US-048).
+    publish-email.ts   # Correo opcional acotado por tope, ritmo (1/s SES sandbox) y tiempo (US-048).
+    sent.ts            # GET /notifications/sent: Query GSI2 NOTIFICATION#SENT con origen MANUAL/SYSTEM.
   testing/
     fixtures.ts          # Constructores de eventos de API Gateway para pruebas de handlers.
 ```
