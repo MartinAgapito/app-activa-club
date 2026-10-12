@@ -364,6 +364,7 @@ una alarma de menor valor (p. ej. `members-reject`) antes del `apply`.
 **Rollback**: revertir el PR; se destruyen la regla, el rol, la Lambda, el log
 group y la alarma. Los rastros pendientes siguen en la tabla hasta que otro
 consumidor los procese.
+
 ## 12. Recordatorio de reservas (EP-05, US-046)
 
 Una instancia más del módulo `scheduled-job` en
