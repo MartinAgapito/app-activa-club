@@ -28,6 +28,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Avisos de cambio de estado de una reserva (US-044, EP-05): al crear una
+  reserva con confirmación automática (`RESERVATION_CONFIRMED`) y al aprobarla,
+  rechazarla (con el motivo) o cancelarla (`RESERVATION_CANCELLED`, indicando si
+  la canceló el club o el propio socio), el titular recibe un aviso en su
+  bandeja y un correo best-effort. No se avisa a participantes ni al crear una
+  reserva `PENDING_APPROVAL`; un fallo del aviso nunca cambia la respuesta de
+  la operación. Idempotente por reserva y evento. Sin cambios de API ni de IAM.
+
 - Motor de notificaciones del backend (US-040, EP-05): módulo
   `apps/api/src/notifications/` con `emitNotification()`, que escribe en una
   transacción idempotente la `Notification` (`createdBy=SYSTEM`) y la

@@ -68,3 +68,7 @@ Las parrillas y el salón social dependen de una decisión del administrador que
 - Casos de prueba: N-11 (eventos de reserva); parte de notificación de R-12 y R-13.
 - Depende de: US-040.
 - Habilita: cierre de los eventos de reserva pendientes del Sprint 3.
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en `apps/api/src/reservations/` (`notify.ts` más los cuatro orquestadores `create`, `approve`, `reject` y `cancel`), con pruebas. El aviso va solo al titular, después del éxito de la operación y sin afectar la respuesta. Sin cambios de IAM: las cuatro Lambdas ya tenían `dynamodb:PutItem`, `dynamodb:GetItem` y `ses:SendEmail` (US-039).
