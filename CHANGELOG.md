@@ -12,6 +12,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Inicio del administrador (US-071, EP-08): `/admin` pasa de placeholder a
+  panel orientado a la acción con bloques independientes ("Requiere tu
+  atención", "Reservas por aprobar" con `DataTable` de las 5 más próximas y
+  accesos rápidos), cada uno con estados de carga, error con reintento y
+  "Todo al día". Usa solo `GET /members?status=PENDING` y
+  `GET /reservations?scope=all&status=PENDING_APPROVAL`; al ser listados
+  paginados sin total, muestra "N o más" cuando hay más páginas. US-059 solo
+  reemplazará la fuente en `admin/dashboard/pending-summaries.ts`.
 - Estructura de aplicación por rol (US-068, EP-08): barra lateral de 232 px
   con iconos (`lucide-react`) y elemento activo con `aria-current`, cabecera
   con título de sección y menú de usuario ("Mi perfil", "Cerrar sesión"),
