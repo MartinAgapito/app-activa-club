@@ -28,6 +28,12 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Bandeja de notificaciones del socio, parte backend (US-041, EP-05):
+  `GET /notifications` (más reciente primero, paginado por cursor, filtro
+  `unread=true`) y `POST /notifications/{notificationId}/read` (idempotente;
+  404 si no es del socio). Reemplaza el placeholder 501 de ambas Lambdas en
+  `scripts/package-lambdas.mjs`. Sin cambios de infraestructura.
+
 - Infraestructura de notificaciones en `dev` (US-039, EP-05): cuatro endpoints
   serverless (`GET /notifications` y `POST /notifications/{notificationId}/read`
   para socios; `POST /notifications` y `GET /notifications/sent` para

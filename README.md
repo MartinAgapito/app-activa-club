@@ -200,10 +200,11 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `payments/`          | `POST /payments`, `GET /payments`, `GET /payments/{id}`, `POST /payments/webhook`.                                                                      |
 | `resources/`         | `GET /resources`, `PATCH /resources/{id}`, `POST/GET /resources/{id}/maintenance`, `DELETE /resources/{id}/maintenance/{blockId}`.                      |
 | `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`.                                                                           |
+| `notifications/`     | `GET /notifications` (bandeja del socio), `POST /notifications/{id}/read`.                                                                              |
 | `guests/`            | `GET /guests/lookup`.                                                                                                                                   |
 | `migration/`         | `run.ts`: Lambda `migration-run`, carga inicial de socios por invocación directa (no HTTP, ADR-0012).                                                   |
 | `health/`            | `GET /health`.                                                                                                                                          |
-| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy lo usan los 4 de notificaciones (US-039) hasta US-041, US-048 y US-049.                                 |
+| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy lo usan `POST /notifications` y `GET /notifications/sent` hasta US-048 y US-049.                        |
 
 </details>
 

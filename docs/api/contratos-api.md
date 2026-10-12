@@ -1029,7 +1029,14 @@ Response 200: `{ "reservationId": "...", "reservationStatus": "CANCELLED" }`.
 | POST   | `/notifications`                       | admin  | Publica notificación segmentada     |
 | GET    | `/notifications/sent`                  | admin  | Notificaciones enviadas (analytics) |
 
-### GET /notifications
+### GET /notifications?unread=&cursor=&limit=
+
+Solo `member`; devuelve únicamente la bandeja del socio autenticado, de la más
+reciente a la más antigua (§1, paginación por cursor). Parámetros opcionales:
+`unread=true` limita a las no leídas; `limit` 1-100 (por defecto 20). Cada
+elemento incluye además `readAt` (nullable). Con `unread=true` el servidor
+completa la página encadenando lecturas, por lo que un `nextCursor` no nulo
+implica que pueden quedar más.
 
 Response 200:
 
@@ -1042,12 +1049,21 @@ Response 200:
       "body": "...",
       "event": "PAYMENT_SUCCEEDED",
       "readStatus": "UNREAD",
-      "createdAt": "..."
+      "createdAt": "...",
+      "readAt": null
     }
   ],
   "nextCursor": null
 }
 ```
+
+### POST /notifications/{notificationId}/read
+
+Solo `member`. Marca `readStatus=READ` y `readAt` de una notificación **propia**.
+Idempotente: repetir la llamada responde 200 sin modificar `readAt`. Una
+notificación de otro socio o inexistente responde 404 `NOT_FOUND`
+(indistinguible). Response 200: el elemento de la bandeja con el estado final
+(mismo formato que un elemento de `GET /notifications`).
 
 ### POST /notifications (admin)
 

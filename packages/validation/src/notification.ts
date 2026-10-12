@@ -42,3 +42,13 @@ export const createNotificationSchema = z
       });
     }
   });
+
+/**
+ * Query de `GET /notifications` (contratos-api.md §8): `unread=true` limita la
+ * bandeja a las no leídas; `cursor`/`limit` según §1.
+ */
+export const listNotificationsQuerySchema = z.object({
+  unread: z.enum(['true', 'false']).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
