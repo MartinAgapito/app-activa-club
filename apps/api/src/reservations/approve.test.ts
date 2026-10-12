@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+
+// US-044: el emisor real se prueba en notifications/ y notify.test.ts; aquí se
+// verifica qué evento y qué datos pide el orquestador.
+vi.mock('../notifications', () => ({ emitNotification: vi.fn() }));
 
 vi.mock('../lib/dynamo', async () => {
   const actual = await vi.importActual<typeof import('../lib/dynamo')>('../lib/dynamo');
@@ -7,6 +11,8 @@ vi.mock('../lib/dynamo', async () => {
 });
 
 const { approveReservation } = await import('./approve');
+const { emitNotification } = await import('../notifications');
+const emitMock = vi.mocked(emitNotification);
 
 interface CommandLike {
   constructor: { name: string };
@@ -50,6 +56,10 @@ function buildClient(options: BuildClientOptions) {
   return fakeClient(async (command) => {
     const cmd = command as CommandLike;
     if (cmd.constructor.name === 'GetCommand') {
+      // US-044: lectura del nombre de la instalación para el aviso.
+      if (String(cmd.input.Key?.['PK']).startsWith('RESOURCE#')) {
+        return { Item: { resourceId: 'parrilla-1', name: 'Parrilla 1' } };
+      }
       return options.reservation ? { Item: options.reservation } : {};
     }
     if (cmd.constructor.name === 'UpdateCommand') {
@@ -151,5 +161,80 @@ describe('approveReservation (US-034, criterios 2/5/6/7/8/11)', () => {
     expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
       code: 'RESERVATION_NOT_PENDING',
     });
+  });
+});
+
+describe('approveReservation - aviso al titular (US-044, criterios 2/6/9)', () => {
+  beforeEach(() => {
+    emitMock.mockReset();
+    emitMock.mockResolvedValue({ inbox: 'WRITTEN', email: 'SENT', notificationId: 'n-1' });
+  });
+
+  it('emite RESERVATION_APPROVED solo al titular, con instalación y franja', async () => {
+    const client = buildClient({ reservation: pendingReservationRaw });
+
+    await approveReservation({
+      reservationId: 'res-parrilla',
+      actor,
+      client,
+      now: new Date('2026-07-11T10:00:00.000Z'),
+    });
+
+    expect(emitMock).toHaveBeenCalledTimes(1);
+    const input = emitMock.mock.calls[0]?.[0];
+    expect(input).toMatchObject({
+      event: 'RESERVATION_APPROVED',
+      entityId: 'res-parrilla',
+      memberId: 'member-1',
+      data: {
+        resourceName: 'Parrilla 1',
+        startsAt: pendingReservationRaw.startsAt,
+        endsAt: pendingReservationRaw.endsAt,
+      },
+    });
+    // Criterio 8: ningún dato del administrador que decidió.
+    expect(JSON.stringify(input)).not.toContain('admin-1');
+  });
+
+  it('criterio 6: no emite si la reserva ya no está pendiente (409)', async () => {
+    const conditionalError = Object.assign(new Error('condition failed'), {
+      name: 'ConditionalCheckFailedException',
+    });
+    const client = buildClient({
+      reservation: { ...pendingReservationRaw, reservationStatus: 'APPROVED' },
+      updateError: conditionalError,
+    });
+
+    await expect(
+      approveReservation({ reservationId: 'res-parrilla', actor, client }),
+    ).rejects.toMatchObject({ code: 'RESERVATION_NOT_PENDING' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('no emite si la reserva no existe (404)', async () => {
+    const client = buildClient({ reservation: null });
+
+    await expect(
+      approveReservation({ reservationId: 'res-x', actor, client }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('criterio 9: un emisor que rechaza no altera la respuesta', async () => {
+    emitMock.mockRejectedValueOnce(new Error('SES caído'));
+    const client = buildClient({ reservation: pendingReservationRaw });
+
+    const result = await approveReservation({ reservationId: 'res-parrilla', actor, client });
+
+    expect(result).toEqual({ reservationId: 'res-parrilla', reservationStatus: 'APPROVED' });
+  });
+
+  it('un resultado FAILED del emisor tampoco altera la respuesta', async () => {
+    emitMock.mockResolvedValueOnce({ inbox: 'FAILED', email: 'SKIPPED', notificationId: 'n-1' });
+    const client = buildClient({ reservation: pendingReservationRaw });
+
+    const result = await approveReservation({ reservationId: 'res-parrilla', actor, client });
+
+    expect(result.reservationStatus).toBe('APPROVED');
   });
 });

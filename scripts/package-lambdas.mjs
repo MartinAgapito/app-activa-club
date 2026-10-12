@@ -95,13 +95,11 @@ const HANDLERS = {
   // module "job_memberships_expire" en environments/dev/main.tf.
   'memberships-expire': 'handlers/memberships/expire.ts', // US-038 (implementado)
   // EP-05 (US-039 infra ya desplegada; logica de negocio por historia).
-  // TEMPORAL: las 4 apuntan al placeholder compartido
+  'notifications-list': 'handlers/notifications/list.ts', // US-041 (implementado)
+  'notifications-read': 'handlers/notifications/read.ts', // US-041 (implementado)
+  // TEMPORAL: las 2 restantes apuntan al placeholder compartido
   // (handlers/not-implemented.ts, responde 501) hasta que la historia
   // indicada en cada entrada las reemplace por su handler real.
-  // PLACEHOLDER(US-041)
-  'notifications-list': 'handlers/not-implemented.ts', // GET /notifications; lo reemplaza US-041
-  // PLACEHOLDER(US-041)
-  'notifications-read': 'handlers/not-implemented.ts', // POST /notifications/{id}/read; lo reemplaza US-041
   // PLACEHOLDER(US-048)
   'notifications-create': 'handlers/not-implemented.ts', // POST /notifications; lo reemplaza US-048
   // PLACEHOLDER(US-049)

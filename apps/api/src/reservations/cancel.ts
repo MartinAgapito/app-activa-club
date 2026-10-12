@@ -23,6 +23,7 @@ import { AppError } from '../lib/errors';
 import { findMemberByCognitoSub } from '../members/repository';
 import { canCancelReservation } from './cancellation';
 import { guestMonthlyCounterMonth } from './guest-month';
+import { notifyReservationHolder } from './notify';
 import { isActiveReservationStatus } from './reservation-status';
 import type { GuestMonthlyCounterRecord } from './repository';
 import {
@@ -137,6 +138,15 @@ export async function cancelReservation(
       startsAt: reservation.startsAt,
       ...(isAdmin ? { holderMemberId: reservation.holderMemberId } : {}),
     },
+    now: nowIso,
+  });
+
+  // US-044 criterio 4: aviso al titular (si cancela el admin lo dice; si
+  // cancela el socio, es su constancia), después del éxito.
+  await notifyReservationHolder({
+    client,
+    reservation,
+    notification: { event: 'RESERVATION_CANCELLED', cancelledBy: isAdmin ? 'ADMIN' : 'MEMBER' },
     now: nowIso,
   });
 

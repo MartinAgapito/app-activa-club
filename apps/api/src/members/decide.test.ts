@@ -59,6 +59,7 @@ describe('approveMember', () => {
       memberId: pendingMember.memberId,
       actor,
       client,
+      emitNotification: vi.fn().mockResolvedValue({}),
       now: new Date('2026-07-21T00:00:00Z'),
     });
 
@@ -120,6 +121,7 @@ describe('rejectMember', () => {
       reason: 'Datos no verificables',
       actor,
       client,
+      emitNotification: vi.fn().mockResolvedValue({}),
       now: new Date('2026-07-21T00:00:00Z'),
     });
 
@@ -154,5 +156,162 @@ describe('rejectMember', () => {
     await expect(
       rejectMember({ memberId: pendingMember.memberId, reason: 'motivo', actor, client }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });
+  });
+});
+
+function decisionClient(status: 'APPROVED' | 'REJECTED') {
+  return fakeClient(async (command) => {
+    const ctor = (command as { constructor: { name: string } }).constructor.name;
+    if (ctor === 'GetCommand') return { Item: pendingMember };
+    if (ctor === 'UpdateCommand') return { Attributes: { ...pendingMember, memberStatus: status } };
+    if (ctor === 'PutCommand') return {};
+    throw new Error(`comando inesperado: ${ctor}`);
+  });
+}
+
+const conditionalError = Object.assign(new Error('condition failed'), {
+  name: 'ConditionalCheckFailedException',
+});
+
+describe('avisos al socio (US-042)', () => {
+  it('la aprobación emite MEMBER_APPROVED al socio afectado, después de la auditoría', async () => {
+    const client = decisionClient('APPROVED');
+    const emit = vi
+      .fn()
+      .mockResolvedValue({ inbox: 'WRITTEN', email: 'SENT', notificationId: 'n' });
+
+    await approveMember({
+      memberId: pendingMember.memberId,
+      actor,
+      client,
+      emitNotification: emit,
+    });
+
+    expect(emit).toHaveBeenCalledTimes(1);
+    const [payload, deps] = emit.mock.calls[0] as [Record<string, unknown>, { client: unknown }];
+    expect(payload).toMatchObject({
+      event: 'MEMBER_APPROVED',
+      data: {},
+      entityId: pendingMember.memberId,
+      member: { memberId: pendingMember.memberId, email: 'nuevo@example.com', firstName: 'Juan' },
+    });
+    expect(deps.client).toBe(client);
+    // GetItem + UpdateItem + auditoría: el aviso no añade lecturas.
+    expect(client.send).toHaveBeenCalledTimes(3);
+  });
+
+  it('el rechazo emite MEMBER_REJECTED con el motivo registrado', async () => {
+    const client = decisionClient('REJECTED');
+    const emit = vi.fn().mockResolvedValue({});
+
+    await rejectMember({
+      memberId: pendingMember.memberId,
+      reason: 'Datos no verificables',
+      actor,
+      client,
+      emitNotification: emit,
+    });
+
+    expect(emit.mock.calls[0]?.[0]).toMatchObject({
+      event: 'MEMBER_REJECTED',
+      data: { reason: 'Datos no verificables' },
+      entityId: pendingMember.memberId,
+    });
+  });
+
+  it('no emite si el socio no existe ni si la solicitud ya no estaba PENDING (409)', async () => {
+    const emit = vi.fn();
+    await expect(
+      approveMember({
+        memberId: 'no-existe',
+        actor,
+        client: fakeClient(async () => ({})),
+        emitNotification: emit,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    const conflictClient = fakeClient(async (command) => {
+      const ctor = (command as { constructor: { name: string } }).constructor.name;
+      if (ctor === 'GetCommand') return { Item: pendingMember };
+      throw conditionalError;
+    });
+    await expect(
+      approveMember({
+        memberId: pendingMember.memberId,
+        actor,
+        client: conflictClient,
+        emitNotification: emit,
+      }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(
+      rejectMember({
+        memberId: pendingMember.memberId,
+        reason: 'motivo',
+        actor,
+        client: conflictClient,
+        emitNotification: emit,
+      }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('un emisor que lanza no altera la respuesta de la aprobación ni del rechazo', async () => {
+    const emit = vi.fn().mockRejectedValue(new TypeError('error de programación'));
+
+    await expect(
+      approveMember({
+        memberId: pendingMember.memberId,
+        actor,
+        client: decisionClient('APPROVED'),
+        emitNotification: emit,
+      }),
+    ).resolves.toEqual({ memberId: pendingMember.memberId, memberStatus: 'APPROVED' });
+    await expect(
+      rejectMember({
+        memberId: pendingMember.memberId,
+        reason: 'motivo',
+        actor,
+        client: decisionClient('REJECTED'),
+        emitNotification: emit,
+      }),
+    ).resolves.toEqual({ memberId: pendingMember.memberId, memberStatus: 'REJECTED' });
+    expect(emit).toHaveBeenCalledTimes(2);
+  });
+
+  it('con el emisor real, un fallo de la bandeja no cambia la respuesta y un reintento no duplica', async () => {
+    const duplicate = Object.assign(new Error('cancelled'), {
+      name: 'TransactionCanceledException',
+      CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+    });
+    const transactWrites: unknown[] = [];
+    let attempt = 0;
+    const client = fakeClient(async (command) => {
+      const ctor = (command as { constructor: { name: string } }).constructor.name;
+      if (ctor === 'GetCommand') return { Item: pendingMember };
+      if (ctor === 'UpdateCommand') {
+        return { Attributes: { ...pendingMember, memberStatus: 'APPROVED' } };
+      }
+      if (ctor === 'PutCommand') return {};
+      if (ctor === 'TransactWriteCommand') {
+        transactWrites.push(command);
+        attempt += 1;
+        if (attempt === 1) throw new Error('ProvisionedThroughputExceededException');
+        throw duplicate;
+      }
+      throw new Error(`comando inesperado: ${ctor}`);
+    });
+
+    const first = await approveMember({ memberId: pendingMember.memberId, actor, client });
+    const second = await approveMember({ memberId: pendingMember.memberId, actor, client });
+
+    expect(first).toEqual({ memberId: pendingMember.memberId, memberStatus: 'APPROVED' });
+    expect(second).toEqual(first);
+    // Mismas claves deterministas en ambos intentos: la condición evita el duplicado.
+    const keysOf = (c: unknown) =>
+      (
+        c as { input: { TransactItems: { Put: { Item: { PK: string } } }[] } }
+      ).input.TransactItems.map((t) => t.Put.Item.PK);
+    expect(keysOf(transactWrites[0])).toEqual(keysOf(transactWrites[1]));
   });
 });

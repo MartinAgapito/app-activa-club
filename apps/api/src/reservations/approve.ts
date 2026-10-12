@@ -14,6 +14,7 @@ import type { ApproveReservationResponse } from '@activa-club/shared-types';
 import { recordAuditLog, type AuditActor } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
+import { notifyReservationHolder } from './notify';
 import { approveReservation as writeApproval, getReservationById } from './repository';
 
 export interface ApproveReservationInput {
@@ -59,6 +60,20 @@ export async function approveReservation(
     targetType: 'Reservation',
     targetId: outcome.reservationId,
     metadata: { resourceId: outcome.resourceId, startsAt: outcome.startsAt },
+    now,
+  });
+
+  // US-044 criterio 2: aviso al titular, después del éxito (best-effort).
+  await notifyReservationHolder({
+    client,
+    reservation: {
+      reservationId: outcome.reservationId,
+      resourceId: existing.resourceId,
+      holderMemberId: existing.holderMemberId,
+      startsAt: existing.startsAt,
+      endsAt: existing.endsAt,
+    },
+    notification: { event: 'RESERVATION_APPROVED' },
     now,
   });
 

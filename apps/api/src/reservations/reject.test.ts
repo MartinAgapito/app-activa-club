@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+
+// US-044: el emisor real se prueba en notifications/ y notify.test.ts; aquí se
+// verifica qué evento y qué datos pide el orquestador.
+vi.mock('../notifications', () => ({ emitNotification: vi.fn() }));
 
 vi.mock('../lib/dynamo', async () => {
   const actual = await vi.importActual<typeof import('../lib/dynamo')>('../lib/dynamo');
@@ -7,6 +11,8 @@ vi.mock('../lib/dynamo', async () => {
 });
 
 const { rejectReservation } = await import('./reject');
+const { emitNotification } = await import('../notifications');
+const emitMock = vi.mocked(emitNotification);
 
 interface CommandLike {
   constructor: { name: string };
@@ -79,6 +85,10 @@ function buildClient(options: BuildClientOptions) {
       const sk = (cmd.input.Key?.['SK'] as string | undefined) ?? '';
       if (pk.startsWith('RESERVATION#')) {
         return options.reservation ? { Item: options.reservation } : {};
+      }
+      if (pk.startsWith('RESOURCE#')) {
+        // US-044: nombre de la instalación para el aviso.
+        return { Item: { resourceId: 'parrilla-1', name: 'Parrilla 1' } };
       }
       if (pk.startsWith('GUEST#') && sk.startsWith('MONTH#')) {
         const dni = pk.slice('GUEST#'.length);
@@ -231,5 +241,89 @@ describe('rejectReservation (US-034, criterios 3/4/5/9/10/11)', () => {
     await expect(
       rejectReservation({ reservationId: 'res-parrilla', reason: 'motivo', actor, client }),
     ).rejects.toMatchObject({ code: 'RESERVATION_NOT_PENDING' });
+  });
+});
+
+describe('rejectReservation - aviso al titular (US-044, criterios 3/6/8/9)', () => {
+  beforeEach(() => {
+    emitMock.mockReset();
+    emitMock.mockResolvedValue({ inbox: 'WRITTEN', email: 'SENT', notificationId: 'n-1' });
+  });
+
+  it('emite RESERVATION_REJECTED al titular con el motivo registrado', async () => {
+    const client = buildClient({ reservation: pendingReservationRaw, participants: [] });
+
+    await rejectReservation({
+      reservationId: 'res-parrilla',
+      reason: 'Recurso en mantenimiento',
+      actor,
+      client,
+    });
+
+    expect(emitMock).toHaveBeenCalledTimes(1);
+    const input = emitMock.mock.calls[0]?.[0];
+    expect(input).toMatchObject({
+      event: 'RESERVATION_REJECTED',
+      entityId: 'res-parrilla',
+      memberId: 'member-1',
+      data: {
+        resourceName: 'Parrilla 1',
+        startsAt: pendingReservationRaw.startsAt,
+        endsAt: pendingReservationRaw.endsAt,
+        reason: 'Recurso en mantenimiento',
+      },
+    });
+    // Criterio 8: ni participantes ni administrador en el aviso.
+    const serialized = JSON.stringify(input);
+    expect(serialized).not.toContain('Ana Torres');
+    expect(serialized).not.toContain('70605040');
+    expect(serialized).not.toContain('admin-1');
+  });
+
+  it('criterio 6: una reserva no pendiente (409) no emite', async () => {
+    const client = buildClient({
+      reservation: { ...pendingReservationRaw, reservationStatus: 'APPROVED' },
+      participants: [],
+    });
+
+    await expect(
+      rejectReservation({ reservationId: 'res-parrilla', reason: 'motivo', actor, client }),
+    ).rejects.toMatchObject({ code: 'RESERVATION_NOT_PENDING' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('el administrador que pierde la carrera (409) no emite', async () => {
+    const conditionalError = Object.assign(new Error('cancelled'), {
+      name: 'TransactionCanceledException',
+      CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+    });
+    const client = buildClient({
+      reservation: pendingReservationRaw,
+      participants: [],
+      writeError: conditionalError,
+    });
+
+    await expect(
+      rejectReservation({ reservationId: 'res-parrilla', reason: 'motivo', actor, client }),
+    ).rejects.toMatchObject({ code: 'RESERVATION_NOT_PENDING' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('criterio 9: un emisor que rechaza no altera la respuesta', async () => {
+    emitMock.mockRejectedValueOnce(new Error('SES caído'));
+    const client = buildClient({ reservation: pendingReservationRaw, participants: [] });
+
+    const result = await rejectReservation({
+      reservationId: 'res-parrilla',
+      reason: 'motivo',
+      actor,
+      client,
+    });
+
+    expect(result).toEqual({
+      reservationId: 'res-parrilla',
+      reservationStatus: 'REJECTED',
+      rejectionReason: 'motivo',
+    });
   });
 });
