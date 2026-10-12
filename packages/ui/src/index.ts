@@ -35,4 +35,7 @@ export type { ErrorStateProps } from './ErrorState';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
+export type { TabsProps, TabsListProps, TabsTriggerProps, TabsContentProps } from './Tabs';
+
 export { cn } from './cn';

@@ -13,6 +13,7 @@ import {
 } from '@activa-club/ui';
 import { ReferenceForm } from '../../examples/ReferenceForm';
 import { ReferenceQueryDemo } from '../../examples/ReferenceQueryDemo';
+import { TabsDemo } from './TabsDemo';
 import { TokensShowcase } from './TokensShowcase';
 
 const BADGE_VARIANTS: BadgeVariant[] = ['neutral', 'info', 'positive', 'warning', 'danger'];
@@ -52,6 +53,8 @@ export function DesignSystemPage() {
           ))}
         </div>
       </Card>
+
+      <TabsDemo />
 
       <Card>
         <CardHeader title="Input" />

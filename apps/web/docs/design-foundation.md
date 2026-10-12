@@ -238,9 +238,57 @@ Notas y desviaciones:
 
 Ver [`packages/ui/README.md`](../../../packages/ui/README.md) para el detalle
 de cada componente (`Button`/`buttonVariants`, `Input`, `Card`/`CardHeader`,
-`Badge`, `PageLayout`/`PageHeader`, `Spinner`, `EmptyState`, `ErrorState`).
-Ninguno decide reglas de negocio ni conoce las entidades de
+`Badge`, `PageLayout`/`PageHeader`, `Spinner`, `EmptyState`, `ErrorState`,
+`Tabs`). Ninguno decide reglas de negocio ni conoce las entidades de
 `packages/shared-types`.
+
+### 7.1 Tabs (US-064)
+
+Construido sobre `@radix-ui/react-tabs` (ADR-0013, en US-062): Radix aporta
+roles `tablist`/`tab`/`tabpanel`, `aria-selected`, `aria-controls`,
+`aria-labelledby`, flechas (con vuelta al inicio), Inicio/Fin y un único
+`tabindex=0` en la pestaña activa; `@activa-club/ui` aporta solo los estilos.
+
+```tsx
+<Tabs defaultValue="proximas">
+  <TabsList aria-label="Mis reservas">
+    <TabsTrigger value="proximas" count={3}>
+      Próximas
+    </TabsTrigger>
+    <TabsTrigger value="pasadas">Pasadas</TabsTrigger>
+    <TabsTrigger value="otras" disabled>
+      Otras
+    </TabsTrigger>
+  </TabsList>
+  <TabsContent value="proximas">...</TabsContent>
+  <TabsContent value="pasadas">...</TabsContent>
+</Tabs>
+```
+
+- **Controlado / URL**: pasar `value` y `onValueChange`. El componente no
+  conoce la librería de rutas; con react-router-dom:
+
+  ```tsx
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') ?? 'proximas'; // validar contra la lista permitida
+  <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
+  ```
+
+  Usar `replace: true` para no llenar el historial con cada cambio de
+  pestaña; quitarlo si "atrás" debe volver a la pestaña anterior. Validar el
+  valor leído de la URL contra los valores conocidos (ver
+  `apps/web/src/pages/dev/TabsDemo.tsx`).
+
+- **Contador**: `count` en `TabsTrigger` renderiza un `Badge` informativo.
+- **Scroll**: `TabsList` usa `overflow-x-auto` en su propia fila; las pestañas
+  no se encogen (`shrink-0`, sin salto de línea), así que en 375px la fila se
+  desplaza y la página no.
+- **Deshabilitada**: `disabled` en `TabsTrigger` (opacidad `state-disabled`,
+  omitida por el teclado).
+- **Foco**: `focus-ring` con desfase interno (`-outline-offset-2`) para que el
+  contenedor con scroll no recorte el contorno.
+- **Nombre accesible**: dar siempre `aria-label` o `aria-labelledby` a
+  `TabsList`.
 
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
@@ -277,3 +325,4 @@ Ninguno decide reglas de negocio ni conoce las entidades de
   `Card`, `Badge`, `Input`, `Textarea` y `PageLayout` migrados sin cambiar su
   API; tabla de contrastes AA; muestra en `/_dev/design-system`. Modo oscuro
   preparado en la estructura, no activado.
+- 2026-10-11: §7.1 componente `Tabs` (US-064).

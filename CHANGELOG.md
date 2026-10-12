@@ -39,6 +39,11 @@ backlog en `docs/scrum/`.
   Barlow Semi Condensed y Hanken Grotesk autoalojadas, muestra en
   `/_dev/design-system`, script de verificación de contraste AA y
   `design-foundation.md` v2.0. Modo oscuro preparado en estructura, no activo.
+- Sprint 4B (EP-08, US-064): componente `Tabs` (`Tabs`, `TabsList`,
+  `TabsTrigger`, `TabsContent`) en `@activa-club/ui`, sobre
+  `@radix-ui/react-tabs` (ADR-0013, en US-062): patrón WAI-ARIA, modo
+  controlado para guardar la pestaña en la URL, contador por pestaña, scroll
+  horizontal propio y pestañas deshabilitadas.
 
 ### Changed
 
