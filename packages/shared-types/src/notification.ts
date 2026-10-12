@@ -50,6 +50,13 @@ export interface MemberNotification {
   readAt: ISODateString | null;
 }
 
+/**
+ * Elemento de la bandeja del socio devuelto por `GET /notifications` y
+ * `POST /notifications/{notificationId}/read` (contratos-api.md §8): la
+ * `MemberNotification` sin `memberId` (la identidad sale del token).
+ */
+export type InboxNotification = Omit<MemberNotification, 'memberId'>;
+
 export interface CreateNotificationRequest {
   segment: NotificationSegment;
   title: string;
