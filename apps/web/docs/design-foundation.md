@@ -429,3 +429,8 @@ acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
 - 2026-10-11: US-062. Componente `Modal` (§7.1) y `ConfirmDialog` sobre él.
 - 2026-10-11: §7.1 componente `Tabs` (US-064).
 - 2026-10-11: US-065. Componente `DataTable` responsive (§7.1).
+- 2026-10-11: US-079. Pantallas de acceso con los tokens v2.0: `AuthShell`
+  (panel de marca + tarjeta de formulario de hasta 26.25rem, dos zonas desde
+  768 px y apiladas por debajo), `AuthAlert` (error `role="alert"`, resto
+  `role="status"`, siempre con icono) y `PasswordRequirements` en
+  `apps/web/src/components/auth/`.
