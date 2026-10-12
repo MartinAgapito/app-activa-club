@@ -35,6 +35,18 @@ backlog en `docs/scrum/`.
   `safeEmitNotification` (nuevo envoltorio defensivo en `notifications/`): un
   fallo del aviso jamás cambia la respuesta HTTP. Sin cambios de contrato ni de
   infraestructura.
+- Bandeja de notificaciones del socio en `/socio/notificaciones` (US-041,
+  EP-05): tabla con fecha en hora de Lima y estado Leída/No leída en texto,
+  pestañas Todas / No leídas (`?tab=`), "Cargar más", panel lateral con el
+  detalle y acceso a Mis reservas o Membresía según el evento. Abrir una
+  notificación la marca como leída de forma optimista (con rollback y aviso
+  solo si falla). Sin contador de no leídas en el menú.
+
+- Bandeja de notificaciones del socio, parte backend (US-041, EP-05):
+  `GET /notifications` (más reciente primero, paginado por cursor, filtro
+  `unread=true`) y `POST /notifications/{notificationId}/read` (idempotente;
+  404 si no es del socio). Reemplaza el placeholder 501 de ambas Lambdas en
+  `scripts/package-lambdas.mjs`. Sin cambios de infraestructura.
 - Motor de notificaciones del backend (US-040, EP-05): módulo
   `apps/api/src/notifications/` con `emitNotification()`, que escribe en una
   transacción idempotente la `Notification` (`createdBy=SYSTEM`) y la
