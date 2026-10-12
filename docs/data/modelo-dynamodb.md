@@ -64,6 +64,10 @@ Membresía denormalizada (estado actual): `membershipType`
 `membershipEndsAt`, `outstandingBalance` (número, moneda menor), `autoRenew`
 (boolean).
 
+`membershipStatus` y `outstandingBalance` **no** tienen índice propio: la vista
+de cobranza (US-052) los filtra dentro de la partición GSI2 por `memberStatus`
+(patrón #28, ADR-0014).
+
 ### 3.2 Unicidad de DNI — **UniqueDni**
 
 | Campo | Valor            |
@@ -430,6 +434,41 @@ historia **no** emite notificaciones.
 | 20  | Disponibilidad de un recurso por fecha     | `Query` GSI3PK=`RESOURCE#<id>`, rango del día             | RN-RES-01       |
 | 21  | Reservas por instalación / día / ocupación | `Query` GSI3PK=`RESOURCE#<id>`, rango                     | RN-ANL-03/04/07 |
 | 22  | Colisión con mantenimiento                 | Incluida en 19/20 (mismo índice)                          | RN-RES-11       |
+
+### Adenda 2026-10-12 — patrones sin índices nuevos
+
+Requeridos por la adenda de contrato de Sprint 5
+([contratos-api.md §12](../api/contratos-api.md),
+[ADR-0014](../architecture/adr/ADR-0014-filtros-secundarios-y-nombres-en-lectura.md)).
+Todos reutilizan claves e índices existentes: **no** se agrega GSI, atributo
+persistido ni backfill.
+
+| #   | Patrón                                                | Consulta                                                                                                                                              | Regla / historia  |
+| --- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 28  | Socios por estado y situación de membresía (cobranza) | `Query` GSI2PK=`MEMBER#STATUS#<status>` + `FilterExpression` sobre `membershipStatus` (y `outstandingBalance > 0` para `DEBT`); ≤ 5 lecturas/petición | RN-ADM-03, US-052 |
+| 29  | Pagos por rango de fechas (por socio o por estado)    | `Query` PK=`MEMBER#<id>`, `SK BETWEEN PAYMENT#<from> AND PAYMENT#<to>` · `Query` GSI2PK=`PAYMENT#STATUS#<s>`, `GSI2SK BETWEEN <from> AND <to>`        | RN-ADM-07, US-081 |
+| 30  | Bloqueos de mantenimiento que alcanzan una ventana    | `Query` PK=`RESOURCE#<id>`, `begins_with(SK,"MAINT#")` + `FilterExpression endsAt > :from`                                                            | RN-ANL-07, US-058 |
+| 31  | Nombres de socios para una página o una reserva       | `GetItem` en paralelo PK=`MEMBER#<id>`, SK=`PROFILE`, `ProjectionExpression memberId, firstName, lastName` (patrón #1 deduplicado)                    | US-080, US-081    |
+
+Notas:
+
+- **#28**: el filtro no reduce lo leído, solo lo devuelto: cada petición lee
+  como máximo 5 × 100 socios de la partición (≈ 500 KB en el peor caso, ≈ 63
+  unidades de lectura en consistencia eventual, fracciones de centavo). Con el
+  padrón del MVP (cientos de socios) una sola lectura cubre la partición. El
+  orden es `GSI2SK` (fecha de alta). Si el padrón creciera a decenas de miles,
+  la evolución está descrita en ADR-0014.
+- **#29**: `from`/`to` se normalizan a `toISOString()` (UTC, milisegundos), el
+  formato con que se escribe `createdAt`, para que la comparación
+  lexicográfica sea correcta. `BETWEEN` es inclusivo, pero como la clave real
+  es `<createdAt>#<paymentId>`, un pago con `createdAt = to` queda fuera
+  (semiabierto `[from, to)`).
+- **#30**: complementa al #21 para la ocupación: un bloqueo que empezó antes de
+  la ventana y la alcanza no aparece en el rango de `GSI3SK` de la ventana. Lee
+  todos los bloqueos del recurso (volumen mínimo); a escala se acotaría con un
+  rango sobre `SK`.
+- **#31**: mismo mecanismo que `holder` en `GET /reservations?scope=all`. Un
+  socio no resoluble se devuelve como `null`, nunca como error.
 
 ## 5. Cobertura de reglas críticas
 

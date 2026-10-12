@@ -43,11 +43,12 @@ El administrador hoy puede aprobar solicitudes, decidir reservas y gestionar ins
 
 ## Historias asociadas
 
-| ID                                                                  | Título                                           | Responsable        | Depende de             |
-| ------------------------------------------------------------------- | ------------------------------------------------ | ------------------ | ---------------------- |
-| [US-051](../historias/US-051-consultar-socios-admin.md)             | Consultar los socios y su situación de membresía | Frontend           | US-017                 |
-| [US-052](../historias/US-052-filtrar-socios-situacion-membresia.md) | Filtrar socios con deuda, vencidos o por vencer  | Backend + Frontend | US-038, US-048, US-051 |
-| [US-053](../historias/US-053-consultar-pagos-socios-admin.md)       | Consultar los pagos de los socios                | Frontend           | US-025                 |
+| ID                                                                     | Título                                                                                  | Responsable        | Depende de     |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------ | -------------- |
+| [US-051](../historias/US-051-consultar-socios-admin.md)                | Consultar los socios y su situación de membresía                                        | Frontend           | US-017         |
+| [US-052](../historias/US-052-filtrar-socios-situacion-membresia.md)    | Filtrar socios con deuda, vencidos o por vencer                                         | Backend + Frontend | US-038, US-051 |
+| [US-053](../historias/US-053-consultar-pagos-socios-admin.md)          | Consultar los pagos de los socios                                                       | Frontend           | US-025         |
+| [US-081](../historias/US-081-nombre-socio-rango-fechas-pagos-admin.md) | Nombre del socio y rango de fechas en la consulta de pagos del administrador (servidor) | Backend + DevOps   | US-025         |
 
 ## Criterios de aceptación de la épica
 
@@ -86,8 +87,9 @@ No está definido en el Contexto Maestro ni en los contratos y no se implementa 
 1. **¿Qué incluye "gestionar socios" en el MVP?** (Product Owner). RN-ADM-01 dice "gestiona socios migrados y nuevos", pero el contrato solo define listar, ver, aprobar y rechazar. Propuesta: para el MVP, gestionar = consultar el padrón (US-051) más aprobar y rechazar (US-017). Editar datos, suspender o dar de baja requieren regla de negocio, contrato y auditoría propios; si el Product Owner los quiere en el MVP, se crea una historia nueva con su contrato antes de comprometerla.
 2. **Búsqueda de socios por nombre o correo** (Product Owner y Arquitecto). No existe patrón de acceso para eso. Propuesta: en el MVP, búsqueda por DNI exacto (que ya existe) más listado por estado.
 3. **¿La vista de cobranza incluye socios migrados sin activar con deuda?** (Product Owner). No tienen cuenta para pagar ni bandeja. Propuesta: no en la vista de cobranza (son `MIGRATED`); sí en el listado por estado de US-051, donde su deuda es visible en el detalle.
-4. **Contrato de filtro por situación de membresía** (Arquitecto). US-052 necesita un filtro `membershipStatus` en `GET /members` (o un endpoint hermano). Debe documentarse en `docs/api/contratos-api.md` §4 antes de que US-052 entre al sprint; mientras tanto US-052 no cumple el punto 12 de la Definition of Ready.
+4. **Contrato de filtro por situación de membresía** (Arquitecto). US-052 necesita un filtro `membershipStatus` en `GET /members` (o un endpoint hermano). Debe documentarse en `docs/api/contratos-api.md` §4 antes de que US-052 entre al sprint; mientras tanto US-052 no cumple el punto 12 de la Definition of Ready. **Resuelta (2026-10-12)**: filtro adicional `membershipStatus` en `GET /members`, contratos §4 y §12, ADR-0014. US-052 está Ready.
 
 ## Historial de cambios
 
 - 2026-10-11: Creación de la épica EP-06 y asociación de las historias US-051..US-053 (Sprint 5).
+- 2026-10-12: Resuelta la pregunta abierta 4 (adenda de contrato, ADR-0014); se agrega US-081 y US-052 deja de depender de US-048.
