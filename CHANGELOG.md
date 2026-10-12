@@ -12,6 +12,11 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Inicio del socio (US-070, EP-08): saludo con fecha de Lima, "pase" de
+  membresía con CTA contextual, aviso si no puede reservar, accesos rápidos
+  (Reservar deshabilitado con motivo), próximas reservas (máx. 3) y estados
+  de carga/error/vacío independientes por bloque. Solo consume
+  `GET /members/me`, `GET /reservations?scope=me&from=` y `GET /payments?limit=1`.
 - Estructura de aplicación por rol (US-068, EP-08): barra lateral de 232 px
   con iconos (`lucide-react`) y elemento activo con `aria-current`, cabecera
   con título de sección y menú de usuario ("Mi perfil", "Cerrar sesión"),
