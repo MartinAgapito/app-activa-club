@@ -1,14 +1,11 @@
-// Resumen y confirmación de la reserva (US-032, criterios 6, 7 y 11) y
-// resultado devuelto por el servidor.
+// Resumen de la reserva (US-032, criterios 6 y 7; paso 4 del asistente de
+// US-072) y aviso de error del servidor. El botón de confirmar vive en el pie
+// de la ventana del asistente, no aquí.
 
-import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Button, Card, CardHeader, Textarea, buttonVariants } from '@activa-club/ui';
-import type {
-  AvailabilitySlot,
-  CreateReservationResponse,
-  Resource,
-} from '@activa-club/shared-types';
+import { Badge, Textarea, buttonVariants } from '@activa-club/ui';
+import type { AvailabilitySlot, Resource } from '@activa-club/shared-types';
 import { formatTimeRangeInLima } from '../lib/format/lima-time';
 import { RESOURCE_TYPE_LABEL } from '../lib/format/resource';
 import { participantFullName, type DraftParticipant } from './participants';
@@ -22,14 +19,6 @@ function formatReservationDay(date: string): string {
   );
 }
 
-/** Día de un instante UTC en hora del club (una franja nocturna cae en el
- * día siguiente en UTC, pero no en `America/Lima`). */
-function formatInstantDayInLima(iso: string): string {
-  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'full', timeZone: 'America/Lima' }).format(
-    new Date(iso),
-  );
-}
-
 const NOTES_MAX_LENGTH = 280;
 
 interface ReservationSummaryProps {
@@ -39,8 +28,6 @@ interface ReservationSummaryProps {
   participants: DraftParticipant[];
   notes: string;
   onNotesChange: (notes: string) => void;
-  isSubmitting: boolean;
-  onConfirm: () => void;
 }
 
 export function ReservationSummary({
@@ -50,33 +37,34 @@ export function ReservationSummary({
   participants,
   notes,
   onNotesChange,
-  isSubmitting,
-  onConfirm,
 }: ReservationSummaryProps) {
   const total = participants.length + 1;
   const guests = participants.filter((participant) => participant.type === 'GUEST').length;
   const overCapacity = total > resource.capacity;
 
   return (
-    <Card>
-      <CardHeader title="Resumen de tu reserva" />
+    <div className="flex flex-col gap-4">
+      <h4 className="type-card-title text-ink">Resumen de tu reserva</h4>
 
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-slate-500">Instalación</dt>
-          <dd className="font-medium text-slate-900">
+          <dt className="text-ink-muted">Instalación</dt>
+          <dd className="font-medium text-ink">
             {resource.name} ({RESOURCE_TYPE_LABEL[resource.type]})
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">Día y horario</dt>
-          <dd className="font-medium text-slate-900">
-            {formatReservationDay(date)}, {formatTimeRangeInLima(slot.startsAt, slot.endsAt)}
+          <dt className="text-ink-muted">Día y horario</dt>
+          <dd className="font-medium text-ink">
+            {formatReservationDay(date)},{' '}
+            <span className="font-display tabular-nums">
+              {formatTimeRangeInLima(slot.startsAt, slot.endsAt)}
+            </span>
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">Personas</dt>
-          <dd className="font-medium text-slate-900">
+          <dt className="text-ink-muted">Personas</dt>
+          <dd className="font-medium text-ink">
             {total} de {resource.capacity} (tú
             {participants.length > 0
               ? `, ${participants.map((participant) => participantFullName(participant)).join(', ')}`
@@ -85,70 +73,66 @@ export function ReservationSummary({
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">Invitados externos</dt>
-          <dd className="font-medium text-slate-900">{guests}</dd>
+          <dt className="text-ink-muted">Invitados externos</dt>
+          <dd className="font-medium text-ink">{guests}</dd>
         </div>
       </dl>
 
       {resource.requiresApproval ? (
         <p
           role="note"
-          className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900"
+          className="rounded-control border border-status-pending bg-status-pending-soft px-3 py-2 text-sm text-ink"
         >
-          Esta instalación requiere aprobación del administrador. Al confirmar, enviarás una
-          solicitud que quedará pendiente de revisión: la reserva no es inmediata.
+          <Badge variant="warning">Requiere aprobación</Badge>{' '}
+          <span className="mt-1 block">
+            Esta instalación requiere aprobación del administrador. Al confirmar, enviarás una
+            solicitud que quedará pendiente de revisión: la reserva no es inmediata.
+          </span>
         </p>
-      ) : null}
+      ) : (
+        <p
+          role="note"
+          className="rounded-control border border-status-confirmed bg-status-confirmed-soft px-3 py-2 text-sm text-ink"
+        >
+          <Badge variant="positive">Confirmación inmediata</Badge>{' '}
+          <span className="mt-1 block">
+            Esta instalación no requiere aprobación: tu reserva quedará confirmada al instante.
+          </span>
+        </p>
+      )}
 
-      <div className="mt-4">
-        <Textarea
-          label="Notas (opcional)"
-          rows={2}
-          maxLength={NOTES_MAX_LENGTH}
-          value={notes}
-          onChange={(event) => onNotesChange(event.target.value)}
-          helpText={`Hasta ${NOTES_MAX_LENGTH} caracteres, por ejemplo el motivo del evento.`}
-        />
-      </div>
+      <Textarea
+        label="Notas (opcional)"
+        rows={2}
+        maxLength={NOTES_MAX_LENGTH}
+        value={notes}
+        onChange={(event) => onNotesChange(event.target.value)}
+        helpText={`Hasta ${NOTES_MAX_LENGTH} caracteres, por ejemplo el motivo del evento.`}
+      />
 
       {overCapacity ? (
-        <p role="alert" className="mt-4 text-sm text-danger-700">
+        <p role="alert" className="text-sm text-status-problem">
           Superaste el aforo de esta instalación ({resource.capacity} personas). Quita participantes
           para poder confirmar.
         </p>
       ) : null}
-
-      <div className="mt-4">
-        <Button
-          type="button"
-          variant="positive"
-          fullWidth
-          isLoading={isSubmitting}
-          disabled={isSubmitting || overCapacity}
-          onClick={onConfirm}
-        >
-          {isSubmitting
-            ? 'Enviando…'
-            : resource.requiresApproval
-              ? 'Enviar solicitud de reserva'
-              : 'Confirmar reserva'}
-        </Button>
-      </div>
-    </Card>
+    </div>
   );
 }
 
 interface ReservationErrorAlertProps {
   feedback: ReservationErrorFeedback;
+  /** Acciones de corrección (p. ej. "Elegir otra franja"). */
+  actions?: ReactNode;
 }
 
-export function ReservationErrorAlert({ feedback }: ReservationErrorAlertProps) {
+export function ReservationErrorAlert({ feedback, actions }: ReservationErrorAlertProps) {
   return (
     <div
       role="alert"
-      className="flex flex-col gap-2 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800"
+      className="flex flex-col gap-2 rounded-card border border-status-problem bg-status-problem-soft p-4 text-sm text-ink"
     >
-      <p className="font-semibold">{feedback.title}</p>
+      <p className="font-semibold text-status-problem">{feedback.title}</p>
       <p>{feedback.message}</p>
       {feedback.showPaymentLink ? (
         <Link
@@ -158,72 +142,7 @@ export function ReservationErrorAlert({ feedback }: ReservationErrorAlertProps) 
           Ir a pagar mi membresía
         </Link>
       ) : null}
+      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
     </div>
-  );
-}
-
-interface ReservationResultProps {
-  resource: Resource;
-  response: CreateReservationResponse;
-  onNewReservation: () => void;
-}
-
-export function ReservationResult({
-  resource,
-  response,
-  onNewReservation,
-}: ReservationResultProps) {
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  const isPending = response.reservationStatus === 'PENDING_APPROVAL';
-
-  useEffect(() => {
-    headingRef.current?.focus();
-  }, []);
-
-  return (
-    <Card>
-      <div role="status" className="flex flex-col gap-3">
-        <Badge variant={isPending ? 'warning' : 'positive'}>
-          {isPending ? 'Pendiente de aprobación' : 'Reserva confirmada'}
-        </Badge>
-        <h2
-          ref={headingRef}
-          tabIndex={-1}
-          className="text-lg font-semibold text-slate-900 focus:outline-none"
-        >
-          {isPending ? 'Solicitud enviada a revisión' : 'Tu reserva está confirmada'}
-        </h2>
-        <p className="text-sm text-slate-700">
-          {isPending
-            ? `Enviamos tu solicitud para ${resource.name}. El administrador la revisará y te avisaremos cuando sea aprobada o rechazada. Hasta entonces la reserva no está confirmada.`
-            : `Reservaste ${resource.name} para ${formatInstantDayInLima(
-                response.startsAt,
-              )}. Ya está confirmada.`}
-        </p>
-        <dl className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt className="text-slate-500">Horario</dt>
-            <dd className="font-medium text-slate-900">
-              {formatTimeRangeInLima(response.startsAt, response.endsAt)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-500">Personas</dt>
-            <dd className="font-medium text-slate-900">
-              {response.participantCount}
-              {response.guestCount > 0 ? ` (${response.guestCount} invitados externos)` : ''}
-            </dd>
-          </div>
-        </dl>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link to="/socio/reservas/mias" className={buttonVariants({ variant: 'primary' })}>
-            Ver mis reservas
-          </Link>
-          <Button type="button" variant="secondary" onClick={onNewReservation}>
-            Hacer otra reserva
-          </Button>
-        </div>
-      </div>
-    </Card>
   );
 }

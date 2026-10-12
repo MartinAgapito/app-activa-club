@@ -1,5 +1,6 @@
 import { Link, Navigate } from 'react-router-dom';
-import { Badge, Button, buttonVariants, Card, ErrorState, Spinner } from '@activa-club/ui';
+import { Badge, Button, buttonVariants, ErrorState, Spinner } from '@activa-club/ui';
+import { AuthShell } from '../../components/auth/AuthShell';
 import type { MemberStatus } from '@activa-club/shared-types';
 import { useAuth } from '../../auth/AuthContext';
 import { ApiRequestError } from '../../lib/api/http-client';
@@ -58,79 +59,74 @@ export function PendingApprovalPage() {
     return <Navigate to="/socio" replace />;
   }
 
+  const { title, paragraphs } = getStatusContent(memberStatus, profileQuery.data.rejectionReason);
+
+  // Esta ruta no cuelga de un layout: provee su propio contenedor principal.
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <Card className="max-w-md text-center">
-        <Badge variant={MEMBER_STATUS_BADGE_VARIANT[memberStatus]}>
-          {MEMBER_STATUS_LABELS[memberStatus]}
-        </Badge>
-        <StatusMessage status={memberStatus} rejectionReason={profileQuery.data.rejectionReason} />
-        {memberStatus === 'APPROVED' ? (
-          <Link
-            to="/socio/membresia/pagar"
-            className={buttonVariants({ fullWidth: true, className: 'mt-6' })}
-          >
-            Pagar mi primera membresía
-          </Link>
-        ) : null}
-        <button
-          type="button"
-          onClick={signOut}
-          className="mt-4 text-sm font-medium text-brand-700 hover:text-brand-900"
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full">
+        <AuthShell
+          eyebrow={
+            <Badge variant={MEMBER_STATUS_BADGE_VARIANT[memberStatus]}>
+              {MEMBER_STATUS_LABELS[memberStatus]}
+            </Badge>
+          }
+          title={title}
         >
-          Cerrar sesión
-        </button>
-      </Card>
-    </div>
+          <div className="flex flex-col gap-3 text-sm text-ink-muted">
+            {paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+          {memberStatus === 'APPROVED' ? (
+            <Link to="/socio/membresia/pagar" className={buttonVariants({ fullWidth: true })}>
+              Pagar mi primera membresía
+            </Link>
+          ) : null}
+          <Button
+            type="button"
+            variant={memberStatus === 'APPROVED' ? 'ghost' : 'secondary'}
+            fullWidth
+            onClick={signOut}
+          >
+            Cerrar sesión
+          </Button>
+        </AuthShell>
+      </div>
+    </main>
   );
 }
 
-interface StatusMessageProps {
-  status: MemberStatus;
-  rejectionReason: string | null;
-}
-
-function StatusMessage({ status, rejectionReason }: StatusMessageProps) {
+function getStatusContent(
+  status: MemberStatus,
+  rejectionReason: string | null,
+): { title: string; paragraphs: string[] } {
   if (status === 'REJECTED') {
-    return (
-      <>
-        <h1 className="mt-4 text-xl font-semibold text-slate-900">Tu solicitud fue rechazada</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Un administrador revisó tu solicitud y no fue aprobada
-          {rejectionReason ? `: ${rejectionReason}.` : '.'}
-        </p>
-        <p className="mt-2 text-sm text-slate-600">
-          Si crees que se trata de un error, contacta al club para más información.
-        </p>
-      </>
-    );
+    return {
+      title: 'Tu solicitud fue rechazada',
+      paragraphs: [
+        `Un administrador revisó tu solicitud y no fue aprobada${
+          rejectionReason ? `: ${rejectionReason}.` : '.'
+        }`,
+        'Si crees que se trata de un error, contacta al club para más información.',
+      ],
+    };
   }
 
   if (status === 'APPROVED') {
-    return (
-      <>
-        <h1 className="mt-4 text-xl font-semibold text-slate-900">Tu solicitud fue aprobada</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Ya puedes continuar: solo falta pagar tu primera membresía para activar tu cuenta y poder
-          reservar (RN-ACT-07).
-        </p>
-      </>
-    );
+    return {
+      title: 'Tu solicitud fue aprobada',
+      paragraphs: [
+        'Ya puedes continuar: solo falta pagar tu primera membresía para activar tu cuenta y poder reservar (RN-ACT-07).',
+      ],
+    };
   }
 
-  return (
-    <>
-      <h1 className="mt-4 text-xl font-semibold text-slate-900">
-        Tu solicitud está siendo evaluada
-      </h1>
-      <p className="mt-2 text-sm text-slate-600">
-        Un administrador debe aprobar tu registro antes de que puedas continuar. Te avisaremos por
-        correo y notificación cuando haya una novedad (RN-ACT-06).
-      </p>
-      <p className="mt-2 text-sm text-slate-600">
-        Una vez aprobado, deberás pagar tu primera membresía para activar tu cuenta y poder reservar
-        (RN-ACT-07).
-      </p>
-    </>
-  );
+  return {
+    title: 'Tu solicitud está siendo evaluada',
+    paragraphs: [
+      'Un administrador debe aprobar tu registro antes de que puedas continuar. Te avisaremos por correo y notificación cuando haya una novedad (RN-ACT-06).',
+      'Una vez aprobado, deberás pagar tu primera membresía para activar tu cuenta y poder reservar (RN-ACT-07).',
+    ],
+  };
 }

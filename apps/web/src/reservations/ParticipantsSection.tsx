@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Badge, Button, Card, CardHeader, Input } from '@activa-club/ui';
+import { Badge, Button, Input } from '@activa-club/ui';
 import { memberLookupQuerySchema } from '@activa-club/validation';
 import { ApiRequestError } from '../lib/api/http-client';
 import {
@@ -59,29 +59,62 @@ export function ParticipantsSection({
 }: ParticipantsSectionProps) {
   const companionLimit = maxCompanions(capacity);
   const isFull = participants.length >= companionLimit;
+  const isOver = participants.length > companionLimit;
+  // El aforo incluye al titular (RN-RES-09): titular + acompañantes.
+  const totalPeople = participants.length + 1;
+  const fillPercent = Math.min(100, Math.round((totalPeople / Math.max(capacity, 1)) * 100));
 
   return (
-    <Card>
-      <CardHeader
-        title="Participantes"
-        description={`${capacityLimitMessage(resourceName, capacity)} Llevas ${participants.length} de ${companionLimit}.`}
-      />
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h4 className="type-card-title text-ink">Participantes</h4>
+            <p className="mt-1 type-aux text-ink-muted">
+              {`${capacityLimitMessage(resourceName, capacity)} Llevas ${participants.length} de ${companionLimit}.`}
+            </p>
+          </div>
+          <p
+            data-testid="capacity-counter"
+            className="shrink-0 rounded-control bg-surface-brand-soft px-3 py-1 font-display text-base font-semibold tabular-nums text-ink"
+          >
+            <span className="sr-only">Aforo: </span>
+            {totalPeople} de {capacity}
+            <span className="sr-only"> personas, contándote a ti</span>
+          </p>
+        </div>
+        <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-line">
+          <div
+            className={isOver ? 'h-full bg-status-problem' : 'h-full bg-status-confirmed'}
+            style={{ width: `${fillPercent}%` }}
+          />
+        </div>
+      </div>
+
+      {isOver ? (
+        <p
+          role="alert"
+          className="rounded-control border border-status-problem bg-status-problem-soft px-3 py-2 text-sm text-status-problem"
+        >
+          {`Con esta instalación solo caben ${companionLimit} ${
+            companionLimit === 1 ? 'acompañante' : 'acompañantes'
+          } y tienes ${participants.length}. Quita a ${participants.length - companionLimit} para continuar.`}
+        </p>
+      ) : null}
 
       {participants.length === 0 ? (
-        <p className="mb-4 text-sm text-slate-600">
+        <p className="text-sm text-ink-muted">
           Aún no agregaste acompañantes. Es opcional: puedes reservar solo.
         </p>
       ) : (
-        <ul className="mb-4 flex flex-col gap-2" aria-label="Participantes agregados">
+        <ul className="flex flex-col gap-2" aria-label="Participantes agregados">
           {participants.map((participant) => (
             <li
               key={participantKey(participant)}
-              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-control border border-line px-3 py-2"
             >
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="font-medium text-slate-900">
-                  {participantFullName(participant)}
-                </span>
+                <span className="font-medium text-ink">{participantFullName(participant)}</span>
                 <Badge variant={participant.type === 'MEMBER' ? 'info' : 'neutral'}>
                   {participant.type === 'MEMBER' ? 'Socio' : 'Invitado externo'}
                 </Badge>
@@ -100,7 +133,7 @@ export function ParticipantsSection({
         </ul>
       )}
 
-      {isFull ? (
+      {isFull && !isOver ? (
         <p
           role="status"
           className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800"
@@ -113,7 +146,7 @@ export function ParticipantsSection({
           onAdd={onAdd}
         />
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -232,6 +265,11 @@ function AddParticipantPanel({ context, onAdd }: AddParticipantPanelProps) {
             Invitado externo
           </label>
         </div>
+        {kind === 'GUEST' ? (
+          <p className="type-aux text-ink-muted">
+            Cada invitado externo puede visitar el club hasta 2 veces al mes.
+          </p>
+        ) : null}
       </fieldset>
 
       <form
