@@ -1,4 +1,4 @@
-// RN-ACT-06/07 — alcanzada desde RequireActiveMember cuando memberStatus
+// Alcanzada desde RequireActiveMember cuando memberStatus
 // !== 'ACTIVE'. Cubre el mensaje correcto por estado (PENDING/APPROVED/
 // REJECTED), el estado de carga y el redireccionamiento de vuelta a /socio
 // si la cuenta ya está ACTIVE (evita un callejón sin salida si el socio

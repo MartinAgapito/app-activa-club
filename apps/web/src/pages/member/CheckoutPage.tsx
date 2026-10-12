@@ -228,7 +228,7 @@ export function CheckoutPage() {
       <CenteredCard wide>
         <CardHeader
           title="Elige un plan para pagar"
-          description="Selecciona el plan de membresía que quieres pagar (RN-PAG-01)."
+          description="Selecciona el plan de membresía que quieres pagar."
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {plans.map((plan) => (
@@ -263,7 +263,7 @@ export function CheckoutPage() {
     <CenteredCard>
       <CardHeader
         title="Pagar membresía"
-        description="El pago se procesa con tarjeta a través de Stripe (RN-PAG-05): no ofrecemos efectivo, Yape, Plin ni transferencias."
+        description="El pago se procesa con tarjeta a través de Stripe: no ofrecemos efectivo, Yape, Plin ni transferencias."
       />
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">

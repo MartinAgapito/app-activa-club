@@ -14,7 +14,7 @@
 // El listado (`MemberSummary`) no incluye correo ni teléfono: solo el detalle
 // completo (`Member`) los trae.
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -51,6 +51,7 @@ import {
 } from '../../admin/pending-members-client';
 import { MEMBER_STATUS_BADGE_VARIANT, MEMBER_STATUS_LABELS } from '../../lib/format/member-status';
 import { formatDate } from '../../lib/format/date';
+import { DetailItem, DetailSection } from '../../admin/shared/DetailList';
 
 const PENDING_LIST_QUERY_KEY: QueryKey = ['members', 'pending'];
 // Prefijo del dashboard administrativo: invalida el contador de pendientes.
@@ -393,31 +394,5 @@ function RequestPanel({ memberId, onClose }: RequestPanelProps) {
         </form>
       </Modal>
     </>
-  );
-}
-
-function DetailSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section aria-label={title}>
-      <h3 className="type-card-title text-ink">{title}</h3>
-      <dl className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</dl>
-    </section>
-  );
-}
-
-function DetailItem({
-  label,
-  wide = false,
-  children,
-}: {
-  label: string;
-  wide?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className={wide ? 'sm:col-span-2' : undefined}>
-      <dt className="type-aux text-ink-muted">{label}</dt>
-      <dd className="mt-1 break-words text-sm text-ink">{children}</dd>
-    </div>
   );
 }
