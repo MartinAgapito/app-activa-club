@@ -116,3 +116,4 @@ Cada una trae una propuesta del Product Analyst para que la Planning no arranque
 - 2026-10-12: US-045 implementada (aviso de mantenimiento a titulares de reservas afectadas desde el bloqueo y desde el PATCH a MAINTENANCE), pendiente verificación en `dev`.
 - 2026-10-12: US-044 implementada: las Lambdas de reservas (crear con confirmación automática, aprobar, rechazar y cancelar) avisan al titular con el motor de US-040; sin aviso en `PENDING_APPROVAL` ni a participantes.
 - 2026-10-12: US-042 implementada (activación, aprobación y rechazo emiten sus avisos a través de `safeEmitNotification`), pendiente US-043..US-047.
+- 2026-10-12: US-047 implementada (avisos de por vencer y vencida a partir del rastro de US-038, job `memberships-notify` 08:00 Lima), pendiente verificación en `dev`. Decisiones aprobadas aplicadas: umbral de 7 días y vencer no genera deuda.

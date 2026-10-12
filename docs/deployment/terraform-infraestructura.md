@@ -335,3 +335,30 @@ política de un rol de Lambda no exige ningún permiso SES al desplegador.
 
 **Rollback**: revertir el PR y desplegar de nuevo; los cuatro endpoints y los
 statements se eliminan. No hay datos que borrar (no se crean tablas ni ítems).
+
+### Proceso programado de avisos de renovación (US-047)
+
+Segunda instancia de `modules/scheduled-job` (`job_memberships_notify`,
+función `activa-club-dev-memberships-notify`), sin módulo ni recurso nuevos:
+
+| Aspecto   | Valor                                                                                                                                                                                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Horario   | `cron(0 13 * * ? *)` = 08:00 America/Lima (UTC-5 fijo). Corre ocho horas después de `memberships-expire` (00:15), que es quien deja el rastro `MembershipTransition` que consume.             |
+| IAM       | `dynamodb:GetItem`, `PutItem`, `UpdateItem` sobre la tabla; `dynamodb:Query` solo sobre `index/GSI2` (patrón #27); `ses:SendEmail` solo sobre la identidad del remitente. Sin Scan ni Delete. |
+| Variables | `DYNAMODB_TABLE_NAME`, `SES_SENDER_EMAIL`.                                                                                                                                                    |
+| Alarma    | `activa-club-dev-memberships-notify-errors` (el handler termina en error si algún aviso no pudo registrarse).                                                                                 |
+
+Por qué un job aparte y no al final de `memberships-expire`: el aviso y su
+correo llegan en horario de vigilia, y un fallo de SES o de la bandeja no puede
+contaminar al proceso crítico que mantiene `membershipStatus` correcto
+(RN-PAG-06). Si la ejecución falla, el rastro queda pendiente en GSI2 y el
+siguiente día lo reintenta.
+
+**Alarmas CloudWatch en `dev`**: con esta historia son **11** (10 existentes en
+el estado + 1). La capa gratuita cubre 10; la alarma 11 cuesta unos US$ 0,10 al
+mes. Para volver a 10, poner `enable_error_alarm = false` en esta instancia o en
+una alarma de menor valor (p. ej. `members-reject`) antes del `apply`.
+
+**Rollback**: revertir el PR; se destruyen la regla, el rol, la Lambda, el log
+group y la alarma. Los rastros pendientes siguen en la tabla hasta que otro
+consumidor los procese.

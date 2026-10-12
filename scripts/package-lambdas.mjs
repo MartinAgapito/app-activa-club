@@ -94,6 +94,9 @@ const HANDLERS = {
   // EP-03, US-038: proceso programado (EventBridge), no HTTP. Ver
   // module "job_memberships_expire" en environments/dev/main.tf.
   'memberships-expire': 'handlers/memberships/expire.ts', // US-038 (implementado)
+  // EP-05, US-047: proceso programado (EventBridge), no HTTP, 08:00 Lima.
+  // Ver module "job_memberships_notify" en environments/dev/main.tf.
+  'memberships-notify': 'handlers/memberships/notify.ts', // US-047 (implementado)
   // EP-05 (US-039 infra ya desplegada; logica de negocio por historia).
   'notifications-list': 'handlers/notifications/list.ts', // US-041 (implementado)
   'notifications-read': 'handlers/notifications/read.ts', // US-041 (implementado)
