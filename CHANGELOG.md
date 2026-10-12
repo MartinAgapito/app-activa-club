@@ -10,6 +10,16 @@ backlog en `docs/scrum/`.
 
 ## [Unreleased]
 
+### Changed
+
+- Solicitudes de socios del administrador rehechas (US-078, EP-08):
+  `/admin/solicitudes` usa `DataTable` (nombre, DNI, fecha, estado, "Cargar
+  más"), panel lateral con el detalle en `?solicitud=<memberId>`, "Aprobar"
+  (con la consecuencia: pagar la primera membresía) y "Rechazar" (motivo
+  obligatorio) en ventana, avisos "Solicitud aprobada"/"Solicitud rechazada",
+  conflicto 409 dentro de la ventana con acción "Actualizar" y la solicitud
+  sale de la lista sin recargar. Sin cambios de API.
+
 ### Added
 
 - Estructura de aplicación por rol (US-068, EP-08): barra lateral de 232 px
