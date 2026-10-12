@@ -78,6 +78,33 @@ export function isTimeAfter(a: string, b: string): boolean {
   return a > b;
 }
 
+/** Partes de un instante en hora del club para mostrar una fecha "grande"
+ * (p. ej. tarjeta del inicio): día "20", mes abreviado "jul" y día de la
+ * semana abreviado "lun". */
+export function formatDayPartsInLima(iso: string): {
+  day: string;
+  month: string;
+  weekday: string;
+} {
+  const parts = new Intl.DateTimeFormat('es-PE', {
+    timeZone: 'America/Lima',
+    day: 'numeric',
+    month: 'short',
+    weekday: 'short',
+  }).formatToParts(new Date(iso));
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    (parts.find((part) => part.type === type)?.value ?? '').replace('.', '');
+  return { day: pick('day'), month: pick('month'), weekday: pick('weekday') };
+}
+
+/** Días de calendario (hora del club) que faltan desde `now` hasta `iso`.
+ * 0 = vence hoy; negativo = ya pasó. */
+export function daysUntilInLima(iso: string, now: Date = new Date()): number {
+  const target = Date.parse(`${getTodayInLima(new Date(iso))}T00:00:00Z`);
+  const today = Date.parse(`${getTodayInLima(now)}T00:00:00Z`);
+  return Math.round((target - today) / 86_400_000);
+}
+
 /** Suma días a una fecha `YYYY-MM-DD` sin depender de la zona del navegador
  * (selector de día del asistente de reserva, US-072). */
 export function addDaysToDate(date: string, days: number): string {
