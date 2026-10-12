@@ -68,3 +68,11 @@ US-048 deja la capacidad en el servidor; esta historia la pone en manos del admi
 - Casos de prueba: N-04 a N-10 (por interfaz), N-12, T-06.
 - Depende de: US-048.
 - Habilita: US-057 (métrica de notificaciones enviadas).
+
+## Notas de implementación
+
+- 2026-10-12: Implementada solo en frontend, sin cambios de contrato. `/admin/notificaciones` tiene pestañas "Publicar" y "Enviadas" (`?tab=`).
+  - Publicar: formulario con la validación de `createNotificationSchema` (contador de 120 y 2000 caracteres), destinatarios por segmento, `SINGLE` por DNI con `GET /members/lookup` (se muestra el nombre antes de publicar) y `BY_RESOURCE` con la lista de `GET /resources`. "Revisar y publicar" abre una confirmación con el resumen y la advertencia de que no se puede deshacer; el resultado se muestra con un aviso y un resumen en pantalla (destinatarios, correos enviados, fallidos y omitidos, y si fue una repetición).
+  - Errores: `NO_RECIPIENTS`, `RECIPIENT_LIMIT_EXCEEDED`, `NOT_FOUND`, `VALIDATION_ERROR`, `FORBIDDEN` y de red, con mensajes en lenguaje claro y sin perder lo escrito. En un error de red la ventana queda abierta para reintentar (la repetición idéntica dentro de 5 minutos no duplica).
+  - Enviadas: tabla con fecha en hora de Lima, título, destinatarios, origen (Manual o Sistema, con insignia y texto) y correo; "Cargar más" por cursor y panel con el detalle completo.
+  - Fuera de alcance, como en la historia: vista previa de destinatarios, lista de quién lo recibió o leyó, filtro por origen y retirar avisos.

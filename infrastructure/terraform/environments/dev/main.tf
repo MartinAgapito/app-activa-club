@@ -278,6 +278,9 @@ locals {
       # EP-05, US-047: proceso programado de avisos de renovación (no HTTP),
       # ver module "job_memberships_notify".
       "memberships-notify",
+      # EP-05, US-046: recordatorio diario de reservas (no HTTP), ver module
+      # "job_reservations_remind" al final de este archivo.
+      "reservations-remind",
       # Carga inicial de socios (US-012, ADR-0012): Lambda de invocación
       # directa (no HTTP), ver module "job_migration_run".
       "migration-run",
@@ -811,6 +814,10 @@ module "endpoint_members_approve" {
     # EP-05, US-039: correo de MEMBER_APPROVED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 module "endpoint_members_reject" {
@@ -851,6 +858,10 @@ module "endpoint_members_reject" {
     # EP-05, US-039: correo de MEMBER_REJECTED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 # --- Membresías y pagos (docs/api/contratos-api.md §5) — EP-03, US-019 ----
@@ -1615,6 +1626,10 @@ module "endpoint_reservations_approve" {
     # EP-05, US-039: correo de RESERVATION_APPROVED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 module "endpoint_reservations_reject" {
@@ -1655,6 +1670,10 @@ module "endpoint_reservations_reject" {
     # EP-05, US-039: correo de RESERVATION_REJECTED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 # --- Resolución de participantes por DNI (docs/api/contratos-api.md §4 y §7,
@@ -1989,6 +2008,64 @@ module "job_memberships_expire" {
       actions   = ["dynamodb:Query"]
       resources = ["${local.dynamodb_table_arn}/index/GSI2"]
     },
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Recordatorio diario de reservas (US-046, EP-05).
+#
+# Lambda NO HTTP invocada por EventBridge una vez al día: 18:00 hora de Lima =
+# 23:00 UTC (Lima es UTC-5 todo el año, sin horario de verano; las reglas
+# programadas de EventBridge evalúan cron siempre en UTC). Avisa al titular de
+# cada reserva CONFIRMED/APPROVED del día calendario siguiente (Lima).
+#
+# IAM = exactamente lo que usan apps/api/src/reservations/remind-*.ts y el
+# motor de notificaciones (src/notifications/emit.ts):
+# - dynamodb:GetItem sobre la tabla: Resource por id (nombre de la instalación)
+#   y Member por id (titular). El motor recibe al titular ya resuelto, así
+#   que no hace otra lectura.
+# - dynamodb:Query SOLO sobre GSI3 (patrón #21: GSI3PK=RESOURCE#<id>, rango).
+# - dynamodb:PutItem sobre la tabla: Notification + MemberNotification van en
+#   una TransactWriteItems de Puts condicionados (TransactWriteItems no es una
+#   acción IAM propia; exige PutItem).
+# - ses:SendEmail sobre la identidad del remitente (correo best-effort).
+# Sin Scan, sin UpdateItem, sin DeleteItem, sin ningún otro servicio.
+#
+# Alarma de errores ACTIVA (criterio 7 de US-046, ADR-0008; misma excepción
+# justificada que memberships-expire): un proceso batch sin usuario delante
+# falla en silencio y un día sin recordatorios no deja otro rastro. La Lambda
+# termina en error si algún recurso o reserva falló, y el reintento asíncrono
+# de Lambda es seguro porque el proceso es idempotente.
+# ---------------------------------------------------------------------------
+module "job_reservations_remind" {
+  source = "../../modules/scheduled-job"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name       = "reservations-remind"
+  description         = "Recordatorio de reservas del dia siguiente (US-046), diario 18:00 America/Lima."
+  source_zip_path     = local.lambda_zip_path["reservations-remind"]
+  schedule_expression = "cron(0 23 * * ? *)"
+  # Diez recursos y, como mucho, unas decenas de reservas: 300 s es holgado
+  # frente a un lote que tarda segundos, y acota un cuelgue de SES/DynamoDB.
+  timeout = 300
+
+  environment_variables = merge({
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }, local.ses_sender_env)
+
+  iam_policy_statements = [
+    {
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+      resources = [local.dynamodb_table_arn]
+    },
+    {
+      # Solo GSI3 (patrón #21), no el wildcard de todos los índices.
+      actions   = ["dynamodb:Query"]
+      resources = ["${local.dynamodb_table_arn}/index/GSI3"]
+    },
+    local.ses_send_email_statement,
   ]
 }
 

@@ -273,7 +273,11 @@ emisión es idempotente: la transacción que escribe `Notification` y
 `MemberNotification` usa `attribute_not_exists(PK)` y un reintento no duplica la
 bandeja, aunque `createdAt` cambie. `dedupeKey` no forma parte del contrato de
 API; las notificaciones publicadas por administradores (US-048) no lo llevan y
-conservan un `notificationId` ULID aleatorio.
+usan un `notificationId` con forma de ULID derivado con SHA-256 de
+(administrador, segmento, destino, texto, `alsoEmail`, ventana de 5 minutos),
+de modo que repetir la misma publicación no duplica bandejas. El origen
+(`MANUAL`/`SYSTEM`) que muestra `GET /notifications/sent` no se persiste: se
+deduce de `createdBy`.
 
 ### 3.13 Notificación por socio (inbox) — **MemberNotification**
 
@@ -472,12 +476,13 @@ Requeridos por la adenda de contrato de Sprint 5
 Todos reutilizan claves e índices existentes: **no** se agrega GSI, atributo
 persistido ni backfill.
 
-| #   | Patrón                                                | Consulta                                                                                                                                              | Regla / historia  |
-| --- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| 28  | Socios por estado y situación de membresía (cobranza) | `Query` GSI2PK=`MEMBER#STATUS#<status>` + `FilterExpression` sobre `membershipStatus` (y `outstandingBalance > 0` para `DEBT`); ≤ 5 lecturas/petición | RN-ADM-03, US-052 |
-| 29  | Pagos por rango de fechas (por socio o por estado)    | `Query` PK=`MEMBER#<id>`, `SK BETWEEN PAYMENT#<from> AND PAYMENT#<to>` · `Query` GSI2PK=`PAYMENT#STATUS#<s>`, `GSI2SK BETWEEN <from> AND <to>`        | RN-ADM-07, US-081 |
-| 30  | Bloqueos de mantenimiento que alcanzan una ventana    | `Query` PK=`RESOURCE#<id>`, `begins_with(SK,"MAINT#")` + `FilterExpression endsAt > :from`                                                            | RN-ANL-07, US-058 |
-| 31  | Nombres de socios para una página o una reserva       | `GetItem` en paralelo PK=`MEMBER#<id>`, SK=`PROFILE`, `ProjectionExpression memberId, firstName, lastName` (patrón #1 deduplicado)                    | US-080, US-081    |
+| #   | Patrón                                                | Consulta                                                                                                                                                                                                                                                                          | Regla / historia  |
+| --- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 28  | Socios por estado y situación de membresía (cobranza) | `Query` GSI2PK=`MEMBER#STATUS#<status>` + `FilterExpression` sobre `membershipStatus` (y `outstandingBalance > 0` para `DEBT`); ≤ 5 lecturas/petición                                                                                                                             | RN-ADM-03, US-052 |
+| 29  | Pagos por rango de fechas (por socio o por estado)    | `Query` PK=`MEMBER#<id>`, `SK BETWEEN PAYMENT#<from> AND PAYMENT#<to>` · `Query` GSI2PK=`PAYMENT#STATUS#<s>`, `GSI2SK BETWEEN <from> AND <to>`                                                                                                                                    | RN-ADM-07, US-081 |
+| 30  | Bloqueos de mantenimiento que alcanzan una ventana    | `Query` PK=`RESOURCE#<id>`, `begins_with(SK,"MAINT#")` + `FilterExpression endsAt > :from`                                                                                                                                                                                        | RN-ANL-07, US-058 |
+| 31  | Nombres de socios para una página o una reserva       | `GetItem` en paralelo PK=`MEMBER#<id>`, SK=`PROFILE`, `ProjectionExpression memberId, firstName, lastName` (patrón #1 deduplicado)                                                                                                                                                | US-080, US-081    |
+| 32  | Destinatarios de una notificación segmentada          | `ALL`: `Query` GSI2PK=`MEMBER#STATUS#ACTIVE` y `…APPROVED`; `ACTIVE`/`DEBT`/`EXPIRED`/`EXPIRING_SOON`: `Query` GSI2PK=`MEMBER#STATUS#ACTIVE` + filtro en memoria (#28); `SINGLE`: #1; `BY_RESOURCE`: #19 + #1 por titular. Hasta 20 páginas de 100 por estado y 500 destinatarios | RN-NOT-03, US-048 |
 
 Notas:
 

@@ -268,8 +268,10 @@ get-caller-identity`) antes de continuar, para evitar aplicar contra una
 Todo vive en `infrastructure/terraform/environments/dev/main.tf`; no hay
 módulos nuevos (se reutiliza `modules/endpoint` y `modules/ses-identity`).
 
-**Endpoints** (módulo `endpoint`, sin lógica de negocio: placeholder 501 de
-`handlers/not-implemented.ts` hasta US-041, US-048 y US-049):
+**Endpoints** (módulo `endpoint`). Los cuatro están **implementados**: la
+bandeja y el marcado como leída (US-041) y la publicación y el historial
+(US-048) ya no responden el placeholder 501 de `handlers/not-implemented.ts`.
+La consola de administración que los consume es US-049:
 
 | Módulo                          | Método y ruta                                   | Grupo  | IAM de DynamoDB (mínimo privilegio)                                              |
 | ------------------------------- | ----------------------------------------------- | ------ | -------------------------------------------------------------------------------- |
@@ -362,3 +364,43 @@ una alarma de menor valor (p. ej. `members-reject`) antes del `apply`.
 **Rollback**: revertir el PR; se destruyen la regla, el rol, la Lambda, el log
 group y la alarma. Los rastros pendientes siguen en la tabla hasta que otro
 consumidor los procese.
+## 12. Recordatorio de reservas (EP-05, US-046)
+
+Una instancia más del módulo `scheduled-job` en
+`infrastructure/terraform/environments/dev/main.tf`
+(`module.job_reservations_remind`); no hay módulos nuevos. Es la segunda
+Lambda programada del proyecto (la primera es `memberships-expire`, US-038).
+
+| Propiedad    | Valor                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------- |
+| Función      | `activa-club-dev-reservations-remind` (`handlers/reservations/remind.ts`)               |
+| Programación | `cron(0 23 * * ? *)`: 18:00 America/Lima (UTC-5 todo el año; EventBridge evalúa en UTC) |
+| Timeout      | 300 s (el lote real dura segundos; acota un cuelgue de SES o DynamoDB)                  |
+| Entorno      | `DYNAMODB_TABLE_NAME`, `SES_SENDER_EMAIL`                                               |
+| Alarma       | `activa-club-dev-reservations-remind-errors` (métrica `Errors`, ADR-0008)               |
+
+**IAM (mínimo privilegio, verificado contra el código)**:
+
+| Acción             | Recurso                 | Uso en el código                                                             |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------------- |
+| `dynamodb:GetItem` | tabla                   | `Resource` por id (nombre) y `Member` por id (titular)                       |
+| `dynamodb:Query`   | solo `index/GSI3`       | reservas por recurso y rango (patrón 21)                                     |
+| `dynamodb:PutItem` | tabla                   | `Notification` + `MemberNotification` (`TransactWriteItems` exige `PutItem`) |
+| `ses:SendEmail`    | identidad del remitente | correo best-effort del recordatorio                                          |
+
+Sin `Scan`, `UpdateItem` ni `DeleteItem`.
+
+**Alarmas**: este job suma una alarma. Con US-038 y los endpoints críticos
+quedan 11 alarmas en `dev`, una por encima de las 10 de la capa gratuita de
+CloudWatch (costo aproximado de la alarma adicional: 0,10 USD al mes). El
+criterio 7 de US-046 exige alarma; si se quiere volver a 10, la opción es
+poner `enable_error_alarm = false` en un endpoint de bajo riesgo (p. ej.
+`endpoint_reservations_reject`).
+
+**Rol de despliegue de CI**: no necesita permisos nuevos; las reglas
+`events:*` acotadas a `activa-club-dev-*` y `lambda:AddPermission` ya existen
+desde US-038.
+
+**Rollback**: revertir el PR y desplegar; la regla, la Lambda, la alarma y el
+rol se destruyen. No hay datos que borrar (los avisos ya emitidos quedan en la
+bandeja de los socios).

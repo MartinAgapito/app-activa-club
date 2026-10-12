@@ -36,6 +36,50 @@ backlog en `docs/scrum/`.
   a socios sin cuenta digital ni a quien ya renovó; un fallo por socio no
   detiene al resto y el rastro queda pendiente para el día siguiente. Sin
   cambios de API ni nuevos índices.
+- Recordatorio de reserva próxima (US-046, EP-05): nuevo proceso programado
+  `reservations-remind` (EventBridge, 18:00 America/Lima = 23:00 UTC, módulo
+  `scheduled-job`) que emite `RESERVATION_REMINDER` al titular de cada reserva
+  `CONFIRMED`/`APPROVED` del día calendario siguiente. Recorre los diez
+  recursos del catálogo con `GetItem` y consulta GSI3 por recurso y rango
+  (patrón 21), sin `Scan`. Idempotente (`entityId = reservationId`): una doble
+  ejecución o un reintento no duplica avisos. Un error por recurso o reserva no
+  detiene el lote, queda en el log estructurado (`evaluated`, `sent`,
+  `duplicated`, `errors`) y la invocación termina en error para disparar la
+  alarma de Lambda Errors (ADR-0008). IAM mínimo: `GetItem`/`PutItem` sobre la
+  tabla, `Query` solo sobre GSI3 y `ses:SendEmail`. Sin endpoints nuevos.
+- Consola de notificaciones del administrador (US-049, EP-05):
+  `/admin/notificaciones` con pestañas "Publicar" y "Enviadas" (`?tab=`).
+  Publicar: título y mensaje con contador y validación de
+  `createNotificationSchema`, destinatarios por segmento (un socio por DNI con
+  su nombre confirmado, o titulares de reservas de una instalación), opción de
+  correo con aviso del tope de 15 y de SES, confirmación con resumen y
+  advertencia de que no se puede deshacer, resultado con aviso y resumen
+  (destinatarios, correos enviados, fallidos y omitidos, repetición) y errores
+  `NO_RECIPIENTS`, `RECIPIENT_LIMIT_EXCEEDED`, 404, 400, 403 y de red sin
+  perder lo escrito. Enviadas: tabla con fecha en hora de Lima, origen Manual o
+  Sistema y correo, "Cargar más" por cursor y panel de detalle. Sin cambios de
+  API.
+- Publicación de notificaciones segmentadas (US-048, EP-05): `POST /notifications`
+  (admin) entrega un aviso a la bandeja de los socios de `ALL`, `ACTIVE`, `DEBT`,
+  `EXPIRED`, `EXPIRING_SOON`, `SINGLE` o `BY_RESOURCE` (sin `Scan`: GSI2/GSI3 y
+  `GetItem`), con un solo aviso por socio, auditoría `NOTIFICATION_SENT`,
+  bandejas en bloques de 100 ítems y reintento idempotente (mismo id dentro de
+  5 minutos). Segmento sin destinatarios: 422 `NO_RECIPIENTS`; más de 500
+  destinatarios: 422 `RECIPIENT_LIMIT_EXCEEDED`. Con `alsoEmail=true` el correo
+  es best-effort con tope de 15 por publicación, ritmo de 1/s y presupuesto de
+  22 s; la respuesta informa `emailsSent`, `emailsFailed` y `emailsSkipped`.
+  `GET /notifications/sent` (admin) lista el historial paginado por cursor con
+  `origin` `MANUAL`/`SYSTEM`. Sin cambios de Terraform.
+- Avisos del resultado de un pago (US-043, EP-05): `POST /payments` y el
+  webhook `POST /payments/webhook` emiten `PAYMENT_SUCCEEDED` (plan, monto y
+  nueva vigencia) o `PAYMENT_FAILED` (motivo del catálogo propio) al socio
+  titular, con `entityId = paymentId`, solo en la primera transición del pago a
+  su estado final: un webhook repetido, un pago ya confirmado por el cobro
+  síncrono o un `PAYMENT_DUPLICATE` no generan un segundo aviso, y un pago en
+  `PENDING_CONFIRMATION` no avisa hasta que el webhook lo resuelve. Un fallo
+  de bandeja o de SES nunca cambia la respuesta HTTP ni el estado del pago. Sin
+  cambios de contrato ni de infraestructura.
+
 - Aviso de mantenimiento a los socios afectados (US-045, EP-05):
   `POST /resources/{resourceId}/maintenance` y `PATCH /resources/{resourceId}`
   (al pasar a `MAINTENANCE`) emiten `RESOURCE_MAINTENANCE` al titular de cada

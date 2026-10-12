@@ -5,6 +5,8 @@ expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 ([ADR-0004](../../docs/architecture/adr/ADR-0004-api-gateway-rest-lambda-por-endpoint.md)).
 Hoy son **33 endpoints HTTP** más **3 Lambdas no-HTTP**: `memberships-expire`
 y `memberships-notify` (EventBridge, diarias) y `migration-run` (invocación directa, carga inicial de
+(EventBridge, diaria), `reservations-remind` (EventBridge, diaria, recordatorio
+de reservas, US-046) y `migration-run` (invocación directa, carga inicial de
 socios; [ADR-0012](../../docs/architecture/adr/ADR-0012-migracion-lambda-invocacion-directa.md)).
 
 > Sprint 0 (US-009) dejó el **scaffolding** del backend — estructura de
@@ -35,11 +37,14 @@ src/
     migration/run.ts          # Lambda `migration-run` (NO HTTP, invocación directa, ADR-0012) — carga inicial de socios.
     memberships/expire.ts     # Lambda `memberships-expire` (NO HTTP, EventBridge) — vencimiento diario (US-038).
     memberships/notify.ts     # Lambda `memberships-notify` (NO HTTP, EventBridge 08:00 Lima) — avisos RENEWAL_DUE/RENEWAL_OVERDUE (US-047).
+    reservations/remind.ts    # Lambda `reservations-remind` (NO HTTP, EventBridge) — recordatorio diario 18:00 Lima (US-046).
     activation/verify.ts      # POST /activation/verify (público) — wiring de src/activation/verify.ts.
     activation/complete.ts    # POST /activation/complete (público) — wiring de src/activation/complete.ts.
     registration/post.ts      # POST /registration (público) — wiring de src/registration/register.ts.
     notifications/list.ts     # GET /notifications (member) — bandeja paginada, filtro unread (US-041).
     notifications/read.ts     # POST /notifications/{notificationId}/read (member) — marca leída, idempotente (US-041).
+    notifications/create.ts   # POST /notifications (admin) — publica un aviso segmentado (US-048).
+    notifications/sent.ts     # GET /notifications/sent (admin) — historial enviado, manual y automático (US-048).
     (Sprint 1+: members/, payments/, resources/, reservations/,
      notifications/, dashboard/ — un archivo por endpoint de
      docs/api/contratos-api.md.)
@@ -76,6 +81,10 @@ src/
     dedupe.ts          # dedupeKey `<evento>#<memberId>#<entityId>` y notificationId determinista.
     mailer.ts          # Envío SES v2 SendEmail (contenido Simple; solo requiere ses:SendEmail).
     safe-emit.ts       # safeEmitNotification(): envoltorio que usan los orquestadores (US-042+); nunca lanza.
+    segments.ts        # Resolución de destinatarios de un segmento (US-048): GSI2/GSI3, sin Scan, topes.
+    publish.ts         # POST /notifications: auditoría + Notification + bandejas en bloques + correo (US-048).
+    publish-email.ts   # Correo opcional acotado por tope, ritmo (1/s SES sandbox) y tiempo (US-048).
+    sent.ts            # GET /notifications/sent: Query GSI2 NOTIFICATION#SENT con origen MANUAL/SYSTEM.
   testing/
     fixtures.ts          # Constructores de eventos de API Gateway para pruebas de handlers.
 ```
@@ -279,6 +288,11 @@ SSM `SecureString`, nunca a la llave en texto plano. Reemplazan a
   llave secreta `sk_test_...`) y `STRIPE_WEBHOOK_SECRET_PARAM_NAME` (Lambda
   `payments-webhook`, signing secret `whsec_...`), ambas apuntando a
   parámetros SSM `SecureString` (nunca la llave en el repo).
+  **Avisos (US-043)**: `notify.ts` emite `PAYMENT_SUCCEEDED`/`PAYMENT_FAILED`
+  con `emitNotification` (`entityId = paymentId`) solo tras ganar la
+  transición a un estado final, desde `charge.ts` y `webhook.ts`; nunca lanza
+  ni altera la respuesta. Ambas Lambdas necesitan `dynamodb:PutItem`,
+  `ses:SendEmail` y `SES_SENDER_EMAIL` (ya concedidos en US-039).
 - **QA**: pruebas de integración contra API Gateway/DynamoDB reales (`docs/testing/`).
 
 ## 10. Scripts

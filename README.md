@@ -183,7 +183,7 @@ Configuración: `index.html` (entrada), `vite.config.ts` (Vite + Tailwind v4),
 </details>
 
 <details>
-<summary><strong>apps/api</strong> — backend serverless (una Lambda por endpoint: 33 HTTP + 2 no-HTTP, <code>memberships-expire</code> y <code>migration-run</code>)</summary>
+<summary><strong>apps/api</strong> — backend serverless (una Lambda por endpoint: 33 HTTP + 3 no-HTTP, <code>memberships-expire</code>, <code>reservations-remind</code> y <code>migration-run</code>)</summary>
 
 Patrón en capas: **handler** (HTTP, auth y validación) → **orquestador** (reglas
 de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.json`,
@@ -200,12 +200,14 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `memberships/`       | `GET /memberships/plans`; `expire.ts` es el proceso diario de vencimiento (EventBridge, no HTTP).                                                       |
 | `payments/`          | `POST /payments`, `GET /payments`, `GET /payments/{id}`, `POST /payments/webhook`.                                                                      |
 | `resources/`         | `GET /resources`, `PATCH /resources/{id}`, `POST/GET /resources/{id}/maintenance`, `DELETE /resources/{id}/maintenance/{blockId}`.                      |
-| `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`.                                                                           |
+| `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`; `remind.ts` es el recordatorio diario (EventBridge, no HTTP).             |
 | `notifications/`     | `GET /notifications` (bandeja del socio), `POST /notifications/{id}/read`.                                                                              |
+| `reservations/`      | `availability`, `create`, `list`, `get-by-id`, `cancel`, `approve`, `reject`.                                                                           |
+| `notifications/`     | `GET /notifications` (bandeja del socio), `POST /notifications/{id}/read`, `POST /notifications` (admin), `GET /notifications/sent` (admin).            |
 | `guests/`            | `GET /guests/lookup`.                                                                                                                                   |
 | `migration/`         | `run.ts`: Lambda `migration-run`, carga inicial de socios por invocación directa (no HTTP, ADR-0012).                                                   |
 | `health/`            | `GET /health`.                                                                                                                                          |
-| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy lo usan `POST /notifications` y `GET /notifications/sent` hasta US-048 y US-049.                        |
+| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy ningún endpoint lo usa.                                                                                 |
 
 </details>
 
@@ -251,11 +253,15 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 <details>
 <summary><code>src/notifications/</code> — bandeja del socio (EP-05)</summary>
 
-| Archivo         | Para qué sirve                                                                       |
-| --------------- | ------------------------------------------------------------------------------------ |
-| `list.ts`       | Bandeja del socio autenticado, paginada por cursor, con filtro de no leídas.         |
-| `read.ts`       | Marca una notificación propia como leída (idempotente; ajena o inexistente: 404).    |
-| `repository.ts` | Consulta de la bandeja (`MEMBER#<id>`, `NOTIF#`) y escritura condicional de lectura. |
+| Archivo            | Para qué sirve                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| `list.ts`          | Bandeja del socio autenticado, paginada por cursor, con filtro de no leídas.                   |
+| `read.ts`          | Marca una notificación propia como leída (idempotente; ajena o inexistente: 404).              |
+| `repository.ts`    | Consulta de la bandeja (`MEMBER#<id>`, `NOTIF#`) y escritura condicional de lectura.           |
+| `segments.ts`      | Destinatarios de un segmento (ALL, ACTIVE, DEBT, EXPIRED, EXPIRING_SOON, SINGLE, BY_RESOURCE). |
+| `publish.ts`       | Publicación del administrador: auditoría, bandejas en bloques, idempotente.                    |
+| `publish-email.ts` | Correo opcional con tope, ritmo y presupuesto de tiempo (SES sandbox).                         |
+| `sent.ts`          | Historial de enviadas, con origen manual o automático.                                         |
 
 </details>
 
