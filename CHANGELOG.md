@@ -12,6 +12,12 @@ backlog en `docs/scrum/`.
 
 ### Changed
 
+- Pulido de textos y sesión del administrador: se quitan los códigos internos
+  de reglas de negocio (RN-XXX) de los textos visibles; la sesión
+  (`useAuth()`) expone `email` y `displayName` leídos del ID token, y el menú
+  de usuario del administrador muestra el correo (respaldo "Administrador");
+  `/verificar-correo` pasa de "en construcción" a una pantalla sobria que
+  orienta a activar con DNI o registrarse. Sin cambios de API.
 - Solicitudes de socios del administrador rehechas (US-078, EP-08):
   `/admin/solicitudes` usa `DataTable` (nombre, DNI, fecha, estado, "Cargar
   más"), panel lateral con el detalle en `?solicitud=<memberId>`, "Aprobar"
