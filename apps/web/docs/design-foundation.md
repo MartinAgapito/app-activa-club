@@ -482,6 +482,51 @@ no es un componente de `@activa-club/ui` porque conoce el dominio.
 - Aviso final: `useToast().success` con el verbo del botón ("Reserva
   confirmada" / "Solicitud enviada a revisión") y acción "Ver en Mis reservas".
 
+### 7.3 Mis reservas: pestañas, tabla y panel de detalle (US-074)
+
+Composición de `Tabs` + `DataTable` + `Drawer` + `ConfirmDialog` +
+`useToast` en `MyReservationsPage` y
+`apps/web/src/reservations/ReservationDetailPanel.tsx`. Patrón reutilizable
+para listas con detalle y acción confirmada:
+
+- Estado en la URL: `?tab=proximas|pasadas` (reemplaza el historial) y
+  `?reserva=<id>` (agrega un paso: "atrás" y la X cierran el panel).
+- La fila completa abre el panel (clic o Enter/Espacio); al cerrar, el foco
+  vuelve a la fila. La acción destructiva vive en el pie del panel.
+- Acción no disponible: botón deshabilitado con el motivo visible debajo
+  (`aria-describedby`), nunca solo deshabilitado.
+- Confirmación en `ConfirmDialog` (alertdialog) con la consecuencia
+  explícita; los errores del servidor van dentro de la ventana
+  (`role="alert"`), que no se cierra. Éxito: aviso efímero, panel cerrado y
+  consultas invalidadas.
+- Fechas y horas en `font-display` con `tabular-nums`; estado con `Badge` y
+  texto.
+
+### 7.3 Inicio del socio (US-070)
+
+Bloques independientes en `apps/web/src/dashboard/`, compuestos por
+`MemberDashboardPage`; cada uno tiene su fuente de datos, su carga, su error
+con "Reintentar" y su estado vacío, así que un fallo no tumba el inicio.
+
+- `GreetingBlock`: "Hola, <nombre de pila>" (`type-page-title`) y fecha de hoy
+  en hora de Lima.
+- `ReservationBlockNotice`: aviso rojo sobrio con enlace a pagar si el socio no
+  puede reservar (`getReservationBlock`) o ámbar informativo si vence en 7
+  días o menos.
+- `MembershipPassBlock`: el "pase", único bloque sobre `action` (azul de
+  marca): estado en `Badge` (texto, nunca solo color), plan, días restantes en
+  `type-figure`, vigencia, saldo pendiente y CTA contextual (Pagar / Renovar;
+  sin CTA si está al día). Línea "Pago en verificación" desde
+  `GET /payments?limit=1`, opcional.
+- `QuickActionsBlock`: cuatro accesos; "Reservar" se deshabilita con el motivo
+  visible, nunca se oculta.
+- `UpcomingReservationsBlock`: hasta 3 reservas activas con fecha grande
+  (día en `type-figure`), instalación, hora y `Badge` de estado.
+- Orden móvil: aviso, membresía, accesos, próximas reservas. Desde `lg`, los
+  accesos pasan a una columna lateral.
+- US-056 cambia solo la fuente de `MembershipPassBlock`
+  (`GET /dashboard/member`) y agrega bloques; el resto se conserva.
+
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
@@ -525,8 +570,11 @@ no es un componente de `@activa-club/ui` porque conoce el dominio.
 - 2026-10-11: US-068. Estructura de aplicación por rol (§5.1), breakpoint
   `shell` de 760 px, `PageLayout` con `mainId`.
 - 2026-10-11: US-072/US-073. Asistente de reserva en ventana y catálogo de instalaciones (§7.2).
+- 2026-10-11: US-074. Mis reservas en pestañas con panel de detalle y
+  cancelación en ventana (§7.3).
 - 2026-10-11: US-079. Pantallas de acceso con los tokens v2.0: `AuthShell`
   (panel de marca + tarjeta de formulario de hasta 26.25rem, dos zonas desde
   768 px y apiladas por debajo), `AuthAlert` (error `role="alert"`, resto
   `role="status"`, siempre con icono) y `PasswordRequirements` en
   `apps/web/src/components/auth/`.
+- 2026-10-11: US-070. Inicio del socio por bloques independientes (§7.3).

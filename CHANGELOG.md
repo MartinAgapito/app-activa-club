@@ -10,6 +10,16 @@ backlog en `docs/scrum/`.
 
 ## [Unreleased]
 
+### Changed
+
+- Solicitudes de socios del administrador rehechas (US-078, EP-08):
+  `/admin/solicitudes` usa `DataTable` (nombre, DNI, fecha, estado, "Cargar
+  más"), panel lateral con el detalle en `?solicitud=<memberId>`, "Aprobar"
+  (con la consecuencia: pagar la primera membresía) y "Rechazar" (motivo
+  obligatorio) en ventana, avisos "Solicitud aprobada"/"Solicitud rechazada",
+  conflicto 409 dentro de la ventana con acción "Actualizar" y la solicitud
+  sale de la lista sin recargar. Sin cambios de API.
+
 ### Added
 
 - Pantalla `/admin/recursos` con pestañas "Instalaciones" y "Mantenimiento"
@@ -26,6 +36,26 @@ backlog en `docs/scrum/`.
   quedan dentro del bloqueo" con "Ver reservas" y "Liberar" con confirmación
   y aviso "Bloqueo liberado". `?nuevo=1` abre la ventana de nuevo bloqueo.
   Sin cambios en la API.
+- Mis reservas rehecha (US-074, EP-08): pestañas "Próximas" y "Pasadas" con
+  contador y estado en la URL (`?tab=`), tabla responsive con "Cargar más",
+  panel lateral de detalle con dirección propia (`?reserva=`) con
+  participantes, motivo de rechazo y fecha de cancelación, y cancelación en
+  ventana con la consecuencia explícita, aviso "Reserva cancelada" y errores
+  del servidor dentro de la ventana. "Cancelar reserva" queda deshabilitado
+  con el motivo visible cuando faltan menos de 24 horas. Sin cambios de API.
+- Inicio del administrador (US-071, EP-08): `/admin` pasa de placeholder a
+  panel orientado a la acción con bloques independientes ("Requiere tu
+  atención", "Reservas por aprobar" con `DataTable` de las 5 más próximas y
+  accesos rápidos), cada uno con estados de carga, error con reintento y
+  "Todo al día". Usa solo `GET /members?status=PENDING` y
+  `GET /reservations?scope=all&status=PENDING_APPROVAL`; al ser listados
+  paginados sin total, muestra "N o más" cuando hay más páginas. US-059 solo
+  reemplazará la fuente en `admin/dashboard/pending-summaries.ts`.
+- Inicio del socio (US-070, EP-08): saludo con fecha de Lima, "pase" de
+  membresía con CTA contextual, aviso si no puede reservar, accesos rápidos
+  (Reservar deshabilitado con motivo), próximas reservas (máx. 3) y estados
+  de carga/error/vacío independientes por bloque. Solo consume
+  `GET /members/me`, `GET /reservations?scope=me&from=` y `GET /payments?limit=1`.
 - Estructura de aplicación por rol (US-068, EP-08): barra lateral de 232 px
   con iconos (`lucide-react`) y elemento activo con `aria-current`, cabecera
   con título de sección y menú de usuario ("Mi perfil", "Cerrar sesión"),
