@@ -268,8 +268,10 @@ get-caller-identity`) antes de continuar, para evitar aplicar contra una
 Todo vive en `infrastructure/terraform/environments/dev/main.tf`; no hay
 módulos nuevos (se reutiliza `modules/endpoint` y `modules/ses-identity`).
 
-**Endpoints** (módulo `endpoint`, sin lógica de negocio: placeholder 501 de
-`handlers/not-implemented.ts` hasta US-041, US-048 y US-049):
+**Endpoints** (módulo `endpoint`). Los cuatro están **implementados**: la
+bandeja y el marcado como leída (US-041) y la publicación y el historial
+(US-048) ya no responden el placeholder 501 de `handlers/not-implemented.ts`.
+La consola de administración que los consume es US-049:
 
 | Módulo                          | Método y ruta                                   | Grupo  | IAM de DynamoDB (mínimo privilegio)                                              |
 | ------------------------------- | ----------------------------------------------- | ------ | -------------------------------------------------------------------------------- |

@@ -49,20 +49,20 @@ Todas las respuestas de error usan el mismo shape
 
 ### 1.2 Códigos de estado
 
-| Código | Uso                                                                                         |
-| ------ | ------------------------------------------------------------------------------------------- |
-| 200    | OK                                                                                          |
-| 201    | Recurso creado                                                                              |
-| 202    | Aceptado (procesamiento asíncrono, p. ej. migración/webhook)                                |
-| 204    | OK sin contenido                                                                            |
-| 400    | Error de validación de entrada (`VALIDATION_ERROR`)                                         |
-| 401    | No autenticado (`UNAUTHENTICATED`)                                                          |
-| 403    | Autenticado sin permiso de rol (`FORBIDDEN`)                                                |
-| 404    | No encontrado (`NOT_FOUND`)                                                                 |
-| 409    | Conflicto: unicidad, cruces, estado (`CONFLICT`, `RESERVATION_OVERLAP`, `DNI_ALREADY_USED`) |
-| 422    | Regla de negocio no satisfecha (`BUSINESS_RULE_VIOLATION`, p. ej. deuda, <24h)              |
-| 429    | Límite excedido (`RATE_LIMITED`, `GUEST_MONTHLY_LIMIT`)                                     |
-| 500    | Error interno (`INTERNAL_ERROR`)                                                            |
+| Código | Uso                                                                                             |
+| ------ | ----------------------------------------------------------------------------------------------- |
+| 200    | OK                                                                                              |
+| 201    | Recurso creado                                                                                  |
+| 202    | Aceptado (procesamiento asíncrono, p. ej. migración/webhook)                                    |
+| 204    | OK sin contenido                                                                                |
+| 400    | Error de validación de entrada (`VALIDATION_ERROR`)                                             |
+| 401    | No autenticado (`UNAUTHENTICATED`)                                                              |
+| 403    | Autenticado sin permiso de rol (`FORBIDDEN`)                                                    |
+| 404    | No encontrado (`NOT_FOUND`)                                                                     |
+| 409    | Conflicto: unicidad, cruces, estado (`CONFLICT`, `RESERVATION_OVERLAP`, `DNI_ALREADY_USED`)     |
+| 422    | Regla de negocio no satisfecha (`BUSINESS_RULE_VIOLATION`, `NO_RECIPIENTS`, p. ej. deuda, <24h) |
+| 429    | Límite excedido (`RATE_LIMITED`, `GUEST_MONTHLY_LIMIT`)                                         |
+| 500    | Error interno (`INTERNAL_ERROR`)                                                                |
 
 ### 1.3 Códigos de error de dominio (`error.code`)
 
@@ -72,7 +72,8 @@ Todas las respuestas de error usan el mismo shape
 `MEMBERSHIP_REQUIRED`, `MEMBER_HAS_DEBT`, `RESERVATION_OVERLAP`,
 `PARTICIPANT_OVERLAP`, `CAPACITY_EXCEEDED`, `GUEST_MONTHLY_LIMIT`,
 `OUTSIDE_SCHEDULE`, `RESOURCE_IN_MAINTENANCE`, `CANCELLATION_TOO_LATE`,
-`RESERVATION_NOT_PENDING`, `RATE_LIMITED`, `INTERNAL_ERROR`.
+`RESERVATION_NOT_PENDING`, `NO_RECIPIENTS`, `RECIPIENT_LIMIT_EXCEEDED`,
+`RATE_LIMITED`, `INTERNAL_ERROR`.
 
 ## 2. Autenticación (Cognito nativo)
 
@@ -1083,7 +1084,80 @@ Para `SINGLE` requiere `targetMemberId`; para `BY_RESOURCE` requiere
 `resourceId` (RN-NOT-03). Crea `Notification` + `MemberNotification` por
 destinatario; correo SES si `alsoEmail`. Auditoría `NOTIFICATION_SENT`.
 
-Response 201: `{ "notificationId": "...", "recipientCount": 34 }`.
+Destinatarios (solo socios con cuenta digital, `memberStatus` `ACTIVE` o
+`APPROVED`; cada socio una sola vez):
+
+| Segmento        | Destinatarios                                                                      |
+| --------------- | ---------------------------------------------------------------------------------- |
+| `ALL`           | Todos los socios con cuenta digital                                                |
+| `ACTIVE`        | `ACTIVE` con membresía `ACTIVE` o `EXPIRING_SOON` y sin deuda                      |
+| `DEBT`          | `ACTIVE` con `membershipStatus=DEBT` u `outstandingBalance > 0`                    |
+| `EXPIRED`       | `ACTIVE` con `membershipStatus=EXPIRED`                                            |
+| `EXPIRING_SOON` | `ACTIVE` con `membershipStatus=EXPIRING_SOON`                                      |
+| `SINGLE`        | El socio `targetMemberId`, si tiene cuenta digital (si no, 404 `NOT_FOUND`)        |
+| `BY_RESOURCE`   | Titulares de reservas activas y futuras del recurso (inexistente: 404 `NOT_FOUND`) |
+
+Response 201:
+
+```json
+{
+  "notificationId": "01J...",
+  "recipientCount": 34,
+  "emailsSent": 15,
+  "emailsFailed": 0,
+  "emailsSkipped": 19,
+  "replayed": false
+}
+```
+
+- `recipientCount`: bandejas en las que quedó el aviso. Los fallos de correo no
+  lo reducen.
+- Correo (`alsoEmail=true`), best-effort y acotado: máximo **15 correos por
+  publicación**, uno por segundo (SES sandbox) y ninguno nuevo pasados 22 s
+  desde el inicio de la publicación (la Lambda tiene 29 s). Los destinatarios
+  sin correo enviado (tope, tiempo o sin dirección) se cuentan en
+  `emailsSkipped`; la bandeja, que es obligatoria, llega siempre a todos. Con
+  `alsoEmail=false` los tres contadores son 0.
+- Idempotencia: la publicación idéntica (mismo administrador, segmento,
+  destino, texto y `alsoEmail`) repetida dentro de 5 minutos no duplica
+  bandejas, auditoría ni correos: responde 201 con `replayed: true` (y sin
+  correos). Si una publicación quedó incompleta (500), el mismo reintento la
+  completa sin duplicar.
+- Errores: 400 `VALIDATION_ERROR`; 403 `FORBIDDEN`; 404 `NOT_FOUND`; 422
+  `NO_RECIPIENTS` (el segmento no tiene destinatarios; no se registra nada);
+  422 `RECIPIENT_LIMIT_EXCEEDED` (más de 500 destinatarios o padrón demasiado
+  grande para resolverlo; no se registra nada).
+
+### GET /notifications/sent?cursor=&limit= (admin)
+
+Historial de lo enviado, de la más reciente a la más antigua (§1, paginación
+por cursor; `limit` 1-100, por defecto 20). Incluye las publicaciones del
+administrador y los avisos automáticos (`createdBy=SYSTEM`), distinguidos por
+`origin`: `MANUAL` | `SYSTEM`.
+
+Response 200:
+
+```json
+{
+  "items": [
+    {
+      "notificationId": "01J...",
+      "title": "Regulariza tu membresía",
+      "body": "...",
+      "segment": "DEBT",
+      "targetMemberId": null,
+      "resourceId": null,
+      "event": null,
+      "alsoEmail": true,
+      "createdBy": "<adminId>",
+      "recipientCount": 34,
+      "createdAt": "...",
+      "origin": "MANUAL"
+    }
+  ],
+  "nextCursor": null
+}
+```
 
 ## 9. Dashboards (RN-ANL, dashboard del socio)
 

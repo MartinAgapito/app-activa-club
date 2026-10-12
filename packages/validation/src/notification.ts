@@ -52,3 +52,12 @@ export const listNotificationsQuerySchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
+
+/**
+ * Query de `GET /notifications/sent` (contratos-api.md §8, US-048): historial
+ * de lo enviado, paginado por cursor (§1).
+ */
+export const listSentNotificationsQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});

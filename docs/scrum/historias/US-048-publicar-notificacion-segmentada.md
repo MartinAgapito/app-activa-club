@@ -89,3 +89,13 @@ Hoy el club no tiene ningún canal para hablarle a sus socios desde la plataform
 - Casos de prueba: N-03 a N-10, AD-05 (parte `NOTIFICATION_SENT`).
 - Depende de: US-038, US-039, US-040.
 - Habilita: US-049, US-052 (reutiliza la resolución de socios por situación de membresía).
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en `apps/api/src/notifications/` (`segments.ts`, `publish.ts`, `publish-email.ts`, `sent.ts`) y `handlers/notifications/` (`create.ts`, `sent.ts`), con pruebas. Decisiones:
+  - Segmento vacío: 422 `NO_RECIPIENTS` (pregunta 11). Más de 500 destinatarios, o un padrón de más de 20 páginas de 100 por estado: 422 `RECIPIENT_LIMIT_EXCEEDED`, sin publicar a medias.
+  - Segmentos de situación: `Query` GSI2 de socios `ACTIVE` y filtro en memoria, sin índice nuevo (pregunta 12, patrones #28 y #32). `BY_RESOURCE` considera solo al titular de cada reserva (pregunta 4).
+  - Bandeja: `Notification` + `MemberNotification` en `TransactWriteItems` de hasta 100 ítems (solo exige `dynamodb:PutItem`, ya concedido). El `notificationId` es determinista (administrador, segmento, destino, texto, `alsoEmail`, ventana de 5 minutos): un reintento completa lo que falte sin duplicar y no reenvía correos (`replayed: true`).
+  - Correo: máximo 15 por publicación, uno cada 1,1 s (SES sandbox: 1/s) y ninguno nuevo pasados 22 s; el resto se informa en `emailsSkipped`.
+  - Auditoría `NOTIFICATION_SENT` antes de publicar: sin rastro no se publica.
+  - `GET /notifications/sent` incluye avisos automáticos con `origin` `SYSTEM` (pregunta 13); sin filtro por origen por ahora.
