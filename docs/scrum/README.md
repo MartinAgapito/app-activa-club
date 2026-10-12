@@ -123,21 +123,25 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 
 ## Historias del Sprint 5 (EP-06, EP-07)
 
-| ID                                                                   | Título                                                                         | Responsable        | Prioridad | Depende de             |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------ | --------- | ---------------------- |
-| [US-050](./historias/US-050-ver-mi-historial-pagos.md)               | Ver mi historial de pagos en la plataforma                                     | Frontend           | Media     | US-025                 |
-| [US-051](./historias/US-051-consultar-socios-admin.md)               | Consultar los socios y su situación de membresía                               | Frontend           | Alta      | US-017                 |
-| [US-052](./historias/US-052-filtrar-socios-situacion-membresia.md)   | Filtrar socios con deuda, vencidos o por vencer                                | Backend + Frontend | Media     | US-038, US-048, US-051 |
-| [US-053](./historias/US-053-consultar-pagos-socios-admin.md)         | Consultar los pagos de los socios                                              | Frontend           | Media     | US-025                 |
-| [US-054](./historias/US-054-provisionar-endpoints-dashboards.md)     | Provisionar endpoints e infraestructura de dashboards                          | DevOps             | Crítica   | —                      |
-| [US-055](./historias/US-055-resumen-personal-socio-servidor.md)      | Obtener el resumen personal del socio (servidor)                               | Backend            | Alta      | US-038, US-041, US-054 |
-| [US-056](./historias/US-056-ver-inicio-personal-socio.md)            | Ver mi inicio personal (dashboard del socio)                                   | Frontend           | Alta      | US-055                 |
-| [US-057](./historias/US-057-metricas-socios-pagos-notificaciones.md) | Calcular las métricas de socios, membresías, pagos y notificaciones (servidor) | Backend            | Alta      | US-038, US-054         |
-| [US-058](./historias/US-058-metricas-reservas-ocupacion.md)          | Calcular las métricas de reservas y ocupación (servidor)                       | Backend            | Media     | US-054                 |
-| [US-059](./historias/US-059-ver-resumen-operativo-admin.md)          | Ver el resumen operativo en el inicio del administrador                        | Frontend           | Alta      | US-057                 |
-| [US-060](./historias/US-060-ver-analitica-reservas-ocupacion.md)     | Ver la analítica de reservas y ocupación                                       | Frontend           | Media     | US-058                 |
+| ID                                                                    | Título                                                                                  | Responsable        | Prioridad | Depende de             |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------ | --------- | ---------------------- |
+| [US-050](./historias/US-050-ver-mi-historial-pagos.md)                | Ver mi historial de pagos en la plataforma                                              | Frontend           | Media     | US-025                 |
+| [US-051](./historias/US-051-consultar-socios-admin.md)                | Consultar los socios y su situación de membresía                                        | Frontend           | Alta      | US-017                 |
+| [US-052](./historias/US-052-filtrar-socios-situacion-membresia.md)    | Filtrar socios con deuda, vencidos o por vencer                                         | Backend + Frontend | Media     | US-038, US-051         |
+| [US-053](./historias/US-053-consultar-pagos-socios-admin.md)          | Consultar los pagos de los socios                                                       | Frontend           | Media     | US-025                 |
+| [US-054](./historias/US-054-provisionar-endpoints-dashboards.md)      | Provisionar endpoints e infraestructura de dashboards                                   | DevOps             | Crítica   | —                      |
+| [US-055](./historias/US-055-resumen-personal-socio-servidor.md)       | Obtener el resumen personal del socio (servidor)                                        | Backend            | Alta      | US-038, US-041, US-054 |
+| [US-056](./historias/US-056-ver-inicio-personal-socio.md)             | Ver mi inicio personal (dashboard del socio)                                            | Frontend           | Alta      | US-055                 |
+| [US-057](./historias/US-057-metricas-socios-pagos-notificaciones.md)  | Calcular las métricas de socios, membresías, pagos y notificaciones (servidor)          | Backend            | Alta      | US-038, US-054         |
+| [US-058](./historias/US-058-metricas-reservas-ocupacion.md)           | Calcular las métricas de reservas y ocupación (servidor)                                | Backend            | Media     | US-054                 |
+| [US-059](./historias/US-059-ver-resumen-operativo-admin.md)           | Ver el resumen operativo en el inicio del administrador                                 | Frontend           | Alta      | US-057                 |
+| [US-060](./historias/US-060-ver-analitica-reservas-ocupacion.md)      | Ver la analítica de reservas y ocupación                                                | Frontend           | Media     | US-058                 |
+| [US-080](./historias/US-080-nombres-participantes-detalle-reserva.md) | Devolver el nombre de los socios participantes en el detalle de una reserva (servidor)  | Backend            | Media     | US-033                 |
+| [US-081](./historias/US-081-nombre-socio-rango-fechas-pagos-admin.md) | Nombre del socio y rango de fechas en la consulta de pagos del administrador (servidor) | Backend + DevOps   | Media     | US-025                 |
 
 > **US-050 es deuda de EP-03**: el servidor del historial de pagos (US-025) está implementado, pero la pantalla del socio nunca se construyó. EP-06 agrupa US-051..US-053 y EP-07 agrupa US-054..US-060.
+
+> **Adenda de contrato (2026-10-12)**: US-052 y US-058 están **Ready** con el contrato definido en `docs/api/contratos-api.md` §12 y [ADR-0014](../architecture/adr/ADR-0014-filtros-secundarios-y-nombres-en-lectura.md). US-080 (EP-04) y US-081 (EP-06) son historias pequeñas de backend que cubren límites de contrato detectados al construir la interfaz.
 
 ## Historias del Sprint 4B (EP-08, propuesto)
 
@@ -183,3 +187,4 @@ Toda funcionalidad implementada debe partir de una historia de usuario aprobada 
 - 2026-10-11: Creación de EP-05 (notificaciones), EP-06 (administración) y EP-07 (dashboards y analytics) y de los Sprints 4 y 5 con las historias US-038..US-060. US-038 (vencimiento de membresía) y US-050 (pantalla de historial de pagos del socio) son deuda técnica de EP-03. Cada épica registra sus preguntas abiertas.
 - 2026-10-11: Propuesta de EP-08 (experiencia de usuario e interfaz, transversal y solo frontend) y del Sprint 4B con las historias US-061..US-078, tras el reclamo del dueño del producto en la primera prueba extremo a extremo en `dev` (inicio vacío, estilos básicos, CRUD sin ventanas). Pendiente de aprobación del Product Owner, incluida su posición respecto del Sprint 4. Notas de coordinación agregadas en EP-07, US-056 y US-059.
 - 2026-10-11: US-079 (pantallas de acceso con el nuevo estilo visual), pedido del dueño del producto; se agrega a EP-08 (bloque B) y al Sprint 4B, adelantada de la Ola 4 a la Ola 3.
+- 2026-10-12: Adenda de contrato de Sprint 5 (contratos §12, ADR-0014): US-052 y US-058 pasan a Ready; nuevas historias US-080 (nombres de participantes en el detalle de reserva) y US-081 (nombre del socio y rango de fechas en pagos del administrador).

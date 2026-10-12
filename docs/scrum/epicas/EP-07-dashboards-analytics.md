@@ -78,11 +78,11 @@ No está en el contrato ni en el Contexto Maestro y no se implementa sin aprobac
 
 ## Preguntas abiertas
 
-1. **Período de las métricas del administrador** (Product Owner). El contrato de `GET /dashboard/admin` no recibe parámetros. Propuesta: pagos y notificaciones del mes calendario en curso; reservas y ocupación de los últimos 30 días hasta hoy; socios, vencimientos y pendientes como foto del momento. La pantalla siempre indica el período.
-2. **Fórmula de ocupación** (Product Owner). Propuesta: horas reservadas por reservas activas sobre horas operativas del recurso en el período según su horario vigente, excluyendo las horas bloqueadas por mantenimiento.
+1. **Período de las métricas del administrador** (Product Owner). El contrato de `GET /dashboard/admin` no recibe parámetros. Propuesta: pagos y notificaciones del mes calendario en curso; reservas y ocupación de los últimos 30 días hasta hoy; socios, vencimientos y pendientes como foto del momento. La pantalla siempre indica el período. **Contrato definido (2026-10-12)**: objeto `periods` (`currentMonth`, `last30Days`) en `GET /dashboard/admin`, contratos §9; pendiente la confirmación del Product Owner.
+2. **Fórmula de ocupación** (Product Owner). Propuesta: horas reservadas por reservas activas sobre horas operativas del recurso en el período según su horario vigente, excluyendo las horas bloqueadas por mantenimiento. **Contrato definido (2026-10-12)**: `occupancy` con `reservedHours`, `operatingHours` y `occupancyRate` acotado a `[0, 1]`, contratos §9; pendiente la confirmación del Product Owner.
 3. **Resumen de pagos en el inicio del socio** (Arquitecto). El contrato de `GET /dashboard/member` no lo incluye. Propuesta: el frontend lo obtiene de `GET /payments?limit=3`, que ya existe, sin cambiar el contrato.
 4. **Códigos de las alertas del socio** (Arquitecto). El contrato muestra `RENEWAL_DUE` como ejemplo. Propuesta: `RENEWAL_DUE` (por vencer), `MEMBERSHIP_EXPIRED` (vencida) y `PAYMENT_DEBT` (deuda pendiente), documentados en el contrato §9.
-5. **"Reservas por día y horario"** (Arquitecto). RN-ANL-04 pide día **y horario**, pero el contrato solo trae `reservationsByDay`. Propuesta: agregar un campo con la cantidad de reservas por hora de inicio (06:00 a 21:00) del mismo período. Sin esa extensión, US-058 no está lista en ese punto.
+5. **"Reservas por día y horario"** (Arquitecto). RN-ANL-04 pide día **y horario**, pero el contrato solo trae `reservationsByDay`. Propuesta: agregar un campo con la cantidad de reservas por hora de inicio (06:00 a 21:00) del mismo período. Sin esa extensión, US-058 no está lista en ese punto. **Resuelta (2026-10-12)**: campo `reservationsByHour` (contratos §9 y §12, ADR-0014); US-058 está Ready.
 6. **Qué cuenta como "notificación enviada"** (Product Owner). Depende de la pregunta abierta 13 de EP-05. Propuesta: contar los registros `Notification` del período, publicados y automáticos, y mostrar el desglose si el contrato lo permite.
 7. **Datos para la demostración** (Product Owner y QA). Con el padrón mock y pocas reservas, los gráficos pueden verse casi vacíos. Propuesta: un juego de reservas y pagos de prueba en `dev` preparado por QA para la demo, nunca en `prd`.
 
@@ -90,3 +90,4 @@ No está en el contrato ni en el Contexto Maestro y no se implementa sin aprobac
 
 - 2026-10-11: Creación de la épica EP-07 y asociación de las historias US-054..US-060 (Sprint 5).
 - 2026-10-11: Se agrega la sección "Relación con EP-08": si se aprueba EP-08, US-056 y US-059 enriquecen los inicios de US-070 y US-071 en lugar de construirlos desde cero. No cambia ningún criterio de EP-07.
+- 2026-10-12: Adenda de contrato del Arquitecto: resuelta la pregunta 5 y definidos en el contrato los períodos y la fórmula de ocupación (preguntas 1 y 2, a confirmar por el Product Owner). US-058 pasa a Ready.

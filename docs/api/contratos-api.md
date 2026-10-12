@@ -24,7 +24,11 @@
 - **Autorización por endpoint**: columna "Auth" en cada tabla:
   `Público`, `member`, `admin`, `member|admin`.
 - **Paginación**: cursor opaco. Query `?cursor=<opaque>&limit=<n>`; respuesta
-  incluye `{ items, nextCursor }`.
+  incluye `{ items, nextCursor }`. **Solo `nextCursor: null` indica el final
+  del listado**: en los listados con filtros secundarios (p. ej.
+  `GET /members?membershipStatus=`, `GET /payments?memberId=&status=`) una
+  página puede traer menos de `limit` elementos, o ninguno, y aun así tener
+  `nextCursor` (ver §12.1). El cliente sigue pidiendo mientras haya cursor.
 - **Idempotencia**: endpoints de cobro requieren `idempotencyKey` en el body.
 
 ### 1.1 Formato de error estándar
@@ -167,7 +171,7 @@ Errores: 409 `DNI_ALREADY_USED` / `EMAIL_ALREADY_USED`; 400 `VALIDATION_ERROR`.
 | PATCH  | `/members/me`                 | member          | Actualiza datos propios (teléfono)                          |
 | PATCH  | `/members/me/auto-renew`      | member          | Activa/desactiva renovación automática (RN-PAG-03)          |
 | GET    | `/members/lookup?dni=`        | member \| admin | Resuelve un socio por DNI exacto (participantes, RN-RES-03) |
-| GET    | `/members`                    | admin           | Lista socios (filtro por estado)                            |
+| GET    | `/members`                    | admin           | Lista socios (por estado y situación de membresía)          |
 | GET    | `/members/{memberId}`         | admin           | Detalle de un socio                                         |
 | POST   | `/members/{memberId}/approve` | admin           | Aprueba socio nuevo (RN-ADM-02)                             |
 | POST   | `/members/{memberId}/reject`  | admin           | Rechaza socio nuevo                                         |
@@ -244,7 +248,57 @@ a tener a la vez permiso de `Query` sobre GSI2 y de lectura puntual. Separados,
 la superficie del rol `member` es una Lambda que solo hace `GetItem` por DNI y
 devuelve tres campos.
 
-### GET /members?status=PENDING&cursor=&limit=
+### GET /members?status=&membershipStatus=&cursor=&limit=
+
+Solo `admin` (`member` → 403 `FORBIDDEN`). Padrón de socios (US-017, US-051) y
+vista de cobranza (US-052, adenda 2026-10-12,
+[ADR-0014](../architecture/adr/ADR-0014-filtros-secundarios-y-nombres-en-lectura.md)).
+
+| Parámetro          | Obligatorio | Valores                                                         | Descripción                                                                 |
+| ------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `status`           | Sí          | `MIGRATED` \| `PENDING` \| `APPROVED` \| `REJECTED` \| `ACTIVE` | `memberStatus`. Define la partición que se lee (GSI2, patrón #14).          |
+| `membershipStatus` | No          | `DEBT` \| `EXPIRED` \| `EXPIRING_SOON` \| `ACTIVE` \| `NONE`    | Filtro **adicional** (se combina con `status`, no lo reemplaza). Ver tabla. |
+| `cursor`           | No          | opaco                                                           | §1.                                                                         |
+| `limit`            | No          | 1–100 (default 20)                                              | Máximo de elementos por página.                                             |
+
+Semántica de `membershipStatus` (la misma que los segmentos de US-048 para que
+"Con deuda" en la tabla y el aviso al segmento `DEBT` lleguen a las mismas
+personas):
+
+| Valor           | Incluye al socio si...                                                      |
+| --------------- | --------------------------------------------------------------------------- |
+| `DEBT`          | `membershipStatus = DEBT` **o** `outstandingBalance > 0`                    |
+| `EXPIRED`       | `membershipStatus = EXPIRED`                                                |
+| `EXPIRING_SOON` | `membershipStatus = EXPIRING_SOON`                                          |
+| `ACTIVE`        | `membershipStatus = ACTIVE`                                                 |
+| `NONE`          | `membershipStatus = NONE` (nunca pagó; típico de socios `APPROVED` o `NEW`) |
+
+- Es un filtro **adicional** a `status` y no alternativo: `status` sigue siendo
+  obligatorio (sin él, 400 `VALIDATION_ERROR`, como hoy). La vista de cobranza
+  de US-052 envía `status=ACTIVE&membershipStatus=DEBT|EXPIRED|EXPIRING_SOON`
+  (criterio 1 de US-052: solo socios con cuenta). La combinación con otros
+  estados es válida (p. ej. `status=MIGRATED&membershipStatus=DEBT` para ver
+  migrados sin activar con deuda, pregunta abierta 3 de EP-06) y no cuesta más.
+- Un socio puede aparecer en `DEBT` y además en `EXPIRED` (vencido con saldo):
+  `DEBT` es la vista de cobranza, no una partición exclusiva.
+- El valor se toma tal como está persistido en el `Member`; lo mantiene al día
+  el proceso diario de vencimiento (US-038). No se recalcula en la lectura.
+- **Orden**: el del índice, fecha de alta del socio ascendente (`GSI2SK =
+<createdAt>#<memberId>`), igual con o sin filtro. **No** se ordena por
+  vencimiento ni por saldo: con paginación por cursor eso exigiría un índice
+  propio (descartado por costo en ADR-0014). Criterio 2 de US-052 resuelto así.
+- **Paginación**: `membershipStatus` se aplica como `FilterExpression` sobre la
+  partición `MEMBER#STATUS#<status>`. El servidor encadena lecturas internas
+  hasta reunir `limit` coincidencias, agotar la partición o completar **5
+  lecturas** (presupuesto por petición); el `nextCursor` apunta al último socio
+  devuelto, no a la última clave leída. Por eso una página puede traer menos de
+  `limit` elementos con `nextCursor` no nulo (§1).
+
+Errores: 400 `VALIDATION_ERROR` (falta `status`, valor de `status` o de
+`membershipStatus` fuera del enum, `limit` fuera de rango, cursor inválido); 401
+`UNAUTHENTICATED`; 403 `FORBIDDEN`.
+
+Request: `GET /api/members?status=ACTIVE&membershipStatus=DEBT&limit=20`
 
 Response 200:
 
@@ -253,18 +307,29 @@ Response 200:
   "items": [
     {
       "memberId": "01J...",
-      "dni": "10203040",
-      "firstName": "Juan",
-      "lastName": "Pérez",
-      "memberStatus": "PENDING",
-      "membershipStatus": "NONE",
-      "origin": "NEW",
-      "createdAt": "..."
+      "dni": "45678912",
+      "firstName": "María",
+      "lastName": "Quispe",
+      "memberStatus": "ACTIVE",
+      "membershipStatus": "DEBT",
+      "membershipEndsAt": "2026-09-30T05:00:00.000Z",
+      "outstandingBalance": 12000,
+      "origin": "MIGRATED",
+      "createdAt": "2026-07-16T00:00:00.000Z"
     }
   ],
-  "nextCursor": null
+  "nextCursor": "eyJQSyI6..."
 }
 ```
+
+**`MemberSummary` enriquecido** (adenda 2026-10-12, aplica a **todas** las
+respuestas de `GET /members`, con o sin `membershipStatus`): se agregan
+`membershipEndsAt` (ISO-8601 o `null` si nunca tuvo membresía) y
+`outstandingBalance` (céntimos, `0` si no debe). Ambos ya viven en el ítem
+`Member` que devuelve el índice (proyección `ALL`), así que mostrarlos en la
+tabla no requiere ninguna lectura adicional ni pedir N detalles. Se mantiene la
+regla de exposición del listado: nunca `email`, `phone`, `cognitoSub`,
+`rejectionReason` ni `legacyId`.
 
 ### POST /members/{memberId}/approve
 
@@ -387,19 +452,49 @@ El MVP **no** implementa el desafío 3DS/SCA: el PaymentIntent se crea con
 `automatic_payment_methods.allow_redirects = 'never'`, y un eventual
 `requires_action` se trata como pendiente, no como éxito.
 
-### GET /payments?memberId=&status=&cursor=&limit= (US-025)
+### GET /payments?memberId=&status=&from=&to=&cursor=&limit= (US-025, US-081)
 
 - `member`: siempre su propio historial, más reciente primero; el `memberId`
   de la query se ignora por completo (el backend lo resuelve desde el JWT,
-  nunca desde el input del cliente — criterio 4). Admite `status` como filtro
-  adicional sobre su propio historial.
+  nunca desde el input del cliente — criterio 4). Admite `status` y el rango
+  `from`/`to` como filtros adicionales sobre su propio historial.
 - `admin`: filtra por `memberId` y/o `status`; requiere al menos uno de los
   dos (mismo criterio ya aplicado en `GET /members`: el modelo de `Payment`
   solo define patrones de acceso por socio o por estado, nunca "todos los
   pagos sin filtro", para evitar un `Scan` completo de la tabla) — sin
-  ninguno de los dos, 400 `VALIDATION_ERROR`.
+  ninguno de los dos, 400 `VALIDATION_ERROR`. El rango `from`/`to` **no**
+  cuenta como filtro suficiente por sí solo.
 
-Response 200:
+**Rango de fechas** (adenda 2026-10-12, US-081):
+
+| Parámetro | Tipo     | Descripción                                                             |
+| --------- | -------- | ----------------------------------------------------------------------- |
+| `from`    | ISO-8601 | Inicio inclusivo sobre `createdAt` (admite offset, p. ej. `-05:00`).    |
+| `to`      | ISO-8601 | Fin **exclusivo** sobre `createdAt` (ventana semiabierta `[from, to)`). |
+
+- Cualquiera de los dos puede ir solo (ventana abierta por un extremo).
+- `from >= to` → 400 `VALIDATION_ERROR`; fecha no ISO-8601 → 400.
+- **Costo**: es una condición de **clave**, no un filtro: tanto `SK =
+PAYMENT#<createdAt>#<paymentId>` (por socio) como `GSI2SK =
+<createdAt>#<paymentId>` (por estado) están ordenados por `createdAt`, así
+  que el rango reduce lo leído en vez de aumentarlo. El servidor normaliza
+  `from`/`to` a UTC con el mismo formato con que se escribe `createdAt`
+  (`toISOString()`) antes de compararlos.
+- Lo que **no** se ofrece: "todos los pagos del rango sin socio ni estado".
+  Exigiría leer las tres particiones de estado y mezclarlas con un cursor
+  compuesto; la pantalla lo resuelve eligiendo un estado (criterio 4 de
+  US-053). Si el club lo pidiera, se evaluaría en una historia propia.
+
+**Socio del pago, solo para `admin`** (adenda 2026-10-12, US-081): cada
+elemento agrega `member: { memberId, firstName, lastName }` (tipo
+`MemberNameSummary`), o `null` si el socio no se puede resolver. El rol
+`member` **no** recibe este campo (son sus propios pagos). Nunca DNI, correo,
+teléfono ni estado de membresía. Se resuelve en lectura (un `GetItem` en
+paralelo por cada `memberId` distinto de la página, con proyección de nombre:
+el mismo mecanismo que `holder` en `GET /reservations?scope=all`, ADR-0014), no
+se denormaliza en el ítem `Payment`. Con filtro `memberId` es una sola lectura.
+
+Response 200 (`admin`, `GET /api/payments?status=SUCCEEDED&from=2026-07-01T00:00:00-05:00&to=2026-08-01T00:00:00-05:00`):
 
 ```json
 {
@@ -413,12 +508,15 @@ Response 200:
       "paymentStatus": "SUCCEEDED",
       "stripePaymentIntentId": "pi_3P...",
       "createdAt": "2026-07-09T05:00:00Z",
-      "confirmedAt": "2026-07-09T05:00:05Z"
+      "confirmedAt": "2026-07-09T05:00:05Z",
+      "member": { "memberId": "01J...", "firstName": "María", "lastName": "Quispe" }
     }
   ],
   "nextCursor": null
 }
 ```
+
+Con rol `member` la forma es la misma sin `member`.
 
 Nunca incluye `idempotencyKey` ni `failureReason` (campos internos de
 orquestación); el único identificador externo es `stripePaymentIntentId`
@@ -433,7 +531,8 @@ de la tarjeta.
   un socio la existencia de un `paymentId` ajeno).
 - `admin`: el detalle de cualquier pago; inexistente → 404 `NOT_FOUND`.
 
-Response 200: mismo shape que un elemento de `items` en `GET /payments`.
+Response 200: mismo shape que un elemento de `items` en `GET /payments`
+(incluido `member` cuando quien consulta es `admin`, US-081).
 
 ### POST /payments/webhook
 
@@ -844,6 +943,61 @@ reserva (titular); una reserva ajena responde igual que una inexistente, 404
 `NOT_FOUND` (mismo criterio de privacidad que `GET /payments/{paymentId}`,
 §5: no confirmar que ese id existe y es de otro socio). `admin`: cualquiera.
 
+**Nombre de los socios participantes** (adenda 2026-10-12, US-080): cada
+elemento de `participants` agrega `member`:
+
+- `HOLDER` y `MEMBER`: `{ memberId, firstName, lastName }` (tipo
+  `MemberNameSummary`, el mismo que `holder` en `scope=all`), o `null` si el
+  socio ya no se puede resolver (la interfaz muestra entonces "Socio del club").
+- `GUEST`: siempre `null`; el invitado se sigue mostrando con `guestName`.
+
+Privacidad: nunca DNI, correo, teléfono, `memberStatus`, `membershipStatus` ni
+saldo del socio participante. No amplía quién ve el detalle (titular o `admin`;
+un socio que solo es participante sigue recibiendo 404), y al titular no le
+revela nada nuevo: ya vio ese nombre con `GET /members/lookup` al agregarlo. Se
+resuelve en lectura con un `GetItem` en paralelo por cada `memberId` distinto
+de la reserva (≤ 31, proyección de nombre; ADR-0014), no se copia en
+`ReservationParticipant`.
+
+Response 200 (extracto):
+
+```json
+{
+  "reservationId": "01J...",
+  "resourceId": "futbol-1",
+  "holderMemberId": "01J...A",
+  "reservationStatus": "CONFIRMED",
+  "participants": [
+    {
+      "participantId": "01J...",
+      "participantType": "HOLDER",
+      "memberId": "01J...A",
+      "guestDni": null,
+      "guestName": null,
+      "member": { "memberId": "01J...A", "firstName": "María", "lastName": "Quispe" }
+    },
+    {
+      "participantId": "01J...",
+      "participantType": "MEMBER",
+      "memberId": "01J...B",
+      "guestDni": null,
+      "guestName": null,
+      "member": { "memberId": "01J...B", "firstName": "Juan", "lastName": "Pérez" }
+    },
+    {
+      "participantId": "01J...",
+      "participantType": "GUEST",
+      "memberId": null,
+      "guestDni": "70605040",
+      "guestName": "Ana Torres",
+      "member": null
+    }
+  ]
+}
+```
+
+Errores: sin cambios (401, 404 `NOT_FOUND`).
+
 ### POST /reservations/{reservationId}/cancel
 
 - Socio: solo su propia reserva (una reserva ajena o inexistente responde 404
@@ -954,20 +1108,106 @@ Response 200:
 
 ### GET /dashboard/admin
 
-Response 200 (cubre RN-ANL-01..08):
+Solo `admin` (`member` → 403). **Sin parámetros**: los períodos son fijos
+(pregunta abierta 1 de EP-07; elegir o comparar períodos desde la pantalla está
+fuera del MVP). Todos los días y horas se calculan en `America/Lima`.
+
+Response 200 (cubre RN-ANL-01..08; `periods`, `reservationsByHour` y el detalle
+de `occupancy` son adenda 2026-10-12, US-058):
 
 ```json
 {
+  "periods": {
+    "currentMonth": {
+      "from": "2026-10-01T05:00:00.000Z",
+      "to": "2026-11-01T05:00:00.000Z",
+      "timeZone": "America/Lima"
+    },
+    "last30Days": {
+      "from": "2026-09-13T05:00:00.000Z",
+      "to": "2026-10-13T05:00:00.000Z",
+      "timeZone": "America/Lima"
+    }
+  },
   "membersByStatus": { "MIGRATED": 40, "PENDING": 3, "ACTIVE": 70, "REJECTED": 1 },
   "membershipsExpiringSoon": 8,
   "reservationsByResource": { "futbol-1": 12, "piscina-1": 20 },
   "reservationsByDay": [{ "date": "2026-07-12", "count": 9 }],
+  "reservationsByHour": [
+    { "hour": "06:00", "count": 1 },
+    { "hour": "07:00", "count": 4 },
+    { "hour": "21:00", "count": 0 }
+  ],
   "pendingApprovals": 4,
   "payments": { "succeeded": 55, "failed": 3 },
-  "occupancy": [{ "resourceId": "futbol-1", "occupancyRate": 0.62 }],
+  "occupancy": [
+    { "resourceId": "futbol-1", "occupancyRate": 0.62, "reservedHours": 297, "operatingHours": 479 }
+  ],
   "notificationsSent": 14
 }
 ```
+
+**Períodos** (`periods`, ventanas semiabiertas `[from, to)` expresadas en UTC):
+
+| Período        | Ventana                                                       | Métricas que lo usan                                                                      |
+| -------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `currentMonth` | Día 1 del mes en curso 00:00 (Lima) → día 1 del mes siguiente | `payments`, `notificationsSent` (US-057)                                                  |
+| `last30Days`   | Hoy − 29 días 00:00 (Lima) → mañana 00:00 (30 días con hoy)   | `reservationsByResource`, `reservationsByDay`, `reservationsByHour`, `occupancy` (US-058) |
+| (foto actual)  | Sin ventana: estado al momento de la consulta                 | `membersByStatus`, `membershipsExpiringSoon`, `pendingApprovals` (US-057)                 |
+
+La pantalla siempre indica el período junto a cada cifra (US-059, US-060).
+
+**Reservas contadas** (US-058): reservas **activas** (`CONFIRMED`,
+`PENDING_APPROVAL`, `APPROVED`) cuyo `startsAt` cae en `last30Days`. Una reserva
+pertenece al día y a la hora de su **inicio**. Por construcción,
+`Σ reservationsByResource = Σ reservationsByDay = Σ reservationsByHour`.
+
+- `reservationsByResource`: los diez recursos del catálogo, incluidos los de
+  cero.
+- `reservationsByDay`: 30 entradas (`date` = `YYYY-MM-DD` de Lima), ascendente,
+  incluidos los días con cero.
+- `reservationsByHour` (RN-ANL-04, "horario"): una entrada por hora de inicio
+  (`hour` = `HH:00` de Lima), ascendente, incluidas las horas con cero. El rango
+  va desde la hora del `opensAt` más temprano del catálogo hasta la hora previa
+  al `closesAt` más tardío, calculado al momento de la consulta: con el catálogo
+  actual, `06:00` a `21:00` (16 entradas). Una franja de fútbol de 07:30 cuenta
+  en `07:00`. Es el total del período por hora, no una matriz día × hora (el
+  mapa de calor queda fuera del MVP).
+
+**Ocupación** (`occupancy`, RN-ANL-07; fórmula de la pregunta abierta 2 de
+EP-07), una entrada por recurso del catálogo:
+
+- `operatingHours` = Σ por cada día de `last30Days` de (`closesAt` − `opensAt`
+  del horario **vigente**) − horas de ese intervalo operativo cubiertas por
+  bloqueos de mantenimiento (`MaintenanceBlock`).
+- `reservedHours` = Σ de (`endsAt` − `startsAt`) de las reservas contadas del
+  recurso, descontando la parte que se solape con un bloqueo de mantenimiento
+  (una reserva que el administrador no canceló dentro de un bloqueo no infla la
+  ocupación por encima de 1).
+- `occupancyRate` = `reservedHours / operatingHours`, acotado a `[0, 1]` y
+  redondeado a 4 decimales; si `operatingHours = 0` (mantenimiento todo el
+  período), `0`, nunca error ni división por cero.
+- `reservedHours` y `operatingHours` se informan en horas con hasta 2
+  decimales, para que la pantalla explique la proporción.
+- Limitación aceptada para el MVP: un `resourceStatus = MAINTENANCE` puesto con
+  `PATCH /resources/{resourceId}` **no** se descuenta, porque no se guarda
+  desde cuándo rige (no hay historial del estado). Solo se descuentan los
+  bloqueos con ventana (`MaintenanceBlock`).
+
+**Patrón de acceso** (US-058, sin `Scan`): por cada uno de los diez recursos,
+(a) `Query` GSI3 `GSI3PK=RESOURCE#<id>`, `GSI3SK BETWEEN SLOT#<from> AND
+SLOT#<to>` (patrón #21), quedándose con los ítems `Reservation` en estado
+activo (los `MaintenanceBlock` que también devuelve el índice se ignoran aquí,
+porque (b) los trae todos); y (b)
+`Query` PK=`RESOURCE#<id>`, `begins_with(SK, "MAINT#")` con `FilterExpression
+endsAt > :from` para los bloqueos que empezaron antes de la ventana y la
+alcanzan (patrón #30). 20 consultas en paralelo. El catálogo se lee con
+diez `GetItem` en paralelo por los `resourceId` documentados en el modelo de
+datos §2, no con el `Scan` de `GET /resources` (ver riesgo en ADR-0014).
+
+**Compatibilidad**: los campos nuevos son aditivos y los existentes no cambian
+de forma; `GET /dashboard/admin` todavía no tiene consumidores (US-059 y US-060
+lo integran en este sprint). Errores: 401 `UNAUTHENTICATED`, 403 `FORBIDDEN`.
 
 ## 10. Administración operativa
 
@@ -1003,3 +1243,56 @@ ser `POST /admin/migration/run` y es una **Lambda de invocación directa**
 | Notificaciones      | `/notifications*`                                               | RN-NOT-01..04, RN-ADM-06 |
 | Dashboards          | `/dashboard/*`                                                  | RN-ANL-01..08            |
 | Migración           | Lambda `migration-run` (invocación directa, sin ruta HTTP; §10) | RN-MIG-01..06            |
+
+## 12. Adenda de contrato 2026-10-12 (Sprint 5)
+
+La interfaz de Sprint 4B/5 se construyó contra los endpoints existentes y
+destapó cuatro límites de contrato. Se resuelven con cambios **aditivos**, sin
+endpoints nuevos ni índices nuevos
+([ADR-0014](../architecture/adr/ADR-0014-filtros-secundarios-y-nombres-en-lectura.md)).
+
+| #   | Cambio                                                              | Endpoint                              | Historia | Sección |
+| --- | ------------------------------------------------------------------- | ------------------------------------- | -------- | ------- |
+| 1   | Filtro `membershipStatus` + `membershipEndsAt`/`outstandingBalance` | `GET /members`                        | US-052   | §4      |
+| 2   | `periods`, `reservationsByHour` y detalle de `occupancy`            | `GET /dashboard/admin`                | US-058   | §9      |
+| 3   | `participants[].member` con nombre del socio participante           | `GET /reservations/{id}`              | US-080   | §7      |
+| 4   | `member` (nombre) para `admin` y rango `from`/`to`                  | `GET /payments`, `GET /payments/{id}` | US-081   | §5      |
+
+### 12.1 Paginación con filtros secundarios
+
+Cuando un filtro no forma parte de la clave (hoy: `membershipStatus` en
+`GET /members` y `status` combinado con `memberId` en `GET /payments`), DynamoDB
+aplica `Limit` **antes** del filtro. Regla común para estos listados:
+
+- El servidor encadena hasta **5 lecturas internas** por petición, cada una de
+  hasta 100 ítems, y se detiene al reunir `limit` coincidencias o al agotar la
+  partición.
+- Si reúne más de `limit`, devuelve exactamente `limit` y el `nextCursor` se
+  construye con la clave del **último elemento devuelto** (no con la última
+  clave leída), para no saltar coincidencias.
+- Si agota el presupuesto sin llenar la página, devuelve lo reunido (incluso
+  `[]`) con `nextCursor` no nulo. Solo `nextCursor: null` indica el final.
+
+### 12.2 Compatibilidad hacia atrás
+
+- Ningún campo existente cambia de nombre, tipo ni significado; ningún
+  parámetro existente cambia de obligatoriedad.
+- Los campos nuevos de respuesta son aditivos: un cliente que no los conoce los
+  ignora. `member` aparece solo para `admin` en pagos; para `member` la
+  respuesta de pagos es idéntica a la actual.
+- Los parámetros nuevos son opcionales: sin ellos, la respuesta es la misma de
+  hoy (más los campos aditivos).
+- Tipos de `packages/shared-types` a extender por cada historia (no en esta
+  adenda): `MemberSummary` (+`membershipEndsAt`, +`outstandingBalance`), nuevo
+  `MemberNameSummary` (`ReservationHolderSummary` pasa a ser alias suyo),
+  `ReservationParticipant` en el detalle (+`member`), `PaymentSummary`
+  (+`member?`), `AdminDashboard` (+`periods`, +`reservationsByHour`, entradas de
+  `occupancy` con +`reservedHours`, +`operatingHours`). Esquemas de
+  `packages/validation`: `listMembersQuerySchema` (+`membershipStatus`) y
+  `listPaymentsQuerySchema` (+`from`, +`to`, con `from < to`).
+- Sin rutas, índices ni tablas nuevas. El único cambio de Terraform es de
+  permisos IAM: la Lambda `payments-list` hoy solo tiene `dynamodb:Query` y
+  necesita `dynamodb:GetItem` sobre la tabla para resolver nombres (US-081).
+  `reservations-get-by-id` y `payments-get-by-id` ya tienen `GetItem`. La
+  Lambda de `GET /dashboard/admin` (US-054) necesita `GetItem` y `Query` sobre
+  la **tabla base** además de GSI2/GSI3.
