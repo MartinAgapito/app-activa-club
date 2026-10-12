@@ -63,6 +63,17 @@ export function formatDateInLima(iso: string): string {
   );
 }
 
+/** Fecha y hora de un instante UTC en hora del club, p. ej. "9 jul 2026,
+ * 00:00" (listados y detalles donde importa la hora, como los pagos). */
+export function formatDateTimeInLima(iso: string): string {
+  return new Intl.DateTimeFormat('es-PE', {
+    timeZone: 'America/Lima',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    hour12: false,
+  }).format(new Date(iso));
+}
+
 /** Suma minutos a una hora `HH:mm` y devuelve el resultado en el mismo
  * formato (usado para generar franjas desde `opensAt` hasta `closesAt`). */
 export function addMinutesToTime(hhmm: string, minutesToAdd: number): string {

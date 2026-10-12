@@ -22,6 +22,13 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Pantalla `/admin/membresias` como "Pagos" (US-053, EP-06): planes vigentes
+  con su precio y consulta de pagos de los socios con tabla (fecha en hora de
+  Lima, socio, plan, monto y estado), filtros por estado (por defecto
+  "Rechazados y en verificación") y por socio mediante DNI exacto, "Cargar
+  más" y panel lateral de detalle (`?pago=`) sin datos de tarjeta. Nunca
+  consulta sin filtro, como exige el servidor. Admite `?socio=<memberId>` para
+  llegar ya filtrada. Sin cambios en la API.
 - Reservas del administrador en pestañas "Por aprobar" (con contador) y
   "Todas", con tabla (`DataTable`), filtros y pestaña guardados en la URL,
   panel lateral de detalle (`?reserva=<id>`) con participantes, y las
