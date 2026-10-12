@@ -20,4 +20,5 @@ export {
   type NotificationDataByEvent,
   type RenderedNotification,
 } from './templates';
+export { safeEmitNotification, type NotificationEmitter, type SafeEmitDeps } from './safe-emit';
 export { buildDedupeKey, notificationIdFromDedupeKey } from './dedupe';

@@ -132,3 +132,4 @@ La verificación extremo a extremo de EP-04 (Ola 6 del Sprint 3) sigue pendiente
 - 2026-10-12: US-039 con infraestructura desplegada, pendiente lógica: cuatro endpoints de notificaciones y `ses:SendEmail` para las Lambdas emisoras (Ola 1). Desbloquea US-040.
 - 2026-10-12: US-041 implementada (bandeja del socio, backend y frontend), pendiente verificación en dev.
 - 2026-10-12: US-040 implementada (módulo `notifications` del backend), pendiente consumo por US-042..US-047. Desvío: correo sin plantillas SES (generado en código con `ses:SendEmail`).
+- 2026-10-12: US-042 implementada (avisos de activación de cuenta y de decisión sobre la solicitud; sin cambios de infraestructura).

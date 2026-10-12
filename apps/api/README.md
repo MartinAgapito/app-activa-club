@@ -74,6 +74,7 @@ src/
     format.ts          # Fechas en America/Lima, soles, escape HTML, limpieza de texto libre.
     dedupe.ts          # dedupeKey `<evento>#<memberId>#<entityId>` y notificationId determinista.
     mailer.ts          # Envío SES v2 SendEmail (contenido Simple; solo requiere ses:SendEmail).
+    safe-emit.ts       # safeEmitNotification(): envoltorio que usan los orquestadores (US-042+); nunca lanza.
   testing/
     fixtures.ts          # Constructores de eventos de API Gateway para pruebas de handlers.
 ```

@@ -28,6 +28,13 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Avisos de cuenta y de solicitud (US-042, EP-05): `POST /activation/complete`,
+  `POST /members/{memberId}/approve` y `POST /members/{memberId}/reject`
+  emiten `ACCOUNT_ACTIVATED`, `MEMBER_APPROVED` y `MEMBER_REJECTED` (con el
+  motivo) al socio afectado una vez confirmada la operación, a través de
+  `safeEmitNotification` (nuevo envoltorio defensivo en `notifications/`): un
+  fallo del aviso jamás cambia la respuesta HTTP. Sin cambios de contrato ni de
+  infraestructura.
 - Bandeja de notificaciones del socio en `/socio/notificaciones` (US-041,
   EP-05): tabla con fecha en hora de Lima y estado Leída/No leída en texto,
   pestañas Todas / No leídas (`?tab=`), "Cargar más", panel lateral con el
