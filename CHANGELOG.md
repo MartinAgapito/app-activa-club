@@ -28,6 +28,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Consulta de socios del administrador (US-051, EP-06, EP-08): `/admin/socios`
+  deja de ser un placeholder y muestra el padrón en pestañas por estado de
+  cuenta (Activos, Migrados, Aprobados, Pendientes, Rechazados; `?tab=`) con
+  tabla (nombre, DNI, origen, estado de membresía, fecha de alta) y "Cargar
+  más", búsqueda por DNI exacto (8 dígitos) y panel lateral de solo lectura
+  (`?socio=<memberId>`) con contacto, cuenta, membresía, vencimiento, días
+  restantes, saldo y renovación automática. Sin cambios de API.
+
 - Reservas del administrador en pestañas "Por aprobar" (con contador) y
   "Todas", con tabla (`DataTable`), filtros y pestaña guardados en la URL,
   panel lateral de detalle (`?reserva=<id>`) con participantes, y las
