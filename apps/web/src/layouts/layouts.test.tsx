@@ -20,18 +20,28 @@ vi.mock('../members/profile-client', () => ({ fetchMemberProfile: fetchMemberPro
 
 const MEMBER = { firstName: 'María', lastName: 'Quispe' } as Member;
 
-function session(role: 'member' | 'admin', signOut = vi.fn()): AuthContextValue {
+function session(
+  role: 'member' | 'admin',
+  signOut = vi.fn(),
+  email: string | null = null,
+): AuthContextValue {
   return {
     status: 'authenticated',
     role,
     memberId: null,
+    email,
     signIn: () => Promise.reject(new Error('no usado')),
     setSession: () => {},
     signOut,
   };
 }
 
-function renderLayout(kind: 'member' | 'admin', path: string, signOut = vi.fn()) {
+function renderLayout(
+  kind: 'member' | 'admin',
+  path: string,
+  signOut = vi.fn(),
+  email: string | null = null,
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const isMember = kind === 'member';
   const router = createMemoryRouter(
@@ -52,7 +62,7 @@ function renderLayout(kind: 'member' | 'admin', path: string, signOut = vi.fn())
     { initialEntries: [path] },
   );
   render(
-    <AuthContext.Provider value={session(kind, signOut)}>
+    <AuthContext.Provider value={session(kind, signOut, email)}>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
@@ -192,6 +202,20 @@ describe('MemberLayout', () => {
 });
 
 describe('AdminLayout', () => {
+  it('muestra el correo de la sesión en el menú de usuario', () => {
+    renderLayout('admin', '/admin', vi.fn(), 'admin@activa.club');
+    expect(
+      screen.getByRole('button', { name: 'Menú de usuario: admin@activa.club' }),
+    ).toBeInTheDocument();
+  });
+
+  it('usa "Administrador" cuando la sesión no trae correo ni nombre', () => {
+    renderLayout('admin', '/admin');
+    expect(
+      screen.getByRole('button', { name: 'Menú de usuario: Administrador' }),
+    ).toBeInTheDocument();
+  });
+
   it('muestra la navegación del administrador y no la del socio', () => {
     renderLayout('admin', '/admin');
 
