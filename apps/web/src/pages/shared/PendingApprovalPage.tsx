@@ -117,7 +117,7 @@ function getStatusContent(
     return {
       title: 'Tu solicitud fue aprobada',
       paragraphs: [
-        'Ya puedes continuar: solo falta pagar tu primera membresía para activar tu cuenta y poder reservar (RN-ACT-07).',
+        'Ya puedes continuar: solo falta pagar tu primera membresía para activar tu cuenta y poder reservar.',
       ],
     };
   }
@@ -125,8 +125,8 @@ function getStatusContent(
   return {
     title: 'Tu solicitud está siendo evaluada',
     paragraphs: [
-      'Un administrador debe aprobar tu registro antes de que puedas continuar. Te avisaremos por correo y notificación cuando haya una novedad (RN-ACT-06).',
-      'Una vez aprobado, deberás pagar tu primera membresía para activar tu cuenta y poder reservar (RN-ACT-07).',
+      'Un administrador debe aprobar tu registro antes de que puedas continuar. Te avisaremos por correo y notificación cuando haya una novedad.',
+      'Una vez aprobado, deberás pagar tu primera membresía para activar tu cuenta y poder reservar.',
     ],
   };
 }

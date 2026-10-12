@@ -4,7 +4,7 @@ export function NotificationsPage() {
   return (
     <UnderConstructionPage
       title="Notificaciones"
-      description="Bandeja de notificaciones internas del socio (RN-NOT-01)."
+      description="Bandeja de notificaciones internas del socio."
       endpoints={['GET /notifications', 'POST /notifications/{notificationId}/read']}
     />
   );
