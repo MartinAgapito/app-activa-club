@@ -14,6 +14,7 @@ import {
 import { ReferenceForm } from '../../examples/ReferenceForm';
 import { ReferenceQueryDemo } from '../../examples/ReferenceQueryDemo';
 import { TokensShowcase } from './TokensShowcase';
+import { DataTableShowcase } from './DataTableShowcase';
 
 const BADGE_VARIANTS: BadgeVariant[] = ['neutral', 'info', 'positive', 'warning', 'danger'];
 
@@ -60,6 +61,8 @@ export function DesignSystemPage() {
           <Input label="DNI" errorMessage="El DNI debe tener 8 dígitos." defaultValue="1234" />
         </div>
       </Card>
+
+      <DataTableShowcase />
 
       <ReferenceForm />
       <ReferenceQueryDemo />

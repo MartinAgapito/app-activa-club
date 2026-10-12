@@ -35,4 +35,7 @@ export type { ErrorStateProps } from './ErrorState';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 
+export { DataTable } from './DataTable';
+export type { DataTableProps, DataTableColumn, DataTableAlign } from './DataTable';
+
 export { cn } from './cn';

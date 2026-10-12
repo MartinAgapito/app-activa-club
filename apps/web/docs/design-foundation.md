@@ -242,6 +242,30 @@ de cada componente (`Button`/`buttonVariants`, `Input`, `Card`/`CardHeader`,
 Ninguno decide reglas de negocio ni conoce las entidades de
 `packages/shared-types`.
 
+### 7.1 `DataTable` (US-065)
+
+Listado comparable y responsive, solo CSS (sin `matchMedia`, sin dependencias).
+Un único `<table>` semántico que cambia de presentación en el breakpoint `sm`
+(640 px):
+
+- **>= 640 px**: tabla real con `<caption>` y `<th scope="col">`; encabezado
+  `surface-raised`, filas separadas por `line`, `rounded-card` y `shadow-card`.
+- **< 640 px**: cada fila es una tarjeta apilada (`surface-card`, `line`,
+  `rounded-card`) con pares etiqueta/valor; la etiqueta (`type-aux`,
+  `ink-muted`) sale de `data-label` por `::before`. El encabezado queda solo
+  para lectores de pantalla y no hay desplazamiento horizontal de la página.
+
+API principal: `columns` (`header`, `accessor` o `render`, `align`, `width`),
+`rows`, `getRowKey`, `caption` (+ `hideCaption`), `onRowClick` + `getRowLabel`
+(fila enfocable; Enter/Espacio; foco visible con `focus-ring`),
+`renderActions` (última columna, a la derecha; sus clics no activan la fila),
+`isLoading`, `isError` + `onRetry`, `emptyTitle`/`emptyDescription`/
+`emptyAction`, y `hasMore`/`onLoadMore`/`isLoadingMore` para el pie "Cargar más"
+(paginación por cursor `{ items, nextCursor }`: `hasMore = nextCursor !== null`).
+Los estados de carga, error y vacío reemplazan a la tabla (reutilizan
+`Spinner`, `ErrorState`, `EmptyState`); `aria-busy` se marca mientras carga.
+Estados de fila: usar `Badge` con texto, nunca solo color. No ordena ni filtra.
+
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
@@ -277,3 +301,4 @@ Ninguno decide reglas de negocio ni conoce las entidades de
   `Card`, `Badge`, `Input`, `Textarea` y `PageLayout` migrados sin cambiar su
   API; tabla de contrastes AA; muestra en `/_dev/design-system`. Modo oscuro
   preparado en la estructura, no activado.
+- 2026-10-11: US-065. Componente `DataTable` responsive (§7.1).
