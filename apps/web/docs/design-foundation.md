@@ -391,6 +391,27 @@ acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
   (completado), `ink-muted`, `line` (pendiente y conectores), `type-aux`,
   `focus-ring`. No usa colores literales.
 
+### 7.2 Asistente de reserva y grilla de franjas (US-072, US-073)
+
+Composición de `Modal` + `Stepper` + tokens v2.0 en
+`apps/web/src/reservations/` (`ReservationWizard`, `AvailabilityPicker`);
+no es un componente de `@activa-club/ui` porque conoce el dominio.
+
+- Pasos: 1 Instalación, 2 Día y hora, 3 Participantes, 4 Confirmar. El
+  borrador vive en el asistente: "Atrás" y el `Stepper` (desde `sm`)
+  conservan lo elegido. Por debajo de 640 px la ventana es pantalla completa y
+  el pie fijo muestra siempre "Atrás" / "Siguiente" (el `Stepper` compacto no
+  es clicable).
+- Grilla de franjas: la hora va en `font-display` con cifras tabulares
+  (`tabular-nums`). Estados: libre (`status-confirmed-soft`, texto "Libre"),
+  elegida (`action`, texto "Elegida" con marca), ocupada, en mantenimiento y
+  ya pasó (`surface-raised`, deshabilitada, con su texto). Nunca solo color.
+- Selector de día: fila desplazable de 14 días más un campo "Otra fecha".
+- Cierre con elecciones pendientes: confirmación en línea ("¿Descartar esta
+  reserva?"), sin ventana dentro de ventana (§7.1 `Modal`).
+- Aviso final: `useToast().success` con el verbo del botón ("Reserva
+  confirmada" / "Solicitud enviada a revisión") y acción "Ver en Mis reservas".
+
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
@@ -429,3 +450,4 @@ acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
 - 2026-10-11: US-062. Componente `Modal` (§7.1) y `ConfirmDialog` sobre él.
 - 2026-10-11: §7.1 componente `Tabs` (US-064).
 - 2026-10-11: US-065. Componente `DataTable` responsive (§7.1).
+- 2026-10-11: US-072/US-073. Asistente de reserva en ventana y catálogo de instalaciones (§7.2).

@@ -77,3 +77,11 @@ export function addMinutesToTime(hhmm: string, minutesToAdd: number): string {
 export function isTimeAfter(a: string, b: string): boolean {
   return a > b;
 }
+
+/** Suma días a una fecha `YYYY-MM-DD` sin depender de la zona del navegador
+ * (selector de día del asistente de reserva, US-072). */
+export function addDaysToDate(date: string, days: number): string {
+  const base = new Date(`${date}T00:00:00Z`);
+  base.setUTCDate(base.getUTCDate() + days);
+  return base.toISOString().slice(0, 10);
+}

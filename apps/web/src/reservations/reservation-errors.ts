@@ -168,3 +168,24 @@ export function toLookupErrorMessage(error: unknown): string {
   }
   return 'No pudimos buscar ese DNI. Intenta nuevamente en unos minutos.';
 }
+
+/** Paso del asistente donde se corrige cada error de `POST /reservations`
+ * (US-072, criterio 10): la franja (paso 2), los participantes (paso 3) o la
+ * propia confirmación (paso 4). */
+export type ReservationErrorTarget = 'SLOT' | 'PARTICIPANTS' | 'CONFIRM';
+
+export function reservationErrorTarget(code: string): ReservationErrorTarget {
+  switch (code) {
+    case 'RESERVATION_OVERLAP':
+    case 'RESOURCE_IN_MAINTENANCE':
+    case 'OUTSIDE_SCHEDULE':
+      return 'SLOT';
+    case 'CAPACITY_EXCEEDED':
+    case 'PARTICIPANT_OVERLAP':
+    case 'GUEST_MONTHLY_LIMIT':
+    case 'NOT_FOUND':
+      return 'PARTICIPANTS';
+    default:
+      return 'CONFIRM';
+  }
+}
