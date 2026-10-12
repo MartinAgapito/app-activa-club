@@ -32,6 +32,26 @@ activa, actualmente Node 24) y repiten, cada uno, `actions/checkout@v4` +
 
 - `npm run lint` — ESLint (flat config raíz).
 - `npm run format:check` — Prettier `--check`.
+- `npm run check:handlers` — guarda de mapeo de handlers
+  (`scripts/check-handler-mapping.mjs`). Compara los handlers reales de
+  `apps/api/src/handlers/**` (archivos que exportan `handler`, sin
+  `*.test.ts` ni `not-implemented.ts`) con el mapa `HANDLERS` de
+  `scripts/package-lambdas.mjs`. Evita desplegar un endpoint con el
+  placeholder que responde 501 por olvidar actualizar el mapa. Falla si:
+  - **(a) handler huérfano**: existe el archivo pero ninguna entrada lo
+    referencia. Corrección: agregar la entrada en `HANDLERS` (y su módulo
+    `endpoint_*` en Terraform) o, si no debe desplegarse, registrarlo con su
+    motivo en `UNMAPPED_EXCEPTIONS` del script (hoy solo
+    `handlers/health/get.ts`).
+  - **(b) archivo inexistente**: una entrada apunta a una ruta que no existe
+    (renombre o typo). Corrección: ajustar la ruta.
+  - **(c) placeholder sin declarar**: una entrada apunta a
+    `handlers/not-implemented.ts` sin `// PLACEHOLDER(US-NNN)` en la línea
+    inmediatamente anterior. Corrección: implementar el handler real, o
+    declarar la historia que lo reemplazará.
+
+  Imprime una tabla con entradas reales y placeholders declarados. Su
+  lógica pura se prueba con `npm run test:scripts` (job `test`).
 
 ### 2. `typecheck` — Typecheck
 
