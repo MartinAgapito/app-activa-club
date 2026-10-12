@@ -45,7 +45,7 @@ Dar a la plataforma una experiencia de uso a la altura de una demostración de p
 ## Objetivos de la épica
 
 - **Bloque A — Base de diseño:** tokens ampliados (US-061), componentes accesibles en `packages/ui` (US-062..US-067), estructura de aplicación por rol (US-068) y verificación automática de accesibilidad (US-069).
-- **Bloque B — Inicio útil:** inicio del socio (US-070) e inicio del administrador (US-071) con datos de endpoints existentes, preparados para que EP-07 los enriquezca sin rehacerlos.
+- **Bloque B — Inicio útil y primera impresión:** inicio del socio (US-070) e inicio del administrador (US-071) con datos de endpoints existentes, preparados para que EP-07 los enriquezca sin rehacerlos; y pantallas de acceso con el nuevo estilo visual (US-079), pedido expreso del dueño del producto.
 - **Bloque C — Flujos rehechos:** asistente de reserva en ventana (US-072, US-073), Mis reservas con panel de detalle (US-074) y CRUD del administrador con ventanas (US-075..US-078).
 
 ## Historias asociadas
@@ -70,8 +70,9 @@ Dar a la plataforma una experiencia de uso a la altura de una demostración de p
 | [US-076](../historias/US-076-admin-bloqueos-mantenimiento-modal.md)              | Crear y liberar bloqueos de mantenimiento desde ventanas                 | C      | Frontend    | US-062, US-064, US-065, US-066         | 3    |
 | [US-077](../historias/US-077-admin-reservas-pestanas-detalle-decision.md)        | Revisar y decidir reservas desde pestañas, panel de detalle y ventanas   | C      | Frontend    | US-062..US-066                         | 3    |
 | [US-078](../historias/US-078-admin-solicitudes-socios-panel-decision.md)         | Revisar y decidir solicitudes de socios desde panel de detalle y ventana | C      | Frontend    | US-062, US-063, US-065, US-066         | 2    |
+| [US-079](../historias/US-079-pantallas-acceso-estilo-nuevo.md)                   | Entrar al club con pantallas de acceso del nuevo estilo visual           | B      | Frontend    | US-061                                 | 3    |
 
-Total: **47 puntos relativos** (A: 20, B: 6, C: 21).
+Total: **50 puntos relativos** (A: 20, B: 9, C: 21).
 
 ## Orden de dependencias
 
@@ -167,9 +168,10 @@ Resumen: 14 casos (5 de severidad alta, 9 media). Complementan T-01, T-02, T-03 
 5. **Imágenes de las instalaciones** (Product Owner). El catálogo visual (US-073) gana mucho con una imagen por instalación, pero `Resource` no tiene campo de imagen. Propuesta: una imagen estática por tipo de recurso dentro del frontend (seis imágenes de licencia libre), sin backend. Si no se aprueba, se usan iconos.
 6. **¿Ventanas y paneles con URL propia?** (Product Owner y Frontend). Propuesta: los paneles de detalle sí (`?reserva=<id>`, `?solicitud=<id>`), para que "atrás" del navegador los cierre y un enlace lleve directo a una reserva; el asistente de reserva solo guarda la instalación preseleccionada (`?recurso=<id>`), no el paso.
 7. **Pruebas extremo a extremo automatizadas** (QA). El repositorio no tiene Playwright ni axe instalados, aunque T-01/T-02 los mencionan. Propuesta: US-069 incorpora la verificación automática de accesibilidad de componentes; los casos de pantalla completa (375 px, recorrido del asistente) se ejecutan como prueba manual documentada en el Sprint 4B, y Playwright se evalúa en la estabilización.
-8. **Página pública y pantallas de acceso** (Product Owner). ¿Entran en el rediseño? Propuesta: solo heredan los tokens de US-061; un rediseño propio sería una historia aparte.
+8. **Página pública y pantallas de acceso** (Product Owner). **Resuelta (2026-10-11):** sí entran en el rediseño; el dueño pidió que login y registro "mantengan el mismo estilo". Se resuelve con una historia propia, [US-079](../historias/US-079-pantallas-acceso-estilo-nuevo.md).
 9. **Lugar en el calendario** (Product Owner). Ver la recomendación del [Sprint 4B](../sprints/sprint-4b-experiencia-interfaz.md): antes de continuar el Sprint 4 o en paralelo con él. No se reordenan los Sprints 4 y 5 sin su decisión.
 
 ## Historial de cambios
 
 - 2026-10-11: Propuesta de la épica EP-08 y de las historias US-061..US-078 tras el reclamo del dueño del producto en la primera prueba extremo a extremo en `dev`. Pendiente de aprobación del Product Owner.
+- 2026-10-11: Se agrega US-079 (pantallas de acceso con el nuevo estilo visual) al bloque B por pedido del dueño del producto; se resuelve la pregunta 8. Total: 50 puntos.

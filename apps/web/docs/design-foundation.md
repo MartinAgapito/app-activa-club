@@ -470,3 +470,8 @@ acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
 - 2026-10-11: US-063. Componente `Drawer` (§7.1); `ToastProvider` montado en
   la raíz de la app y aviso elevado sobre los botones de ventanas abiertas.
 - 2026-10-11: US-065. Componente `DataTable` responsive (§7.1).
+- 2026-10-11: US-079. Pantallas de acceso con los tokens v2.0: `AuthShell`
+  (panel de marca + tarjeta de formulario de hasta 26.25rem, dos zonas desde
+  768 px y apiladas por debajo), `AuthAlert` (error `role="alert"`, resto
+  `role="status"`, siempre con icono) y `PasswordRequirements` en
+  `apps/web/src/components/auth/`.

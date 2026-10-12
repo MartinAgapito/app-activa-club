@@ -10,7 +10,13 @@ import { useState } from 'react';
 import { useForm, type UseFormSetError } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
-import { Button, buttonVariants, Card, CardHeader, Input } from '@activa-club/ui';
+import { Button, buttonVariants, Input } from '@activa-club/ui';
+import {
+  AuthAlert,
+  alertLinkClass,
+  PasswordRequirements,
+} from '../../components/auth/AuthFeedback';
+import { AuthShell, authLinkClass } from '../../components/auth/AuthShell';
 import type { RegistrationRequest } from '@activa-club/shared-types';
 import { ApiRequestError } from '../../lib/api/http-client';
 import { registerMember } from '../../auth/registration-client';
@@ -112,130 +118,109 @@ export function RegisterPage() {
 
   if (step === 'success') {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
-        <Card className="w-full max-w-md">
-          <CardHeader
-            title="Solicitud enviada"
-            description="Tu solicitud de registro quedó pendiente de aprobación administrativa. Una vez que un administrador la apruebe, deberás pagar tu primera membresía para quedar activo y poder reservar."
-          />
-          <p
-            role="status"
-            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800"
-          >
-            Ya puedes iniciar sesión para revisar el estado de tu solicitud.
-          </p>
-          <Link to="/login" className={buttonVariants({ fullWidth: true, className: 'mt-4' })}>
-            Iniciar sesión
-          </Link>
-        </Card>
-      </div>
+      <AuthShell
+        title="Solicitud enviada"
+        description="Tu solicitud de registro quedó pendiente de aprobación administrativa. Una vez que un administrador la apruebe, deberás pagar tu primera membresía para quedar activo y poder reservar."
+      >
+        <AuthAlert tone="success">
+          Ya puedes iniciar sesión para revisar el estado de tu solicitud.
+        </AuthAlert>
+        <Link to="/login" className={buttonVariants({ fullWidth: true })}>
+          Iniciar sesión
+        </Link>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader
-          title="Regístrate como socio"
-          description="Completa tus datos para solicitar tu ingreso al club. Un administrador revisará tu solicitud antes de que puedas pagar tu primera membresía."
-        />
-        <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-          <Input
-            label="DNI"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={8}
-            required
-            {...register('dni')}
-            errorMessage={errors.dni?.message}
-          />
-          <Input
-            label="Correo electrónico"
-            type="email"
-            autoComplete="email"
-            required
-            {...register('email')}
-            errorMessage={errors.email?.message}
-          />
-          <div>
-            <Input
-              label="Contraseña"
-              type="password"
-              autoComplete="new-password"
-              required
-              {...register('password')}
-              errorMessage={errors.password?.message}
-            />
-            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-xs font-medium text-slate-600">Tu contraseña debe tener:</p>
-              <ul className="mt-1 list-inside list-disc text-xs text-slate-500">
-                {PASSWORD_REQUIREMENTS.map((requirement) => (
-                  <li key={requirement}>{requirement}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <Input
-            label="Nombres"
-            type="text"
-            autoComplete="given-name"
-            required
-            {...register('firstName')}
-            errorMessage={errors.firstName?.message}
-          />
-          <Input
-            label="Apellidos"
-            type="text"
-            autoComplete="family-name"
-            required
-            {...register('lastName')}
-            errorMessage={errors.lastName?.message}
-          />
-          <Input
-            label="Teléfono"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            helpText="Opcional."
-            {...register('phone')}
-            errorMessage={errors.phone?.message}
-          />
-
-          {formError ? (
-            <div
-              role="alert"
-              className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700"
-            >
-              <p>{formError.message}</p>
-              {formError.showLoginLinks ? (
-                <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                  <Link to="/login" className="font-medium underline underline-offset-2">
-                    Iniciar sesión
-                  </Link>
-                  <Link
-                    to="/recuperar-password"
-                    className="font-medium underline underline-offset-2"
-                  >
-                    Recuperar contraseña
-                  </Link>
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <Button type="submit" isLoading={isSubmitting} fullWidth>
-            Crear cuenta
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-600">
+    <AuthShell
+      title="Regístrate como socio"
+      description="Completa tus datos para solicitar tu ingreso al club. Un administrador revisará tu solicitud antes de que puedas pagar tu primera membresía."
+      footer={
+        <p>
           ¿Ya tienes cuenta?{' '}
-          <Link to="/login" className="font-medium text-brand-700 hover:text-brand-900">
+          <Link to="/login" className={authLinkClass}>
             Inicia sesión
           </Link>
         </p>
-      </Card>
-    </div>
+      }
+    >
+      <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+        <Input
+          label="DNI"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={8}
+          required
+          {...register('dni')}
+          errorMessage={errors.dni?.message}
+        />
+        <Input
+          label="Correo electrónico"
+          type="email"
+          autoComplete="email"
+          required
+          {...register('email')}
+          errorMessage={errors.email?.message}
+        />
+        <div>
+          <Input
+            label="Contraseña"
+            type="password"
+            autoComplete="new-password"
+            required
+            {...register('password')}
+            errorMessage={errors.password?.message}
+          />
+          <PasswordRequirements requirements={PASSWORD_REQUIREMENTS} />
+        </div>
+        <Input
+          label="Nombres"
+          type="text"
+          autoComplete="given-name"
+          required
+          {...register('firstName')}
+          errorMessage={errors.firstName?.message}
+        />
+        <Input
+          label="Apellidos"
+          type="text"
+          autoComplete="family-name"
+          required
+          {...register('lastName')}
+          errorMessage={errors.lastName?.message}
+        />
+        <Input
+          label="Teléfono"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          helpText="Opcional."
+          {...register('phone')}
+          errorMessage={errors.phone?.message}
+        />
+
+        {formError ? (
+          <AuthAlert tone="error">
+            <p>{formError.message}</p>
+            {formError.showLoginLinks ? (
+              <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                <Link to="/login" className={alertLinkClass}>
+                  Iniciar sesión
+                </Link>
+                <Link to="/recuperar-password" className={alertLinkClass}>
+                  Recuperar contraseña
+                </Link>
+              </p>
+            ) : null}
+          </AuthAlert>
+        ) : null}
+
+        <Button type="submit" isLoading={isSubmitting} fullWidth>
+          Crear cuenta
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

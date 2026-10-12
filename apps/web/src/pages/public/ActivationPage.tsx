@@ -12,7 +12,13 @@ import { useState } from 'react';
 import { useForm, type UseFormSetError } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
-import { Button, buttonVariants, Card, CardHeader, Input } from '@activa-club/ui';
+import { Button, buttonVariants, Input } from '@activa-club/ui';
+import {
+  AuthAlert,
+  alertLinkClass,
+  PasswordRequirements,
+} from '../../components/auth/AuthFeedback';
+import { AuthShell, authLinkClass } from '../../components/auth/AuthShell';
 import type { CompleteActivationResponse, VerifyDniResponse } from '@activa-club/shared-types';
 import { ApiRequestError } from '../../lib/api/http-client';
 import { completeActivation, verifyDni } from '../../auth/activation-client';
@@ -176,146 +182,124 @@ export function ActivationPage() {
     verifyForm.reset();
   };
 
+  if (step === 'complete' && identity) {
+    return (
+      <AuthShell
+        title={`Hola, ${identity.firstName}`}
+        description={`Confirmamos tu identidad. El correo que tenemos registrado es ${identity.maskedEmail}. Define el correo y la contraseña con los que iniciarás sesión.`}
+      >
+        <form className="flex flex-col gap-4" onSubmit={onCompleteSubmit} noValidate>
+          <Input
+            label="Correo electrónico"
+            type="email"
+            autoComplete="email"
+            required
+            {...completeForm.register('email')}
+            errorMessage={completeForm.formState.errors.email?.message}
+          />
+          <div>
+            <Input
+              label="Contraseña"
+              type="password"
+              autoComplete="new-password"
+              required
+              {...completeForm.register('password')}
+              errorMessage={completeForm.formState.errors.password?.message}
+            />
+            <PasswordRequirements requirements={PASSWORD_REQUIREMENTS} />
+          </div>
+
+          {completeError ? <FormAlert error={completeError} /> : null}
+
+          <Button type="submit" isLoading={completeForm.formState.isSubmitting} fullWidth>
+            Activar cuenta
+          </Button>
+        </form>
+
+        <Button type="button" variant="ghost" fullWidth onClick={backToVerify}>
+          No soy yo, usar otro DNI
+        </Button>
+      </AuthShell>
+    );
+  }
+
+  if (step === 'success' && activationResult) {
+    return (
+      <AuthShell
+        title="Cuenta activada"
+        description="Tu cuenta se activó correctamente. Ya puedes iniciar sesión con el correo y la contraseña que definiste."
+      >
+        {activationResult.membershipStatus === 'DEBT' ||
+        activationResult.membershipStatus === 'EXPIRED' ? (
+          <AuthAlert tone="warning">
+            Tu membresía está{' '}
+            {activationResult.membershipStatus === 'DEBT' ? 'con deuda' : 'vencida'}. Podrás iniciar
+            sesión, pero no podrás reservar hasta regularizar tu pago desde la sección de Pagos.
+          </AuthAlert>
+        ) : null}
+        <Link to="/login" className={buttonVariants({ fullWidth: true })}>
+          Iniciar sesión
+        </Link>
+      </AuthShell>
+    );
+  }
+
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        {step === 'verify' ? (
-          <>
-            <CardHeader
-              title="Activar cuenta"
-              description="Ingresa tu DNI para verificar que ya eres socio del club y activar tu acceso digital."
-            />
-            <form className="flex flex-col gap-4" onSubmit={onVerifySubmit} noValidate>
-              <Input
-                label="DNI"
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                maxLength={8}
-                required
-                {...verifyForm.register('dni')}
-                errorMessage={verifyForm.formState.errors.dni?.message}
-              />
+    <AuthShell
+      title="Activar cuenta"
+      description="Ingresa tu DNI para verificar que ya eres socio del club y activar tu acceso digital."
+      footer={
+        <p>
+          ¿Ya activaste tu cuenta?{' '}
+          <Link to="/login" className={authLinkClass}>
+            Inicia sesión
+          </Link>
+        </p>
+      }
+    >
+      <form className="flex flex-col gap-4" onSubmit={onVerifySubmit} noValidate>
+        <Input
+          label="DNI"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={8}
+          required
+          {...verifyForm.register('dni')}
+          errorMessage={verifyForm.formState.errors.dni?.message}
+        />
 
-              {verifyError ? <FormAlert error={verifyError} /> : null}
+        {verifyError ? <FormAlert error={verifyError} /> : null}
 
-              <Button type="submit" isLoading={verifyForm.formState.isSubmitting} fullWidth>
-                Verificar DNI
-              </Button>
-            </form>
-
-            <p className="mt-6 text-center text-sm text-slate-600">
-              ¿Ya activaste tu cuenta?{' '}
-              <Link to="/login" className="font-medium text-brand-700 hover:text-brand-900">
-                Inicia sesión
-              </Link>
-            </p>
-          </>
-        ) : null}
-
-        {step === 'complete' && identity ? (
-          <>
-            <CardHeader
-              title={`Hola, ${identity.firstName}`}
-              description={`Confirmamos tu identidad. El correo que tenemos registrado es ${identity.maskedEmail}. Define el correo y la contraseña con los que iniciarás sesión.`}
-            />
-            <form className="flex flex-col gap-4" onSubmit={onCompleteSubmit} noValidate>
-              <Input
-                label="Correo electrónico"
-                type="email"
-                autoComplete="email"
-                required
-                {...completeForm.register('email')}
-                errorMessage={completeForm.formState.errors.email?.message}
-              />
-              <div>
-                <Input
-                  label="Contraseña"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  {...completeForm.register('password')}
-                  errorMessage={completeForm.formState.errors.password?.message}
-                />
-                <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-medium text-slate-600">Tu contraseña debe tener:</p>
-                  <ul className="mt-1 list-inside list-disc text-xs text-slate-500">
-                    {PASSWORD_REQUIREMENTS.map((requirement) => (
-                      <li key={requirement}>{requirement}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              {completeError ? <FormAlert error={completeError} /> : null}
-
-              <Button type="submit" isLoading={completeForm.formState.isSubmitting} fullWidth>
-                Activar cuenta
-              </Button>
-            </form>
-
-            <button
-              type="button"
-              onClick={backToVerify}
-              className="mt-4 text-center text-sm font-medium text-brand-700 hover:text-brand-900"
-            >
-              No soy yo, usar otro DNI
-            </button>
-          </>
-        ) : null}
-
-        {step === 'success' && activationResult ? (
-          <>
-            <CardHeader
-              title="Cuenta activada"
-              description="Tu cuenta se activó correctamente. Ya puedes iniciar sesión con el correo y la contraseña que definiste."
-            />
-            {activationResult.membershipStatus === 'DEBT' ||
-            activationResult.membershipStatus === 'EXPIRED' ? (
-              <p
-                role="status"
-                className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800"
-              >
-                Tu membresía está{' '}
-                {activationResult.membershipStatus === 'DEBT' ? 'con deuda' : 'vencida'}. Podrás
-                iniciar sesión, pero no podrás reservar hasta regularizar tu pago desde la sección
-                de Pagos.
-              </p>
-            ) : null}
-            <Link to="/login" className={buttonVariants({ fullWidth: true, className: 'mt-2' })}>
-              Iniciar sesión
-            </Link>
-          </>
-        ) : null}
-      </Card>
-    </div>
+        <Button type="submit" isLoading={verifyForm.formState.isSubmitting} fullWidth>
+          Verificar DNI
+        </Button>
+      </form>
+    </AuthShell>
   );
 }
 
 function FormAlert({ error }: { error: FormError }) {
   return (
-    <div
-      role="alert"
-      className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700"
-    >
+    <AuthAlert tone="error">
       <p>{error.message}</p>
       {error.showRegisterLink ? (
         <p className="mt-1.5">
-          <Link to="/registro" className="font-medium underline underline-offset-2">
+          <Link to="/registro" className={alertLinkClass}>
             Registrarme como socio nuevo
           </Link>
         </p>
       ) : null}
       {error.showLoginLinks ? (
         <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-          <Link to="/login" className="font-medium underline underline-offset-2">
+          <Link to="/login" className={alertLinkClass}>
             Iniciar sesión
           </Link>
-          <Link to="/recuperar-password" className="font-medium underline underline-offset-2">
+          <Link to="/recuperar-password" className={alertLinkClass}>
             Recuperar contraseña
           </Link>
         </p>
       ) : null}
-    </div>
+    </AuthAlert>
   );
 }

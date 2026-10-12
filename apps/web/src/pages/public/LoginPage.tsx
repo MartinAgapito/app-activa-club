@@ -1,4 +1,4 @@
-// Iniciar sesión — US-014.
+// Iniciar sesión — US-014 (estilo visual: US-079).
 // Login directo contra Amazon Cognito (`InitiateAuth` / `USER_PASSWORD_AUTH`,
 // ver docs/api/contratos-api.md §2 y ADR-0002). El rol resuelto determina la
 // navegación disponible (criterio de aceptación 2).
@@ -7,7 +7,9 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Button, Card, CardHeader, Input } from '@activa-club/ui';
+import { Button, Input } from '@activa-club/ui';
+import { AuthAlert, alertLinkClass } from '../../components/auth/AuthFeedback';
+import { AuthShell, authLinkClass } from '../../components/auth/AuthShell';
 import { useAuth } from '../../auth/AuthContext';
 import { CognitoAuthError, type CognitoAuthErrorReason } from '../../auth/cognito-client';
 import { loginFormSchema, type LoginFormValues } from '../../auth/login-schema';
@@ -63,21 +65,36 @@ export function LoginPage() {
   });
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader
-          title="Iniciar sesión"
-          description="Ingresa con el correo y la contraseña de tu cuenta de Activa Club."
+    <AuthShell
+      title="Iniciar sesión"
+      description="Ingresa con el correo y la contraseña de tu cuenta de Activa Club."
+      footer={
+        <>
+          <p>
+            ¿No tienes cuenta todavía?{' '}
+            <Link to="/registro" className={authLinkClass}>
+              Regístrate
+            </Link>
+          </p>
+          <p>
+            ¿Ya eres socio del club?{' '}
+            <Link to="/activar-cuenta" className={authLinkClass}>
+              Activa tu cuenta con tu DNI
+            </Link>
+          </p>
+        </>
+      }
+    >
+      <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+        <Input
+          label="Correo electrónico"
+          type="email"
+          autoComplete="email"
+          required
+          {...register('email')}
+          errorMessage={errors.email?.message}
         />
-        <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-          <Input
-            label="Correo electrónico"
-            type="email"
-            autoComplete="email"
-            required
-            {...register('email')}
-            errorMessage={errors.email?.message}
-          />
+        <div className="flex flex-col gap-2">
           <Input
             label="Contraseña"
             type="password"
@@ -86,59 +103,41 @@ export function LoginPage() {
             {...register('password')}
             errorMessage={errors.password?.message}
           />
-
-          {formError ? (
-            <div
-              role="alert"
-              className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700"
-            >
-              <p>{formError.message}</p>
-              {formError.reason === 'USER_NOT_CONFIRMED' ? (
-                <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                  <Link to="/activar-cuenta" className="font-medium underline underline-offset-2">
-                    Activar cuenta con DNI
-                  </Link>
-                  <Link to="/verificar-correo" className="font-medium underline underline-offset-2">
-                    Verificar correo
-                  </Link>
-                  <Link to="/registro" className="font-medium underline underline-offset-2">
-                    Registrarme
-                  </Link>
-                </p>
-              ) : null}
-              {formError.reason === 'PASSWORD_RESET_REQUIRED' ? (
-                <p className="mt-1.5">
-                  <Link
-                    to="/recuperar-password"
-                    className="font-medium underline underline-offset-2"
-                  >
-                    Recuperar contraseña
-                  </Link>
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <Button type="submit" isLoading={isSubmitting} fullWidth>
-            Iniciar sesión
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-600">
-          ¿No tienes cuenta todavía?{' '}
-          <Link to="/registro" className="font-medium text-brand-700 hover:text-brand-900">
-            Regístrate
-          </Link>
-        </p>
-        <p className="mt-2 text-center text-sm text-slate-600">
-          <Link
-            to="/recuperar-password"
-            className="font-medium text-brand-700 hover:text-brand-900"
-          >
+          <Link to="/recuperar-password" className={`${authLinkClass} self-end text-sm`}>
             ¿Olvidaste tu contraseña?
           </Link>
-        </p>
-      </Card>
-    </div>
+        </div>
+
+        {formError ? (
+          <AuthAlert tone="error">
+            <p>{formError.message}</p>
+            {formError.reason === 'USER_NOT_CONFIRMED' ? (
+              <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                <Link to="/activar-cuenta" className={alertLinkClass}>
+                  Activar cuenta con DNI
+                </Link>
+                <Link to="/verificar-correo" className={alertLinkClass}>
+                  Verificar correo
+                </Link>
+                <Link to="/registro" className={alertLinkClass}>
+                  Registrarme
+                </Link>
+              </p>
+            ) : null}
+            {formError.reason === 'PASSWORD_RESET_REQUIRED' ? (
+              <p className="mt-1.5">
+                <Link to="/recuperar-password" className={alertLinkClass}>
+                  Recuperar contraseña
+                </Link>
+              </p>
+            ) : null}
+          </AuthAlert>
+        ) : null}
+
+        <Button type="submit" isLoading={isSubmitting} fullWidth>
+          Iniciar sesión
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

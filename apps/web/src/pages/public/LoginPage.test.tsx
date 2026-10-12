@@ -152,6 +152,53 @@ describe('LoginPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/bloqueó el inicio de sesión/i);
   });
 
+  it('muestra los enlaces secundarios de recuperación, registro y activación (US-079)', () => {
+    renderLoginPage(vi.fn());
+
+    expect(screen.getByRole('link', { name: /olvidaste tu contraseña/i })).toHaveAttribute(
+      'href',
+      '/recuperar-password',
+    );
+    expect(screen.getByRole('link', { name: /regístrate/i })).toHaveAttribute('href', '/registro');
+    expect(screen.getByRole('link', { name: /activa tu cuenta con tu dni/i })).toHaveAttribute(
+      'href',
+      '/activar-cuenta',
+    );
+  });
+
+  it('tiene un único h1 y un orden de tabulación lógico (correo, contraseña, olvido, enviar)', async () => {
+    const user = userEvent.setup();
+    renderLoginPage(vi.fn());
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+
+    await user.tab();
+    expect(screen.getByRole('textbox', { name: /correo electrónico/i })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByLabelText(/contraseña/i)).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('link', { name: /olvidaste tu contraseña/i })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: /iniciar sesión/i })).toHaveFocus();
+  });
+
+  it('marca el botón como ocupado mientras se envía el formulario (estado de carga)', async () => {
+    const signIn = vi.fn().mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    renderLoginPage(signIn);
+
+    await user.type(
+      screen.getByRole('textbox', { name: /correo electrónico/i }),
+      'socio@example.com',
+    );
+    await user.type(screen.getByLabelText(/contraseña/i), 'Sup3rSecreta!');
+    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }));
+
+    const button = await screen.findByRole('button', { name: /iniciar sesión/i });
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button).toBeDisabled();
+  });
+
   it('redirige directamente a un usuario que ya tiene sesión activa', () => {
     renderLoginPage(vi.fn(), { status: 'authenticated', role: 'admin', memberId: null });
 
