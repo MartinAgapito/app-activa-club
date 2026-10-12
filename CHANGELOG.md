@@ -22,6 +22,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Historial de pagos del socio en `/socio/pagos` (US-050, EP-03, sobre US-025):
+  "Mis pagos" con tabla (tarjetas en móvil) de fecha en hora de Lima, concepto,
+  monto en soles y estado en español (Pagado, En verificación, Rechazado),
+  resumen del último pago, "Cargar más" por cursor, panel lateral con el detalle
+  (monto, plan, estado, fechas y referencia interna; sin datos de tarjeta ni
+  identificadores de Stripe), estado vacío con enlace a membresía y errores con
+  Reintentar. Un cursor inválido (400) vuelve a la primera página. Sin cambios
+  en el servidor.
 - Reservas del administrador en pestañas "Por aprobar" (con contador) y
   "Todas", con tabla (`DataTable`), filtros y pestaña guardados en la URL,
   panel lateral de detalle (`?reserva=<id>`) con participantes, y las
