@@ -22,6 +22,13 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Mis reservas rehecha (US-074, EP-08): pestañas "Próximas" y "Pasadas" con
+  contador y estado en la URL (`?tab=`), tabla responsive con "Cargar más",
+  panel lateral de detalle con dirección propia (`?reserva=`) con
+  participantes, motivo de rechazo y fecha de cancelación, y cancelación en
+  ventana con la consecuencia explícita, aviso "Reserva cancelada" y errores
+  del servidor dentro de la ventana. "Cancelar reserva" queda deshabilitado
+  con el motivo visible cuando faltan menos de 24 horas. Sin cambios de API.
 - Inicio del administrador (US-071, EP-08): `/admin` pasa de placeholder a
   panel orientado a la acción con bloques independientes ("Requiere tu
   atención", "Reservas por aprobar" con `DataTable` de las 5 más próximas y
