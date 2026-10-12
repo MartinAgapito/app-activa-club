@@ -238,8 +238,8 @@ Notas y desviaciones:
 
 Ver [`packages/ui/README.md`](../../../packages/ui/README.md) para el detalle
 de cada componente (`Button`/`buttonVariants`, `Input`, `Card`/`CardHeader`,
-`Badge`, `PageLayout`/`PageHeader`, `Spinner`, `EmptyState`, `ErrorState`).
-Ninguno decide reglas de negocio ni conoce las entidades de
+`Badge`, `PageLayout`/`PageHeader`, `Spinner`, `EmptyState`, `ErrorState`,
+`Tabs`). Ninguno decide reglas de negocio ni conoce las entidades de
 `packages/shared-types`.
 
 ### 7.1 `Modal` (US-062)
@@ -269,6 +269,127 @@ Por debajo de 640px ocupa toda la pantalla con cabecera y pie fijos. No usa
 animación de entrada, por lo que no hay movimiento que reducir con
 `prefers-reduced-motion`. No se admite una ventana dentro de otra.
 `ConfirmDialog` se apoya en `Modal` y conserva su API.
+
+### 7.1 Tabs (US-064)
+
+Construido sobre `@radix-ui/react-tabs` (ADR-0013, en US-062): Radix aporta
+roles `tablist`/`tab`/`tabpanel`, `aria-selected`, `aria-controls`,
+`aria-labelledby`, flechas (con vuelta al inicio), Inicio/Fin y un único
+`tabindex=0` en la pestaña activa; `@activa-club/ui` aporta solo los estilos.
+
+```tsx
+<Tabs defaultValue="proximas">
+  <TabsList aria-label="Mis reservas">
+    <TabsTrigger value="proximas" count={3}>
+      Próximas
+    </TabsTrigger>
+    <TabsTrigger value="pasadas">Pasadas</TabsTrigger>
+    <TabsTrigger value="otras" disabled>
+      Otras
+    </TabsTrigger>
+  </TabsList>
+  <TabsContent value="proximas">...</TabsContent>
+  <TabsContent value="pasadas">...</TabsContent>
+</Tabs>
+```
+
+- **Controlado / URL**: pasar `value` y `onValueChange`. El componente no
+  conoce la librería de rutas; con react-router-dom:
+
+  ```tsx
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('tab') ?? 'proximas'; // validar contra la lista permitida
+  <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
+  ```
+
+  Usar `replace: true` para no llenar el historial con cada cambio de
+  pestaña; quitarlo si "atrás" debe volver a la pestaña anterior. Validar el
+  valor leído de la URL contra los valores conocidos (ver
+  `apps/web/src/pages/dev/TabsDemo.tsx`).
+
+- **Contador**: `count` en `TabsTrigger` renderiza un `Badge` informativo.
+- **Scroll**: `TabsList` usa `overflow-x-auto` en su propia fila; las pestañas
+  no se encogen (`shrink-0`, sin salto de línea), así que en 375px la fila se
+  desplaza y la página no.
+- **Deshabilitada**: `disabled` en `TabsTrigger` (opacidad `state-disabled`,
+  omitida por el teclado).
+- **Foco**: `focus-ring` con desfase interno (`-outline-offset-2`) para que el
+  contenedor con scroll no recorte el contorno.
+- **Nombre accesible**: dar siempre `aria-label` o `aria-labelledby` a
+  `TabsList`.
+
+### 7.1 Avisos efímeros (`ToastProvider` / `useToast`, US-066)
+
+Confirman el resultado inmediato de una acción del propio usuario. No son las
+notificaciones de EP-05 (no se guardan, no llegan por correo).
+
+- API: `const toast = useToast()` con
+  `toast.success | info | warning | error(mensaje, { id?, duration?, action? })`
+  y `toast.dismiss(id?)`. El proveedor se montará en la raíz de `apps/web`
+  en la historia de layout; mientras tanto solo la página de referencia lo
+  monta.
+- Duración: 5 s por defecto; los errores permanecen hasta cerrarse
+  (`duration: null`). Se pausa con el puntero encima o con foco dentro.
+- Máximo 3 visibles: al llegar el cuarto sale el más antiguo.
+- ARIA: región `aria-live="polite"` (éxito, información, alerta; cada aviso
+  `role="status"`) y `aria-live="assertive"` (errores, `role="alert"`). Nunca
+  mueve el foco. Siempre icono + texto, con botón "Cerrar aviso".
+- Posición y capa: inferior centrado y a lo ancho en móvil, esquina inferior
+  derecha desde `sm`; `z-layer-toast`, `shadow-toast`, tokens `status-*`.
+- Movimiento: entrada con `--motion-base`; sin transición con
+  `prefers-reduced-motion`.
+- **Convención de texto**: el mensaje usa el mismo verbo del botón que originó
+  la acción, en participio: "Reservar cancha" -> "Cancha reservada", "Liberar
+  bloqueo" -> "Bloqueo liberado", "Aprobar solicitud" -> "Solicitud aprobada".
+  Frases breves, sin códigos técnicos; un error explica qué pasó y, si aplica,
+  cómo resolverlo.
+
+### 7.1 `DataTable` (US-065)
+
+Listado comparable y responsive, solo CSS (sin `matchMedia`, sin dependencias).
+Un único `<table>` semántico que cambia de presentación en el breakpoint `sm`
+(640 px):
+
+- **>= 640 px**: tabla real con `<caption>` y `<th scope="col">`; encabezado
+  `surface-raised`, filas separadas por `line`, `rounded-card` y `shadow-card`.
+- **< 640 px**: cada fila es una tarjeta apilada (`surface-card`, `line`,
+  `rounded-card`) con pares etiqueta/valor; la etiqueta (`type-aux`,
+  `ink-muted`) sale de `data-label` por `::before`. El encabezado queda solo
+  para lectores de pantalla y no hay desplazamiento horizontal de la página.
+
+API principal: `columns` (`header`, `accessor` o `render`, `align`, `width`),
+`rows`, `getRowKey`, `caption` (+ `hideCaption`), `onRowClick` + `getRowLabel`
+(fila enfocable; Enter/Espacio; foco visible con `focus-ring`),
+`renderActions` (última columna, a la derecha; sus clics no activan la fila),
+`isLoading`, `isError` + `onRetry`, `emptyTitle`/`emptyDescription`/
+`emptyAction`, y `hasMore`/`onLoadMore`/`isLoadingMore` para el pie "Cargar más"
+(paginación por cursor `{ items, nextCursor }`: `hasMore = nextCursor !== null`).
+Los estados de carga, error y vacío reemplazan a la tabla (reutilizan
+`Spinner`, `ErrorState`, `EmptyState`); `aria-busy` se marca mientras carga.
+Estados de fila: usar `Badge` con texto, nunca solo color. No ordena ni filtra.
+
+### 7.1 `Stepper` (US-067)
+
+Indicador de pasos para secuencias cortas (primer uso: asistente de reserva,
+US-072). Props: `steps` (`{ label, id? }[]`), `currentStep` (índice base 0,
+acotado al rango), `onStepClick?(index)` y `aria-label` (por defecto
+"Progreso").
+
+- Estado derivado de `currentStep`: anteriores `completed`, igual `current`,
+  posteriores `pending`.
+- Semántica: `<nav>` con `<ol>`; el actual lleva `aria-current="step"`. Cada
+  paso agrega texto solo para lectores de pantalla (": completado",
+  ": paso actual", ": pendiente").
+- No depende del color: completado con marca de verificado, actual y
+  pendiente con su número (la numeración es información en una secuencia).
+- Solo los pasos completados son clicables, y solo si se pasa `onStepClick`;
+  el actual y los pendientes nunca lo son. El llamador decide si permitir
+  volver atrás.
+- Menos de 640 px (`sm`): forma compacta "Paso 2 de 4: Día y franja", sin
+  desbordar. Desde `sm`: lista completa con conectores.
+- Tokens: `action`/`ink-on-brand` (actual), `status-confirmed(-soft)`
+  (completado), `ink-muted`, `line` (pendiente y conectores), `type-aux`,
+  `focus-ring`. No usa colores literales.
 
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
@@ -306,3 +427,5 @@ animación de entrada, por lo que no hay movimiento que reducir con
   API; tabla de contrastes AA; muestra en `/_dev/design-system`. Modo oscuro
   preparado en la estructura, no activado.
 - 2026-10-11: US-062. Componente `Modal` (§7.1) y `ConfirmDialog` sobre él.
+- 2026-10-11: §7.1 componente `Tabs` (US-064).
+- 2026-10-11: US-065. Componente `DataTable` responsive (§7.1).

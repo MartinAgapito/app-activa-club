@@ -23,6 +23,9 @@ en el proyecto que lo consume.
 | `Spinner`                  | Estado de carga                                                                                      |
 | `EmptyState`               | Estado vacío (listados sin datos, placeholders de Sprint 0)                                          |
 | `ErrorState`               | Estado de error, alineado al formato de error del contrato de API                                    |
+| `Tabs`, `TabsList`, ...    | Pestañas accesibles (WAI-ARIA, sobre Radix); estado controlable desde la URL. Ver design-foundation  |
+| `DataTable`                | Tabla responsive (tarjetas bajo 640 px), acción de fila, estados y "Cargar más" (US-065)             |
+| `Stepper`                  | Indicador de pasos (lista ordenada, forma compacta en móvil); completados clicables opcionalmente    |
 
 > **US-061**: `Button`, `Card`, `Badge`, `Input`, `Textarea` y `PageLayout`
 > usan los tokens semánticos (`bg-surface-card`, `text-ink`, `border-line`,

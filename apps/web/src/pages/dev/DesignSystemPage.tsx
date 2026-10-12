@@ -2,22 +2,60 @@
 // (import.meta.env.DEV). No forma parte del mapa de rutas del MVP — ver
 // apps/web/docs/mapa-de-rutas.md, sección "Herramientas internas de desarrollo".
 
+import { useState } from 'react';
 import {
   Badge,
   Button,
   Card,
   CardHeader,
   Input,
+  Modal,
   PageHeader,
+  ToastProvider,
+  useToast,
+  Stepper,
   type BadgeVariant,
 } from '@activa-club/ui';
-import { useState } from 'react';
-import { Modal } from '@activa-club/ui';
 import { ReferenceForm } from '../../examples/ReferenceForm';
 import { ReferenceQueryDemo } from '../../examples/ReferenceQueryDemo';
+import { TabsDemo } from './TabsDemo';
 import { TokensShowcase } from './TokensShowcase';
+import { DataTableShowcase } from './DataTableShowcase';
 
 const BADGE_VARIANTS: BadgeVariant[] = ['neutral', 'info', 'positive', 'warning', 'danger'];
+
+const STEPPER_DEMO_STEPS = [
+  { label: 'Instalación' },
+  { label: 'Día y franja' },
+  { label: 'Participantes' },
+  { label: 'Confirmar' },
+];
+
+function StepperDemo() {
+  const [step, setStep] = useState(2);
+  return (
+    <div className="flex flex-col gap-4">
+      <Stepper steps={STEPPER_DEMO_STEPS} currentStep={step} onStepClick={setStep} />
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={step === 0}
+          onClick={() => setStep((s) => s - 1)}
+        >
+          Anterior
+        </Button>
+        <Button
+          size="sm"
+          disabled={step === STEPPER_DEMO_STEPS.length - 1}
+          onClick={() => setStep((s) => s + 1)}
+        >
+          Siguiente
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function DesignSystemPage() {
   return (
@@ -55,6 +93,8 @@ export function DesignSystemPage() {
         </div>
       </Card>
 
+      <TabsDemo />
+
       <Card>
         <CardHeader title="Input" />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -64,6 +104,21 @@ export function DesignSystemPage() {
       </Card>
 
       <ModalDemo />
+      <ToastProvider>
+        <Card>
+          <CardHeader
+            title="Avisos efímeros (toast)"
+            description="Confirman una acción propia; no son notificaciones persistentes."
+          />
+          <ToastDemo />
+        </Card>
+      </ToastProvider>
+      <DataTableShowcase />
+      <Card>
+        <CardHeader title="Stepper (indicador de pasos)" />
+        <StepperDemo />
+      </Card>
+
       <ReferenceForm />
       <ReferenceQueryDemo />
     </div>
@@ -95,5 +150,32 @@ function ModalDemo() {
         <Input label="Nombre" defaultValue="Cancha de tenis 1" />
       </Modal>
     </Card>
+  );
+}
+
+function ToastDemo() {
+  const toast = useToast();
+  return (
+    <div className="flex flex-wrap gap-3">
+      <Button variant="positive" onClick={() => toast.success('Reserva confirmada')}>
+        Éxito
+      </Button>
+      <Button variant="secondary" onClick={() => toast.info('Cambios guardados')}>
+        Información
+      </Button>
+      <Button variant="warning" onClick={() => toast.warning('Tu membresía vence pronto')}>
+        Alerta
+      </Button>
+      <Button
+        variant="danger"
+        onClick={() =>
+          toast.error('No se pudo reservar', {
+            action: { label: 'Ver en Mis reservas', onClick: () => undefined },
+          })
+        }
+      >
+        Error
+      </Button>
+    </div>
   );
 }
