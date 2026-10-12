@@ -66,13 +66,37 @@ export function useAdminReservationsQuery(
   });
 }
 
+/** Detalle de una reserva (`GET /reservations/{id}`); no consulta con `null`. */
 export function useAdminReservationDetailQuery(
-  reservationId: string,
+  reservationId: string | null,
 ): UseQueryResult<ReservationDetail> {
   return useQuery({
     queryKey: [...ADMIN_RESERVATIONS_QUERY_KEY, 'detail', reservationId],
-    queryFn: () => fetchReservationDetail(reservationId),
+    queryFn: () => fetchReservationDetail(reservationId as string),
+    enabled: reservationId !== null,
   });
+}
+
+/** Titular de una reserva ya cargada en alguna lista administrativa: el
+ * detalle (`GET /reservations/{id}`) no lo incluye. `null` si no está en caché
+ * (p. ej. al abrir la dirección `?reserva=` directamente). */
+export function useCachedHolder(reservationId: string | null): AdminReservationListItem['holder'] {
+  const queryClient = useQueryClient();
+  if (reservationId === null) {
+    return null;
+  }
+  const lists = queryClient.getQueriesData<InfiniteData<Paginated<AdminReservationListItem>>>({
+    queryKey: [...ADMIN_RESERVATIONS_QUERY_KEY, 'list'],
+  });
+  for (const [, data] of lists) {
+    for (const page of data?.pages ?? []) {
+      const found = page.items.find((item) => item.reservationId === reservationId);
+      if (found) {
+        return found.holder;
+      }
+    }
+  }
+  return null;
 }
 
 export function useApproveReservationMutation(): UseMutationResult<

@@ -22,6 +22,12 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Reservas del administrador en pestañas "Por aprobar" (con contador) y
+  "Todas", con tabla (`DataTable`), filtros y pestaña guardados en la URL,
+  panel lateral de detalle (`?reserva=<id>`) con participantes, y las
+  decisiones aprobar, rechazar con motivo obligatorio y cancelar en ventanas
+  con aviso efímero y errores (409, 404) dentro de la ventana (US-077,
+  EP-08). Sin cambios en el servidor.
 - Pantalla `/admin/recursos` con pestañas "Instalaciones" y "Mantenimiento"
   (US-075 y US-076, EP-08), con la pestaña activa en `?tab=` y la instalación
   elegida en `?recurso=`. Instalaciones: tabla con aforo, horario, duración

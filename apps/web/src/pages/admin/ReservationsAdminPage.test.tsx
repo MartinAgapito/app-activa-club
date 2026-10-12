@@ -1,10 +1,12 @@
-// Reservas y aprobaciones (US-034 criterios 1 y 13, US-036 criterios 8 y 12):
-// bandeja de pendientes, aprobar/rechazar, consulta con filtros, paginación,
-// cancelación administrativa y errores del contrato.
+// Reservas y aprobaciones (US-077; conserva los casos de US-034 y US-036):
+// pestañas en la URL, tabla de pendientes, panel de detalle, aprobar,
+// rechazar con motivo, cancelar, filtros, paginación y errores del contrato.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { ToastProvider } from '@activa-club/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type {
   AdminReservationListItem,
@@ -134,19 +136,39 @@ function detail(overrides: Partial<ReservationDetail> = {}): ReservationDetail {
   };
 }
 
-function renderPage() {
+function LocationDisplay() {
+  const location = useLocation();
+  return <p data-testid="location">{location.search}</p>;
+}
+
+function renderPage(initialEntry = '/admin/reservas') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <ReservationsAdminPage />
+      <ToastProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <ReservationsAdminPage />
+          <LocationDisplay />
+        </MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>,
   );
 }
 
 async function openAllTab(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('tab', { name: 'Todas las reservas' }));
+  await user.click(screen.getByRole('tab', { name: 'Todas' }));
+}
+
+/** Filas del cuerpo de la tabla (sin la fila de encabezados). */
+function bodyRows() {
+  return within(screen.getByRole('table')).getAllByRole('row').slice(1);
+}
+
+async function openFirstRow(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByRole('table');
+  await user.click(bodyRows()[0]!);
 }
 
 describe('ReservationsAdminPage', () => {
@@ -162,7 +184,45 @@ describe('ReservationsAdminPage', () => {
     vi.clearAllMocks();
   });
 
-  describe('bandeja de pendientes', () => {
+  describe('pestañas', () => {
+    it('abre "Por aprobar" por defecto y muestra el contador en la pestaña', async () => {
+      listMock.mockResolvedValue({
+        items: [item(), item({ reservationId: 'res-2' })],
+        nextCursor: null,
+      });
+      renderPage();
+
+      const tab = await screen.findByRole('tab', { name: /Por aprobar/ });
+      expect(tab).toHaveAttribute('aria-selected', 'true');
+      await waitFor(() => expect(tab).toHaveTextContent('2'));
+      expect(screen.getByRole('tab', { name: 'Todas' })).toHaveAttribute('aria-selected', 'false');
+    });
+
+    it('guarda la pestaña activa en la URL y la restaura al abrir la dirección', async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await openAllTab(user);
+      expect(screen.getByTestId('location')).toHaveTextContent('tab=todas');
+      expect(await screen.findByLabelText('Estado')).toBeInTheDocument();
+    });
+
+    it('abre directamente "Todas" con ?tab=todas', async () => {
+      renderPage('/admin/reservas?tab=todas');
+      expect(await screen.findByRole('form', { name: 'Filtros de reservas' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Todas' })).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('permite cambiar de pestaña con el teclado', async () => {
+      const user = userEvent.setup();
+      renderPage();
+      const first = await screen.findByRole('tab', { name: /Por aprobar/ });
+      first.focus();
+      await user.keyboard('{ArrowRight}');
+      expect(screen.getByRole('tab', { name: 'Todas' })).toHaveFocus();
+    });
+  });
+
+  describe('por aprobar', () => {
     it('muestra el estado de carga', () => {
       listMock.mockReturnValue(new Promise(() => undefined));
       renderPage();
@@ -181,7 +241,7 @@ describe('ReservationsAdminPage', () => {
       expect(screen.getByText('Sin solicitudes pendientes')).toBeInTheDocument();
     });
 
-    it('muestra contador, instalación, hora de Lima, titular y participantes', async () => {
+    it('muestra contador, instalación, hora de Lima, titular, participantes y antigüedad', async () => {
       listMock.mockResolvedValue({
         items: [
           item(),
@@ -192,12 +252,14 @@ describe('ReservationsAdminPage', () => {
       renderPage();
 
       expect(await screen.findByText('2 solicitudes pendientes')).toBeInTheDocument();
-      const first = screen.getAllByRole('listitem')[0]!;
+      const rows = bodyRows();
+      expect(rows).toHaveLength(2);
+      const first = rows[0]!;
       expect(within(first).getByText('Parrilla 1')).toBeInTheDocument();
       expect(within(first).getByText(/10:00 – 15:00/)).toBeInTheDocument();
       expect(within(first).getByText('Ana Torres')).toBeInTheDocument();
       expect(within(first).getByText('4 personas, 2 invitados externos')).toBeInTheDocument();
-      expect(within(first).getByText('Pendiente de aprobación')).toBeInTheDocument();
+      expect(within(first).getByText('hace 9 días')).toBeInTheDocument();
       expect(within(first).queryByText('Vencida sin decisión')).not.toBeInTheDocument();
     });
 
@@ -237,32 +299,78 @@ describe('ReservationsAdminPage', () => {
       expect(await screen.findByText('2 solicitudes pendientes')).toBeInTheDocument();
     });
 
-    it('muestra el detalle con los participantes', async () => {
+    it('muestra el detalle con los participantes en el panel lateral', async () => {
       const user = userEvent.setup();
       listMock.mockResolvedValue({ items: [item()], nextCursor: null });
       detailMock.mockResolvedValue(detail());
       renderPage();
 
-      await user.click(await screen.findByRole('button', { name: 'Ver detalle' }));
+      await openFirstRow(user);
 
       expect(await screen.findByText('Luis Quispe')).toBeInTheDocument();
       expect(screen.getByText('(Invitado externo)')).toBeInTheDocument();
+      expect(screen.getByText('(Titular)')).toBeInTheDocument();
       expect(detailMock).toHaveBeenCalledWith('res-1');
+      expect(screen.getByTestId('location')).toHaveTextContent('reserva=res-1');
+      const panel = screen.getByRole('dialog');
+      expect(within(panel).getByText('Ana Torres', { selector: 'dd' })).toBeInTheDocument();
+      expect(within(panel).getByText('Pendiente de aprobación')).toBeInTheDocument();
     });
 
-    it('muestra el error del detalle sin el mensaje crudo', async () => {
+    it('muestra el error del detalle sin el mensaje crudo y permite reintentar', async () => {
       const user = userEvent.setup();
       listMock.mockResolvedValue({ items: [item()], nextCursor: null });
-      detailMock.mockRejectedValue(new ApiRequestError(500, 'INTERNAL_ERROR', 'stack trace SQL'));
+      detailMock
+        .mockRejectedValueOnce(new ApiRequestError(500, 'INTERNAL_ERROR', 'stack trace SQL'))
+        .mockResolvedValue(detail());
       renderPage();
 
-      await user.click(await screen.findByRole('button', { name: 'Ver detalle' }));
+      await openFirstRow(user);
 
       expect(await screen.findByText(/No pudimos cargar el detalle/)).toBeInTheDocument();
       expect(screen.queryByText(/stack trace SQL/)).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Reintentar' }));
+      expect(await screen.findByText('Luis Quispe')).toBeInTheDocument();
     });
 
-    it('aprueba con confirmación y refresca la bandeja', async () => {
+    it('404 en el detalle ofrece actualizar y cierra el panel', async () => {
+      const user = userEvent.setup();
+      listMock.mockResolvedValue({ items: [item()], nextCursor: null });
+      detailMock.mockRejectedValue(new ApiRequestError(404, 'NOT_FOUND', 'crudo'));
+      renderPage();
+
+      await openFirstRow(user);
+      await user.click(await screen.findByRole('button', { name: 'Actualizar y cerrar' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(screen.getByTestId('location')).not.toHaveTextContent('reserva=');
+    });
+
+    it('abre el panel directamente con ?reserva=<id>', async () => {
+      listMock.mockResolvedValue({ items: [item()], nextCursor: null });
+      detailMock.mockResolvedValue(detail());
+      renderPage('/admin/reservas?tab=pendientes&reserva=res-1');
+
+      expect(await screen.findByText('Luis Quispe')).toBeInTheDocument();
+      expect(detailMock).toHaveBeenCalledWith('res-1');
+      expect(screen.getByRole('button', { name: 'Aprobar' })).toBeInTheDocument();
+    });
+
+    it('cierra el panel y quita ?reserva= de la URL', async () => {
+      const user = userEvent.setup();
+      listMock.mockResolvedValue({ items: [item()], nextCursor: null });
+      detailMock.mockResolvedValue(detail());
+      renderPage();
+
+      await openFirstRow(user);
+      await screen.findByText('Luis Quispe');
+      await user.click(screen.getByRole('button', { name: 'Cerrar' }));
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(screen.getByTestId('location')).not.toHaveTextContent('reserva=');
+    });
+
+    it('aprueba con confirmación, avisa con un toast y refresca la tabla', async () => {
       const user = userEvent.setup();
       listMock
         .mockResolvedValueOnce({ items: [item()], nextCursor: null })
@@ -272,13 +380,36 @@ describe('ReservationsAdminPage', () => {
 
       await user.click(await screen.findByRole('button', { name: 'Aprobar' }));
       const dialog = screen.getByRole('alertdialog');
+      expect(dialog).toHaveTextContent('Parrilla 1');
       expect(approveMock).not.toHaveBeenCalled();
       await user.click(within(dialog).getByRole('button', { name: 'Aprobar' }));
 
       await waitFor(() => expect(approveMock).toHaveBeenCalledWith('res-1'));
-      expect(await screen.findByText('Solicitud aprobada')).toBeInTheDocument();
+      expect(await screen.findByText('Reserva aprobada')).toBeInTheDocument();
       await screen.findByText('No hay solicitudes pendientes');
       expect(listMock).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+
+    it('aprueba desde el panel de detalle y lo cierra', async () => {
+      const user = userEvent.setup();
+      listMock
+        .mockResolvedValueOnce({ items: [item()], nextCursor: null })
+        .mockResolvedValue({ items: [], nextCursor: null });
+      detailMock.mockResolvedValue(detail());
+      approveMock.mockResolvedValue({ reservationId: 'res-1', reservationStatus: 'APPROVED' });
+      renderPage();
+
+      await openFirstRow(user);
+      await user.click(await screen.findByRole('button', { name: 'Aprobar' }));
+      await user.click(
+        within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Aprobar' }),
+      );
+
+      await waitFor(() => expect(approveMock).toHaveBeenCalledWith('res-1'));
+      expect(await screen.findByText('Reserva aprobada')).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(screen.getByTestId('location')).not.toHaveTextContent('reserva=');
     });
 
     it('permite cancelar la confirmación de aprobar sin llamar al servidor', async () => {
@@ -295,7 +426,7 @@ describe('ReservationsAdminPage', () => {
       expect(approveMock).not.toHaveBeenCalled();
     });
 
-    it('409 RESERVATION_NOT_PENDING al aprobar avisa y refresca', async () => {
+    it('409 RESERVATION_NOT_PENDING avisa dentro de la ventana, refresca y ofrece actualizar', async () => {
       const user = userEvent.setup();
       listMock.mockResolvedValue({ items: [item()], nextCursor: null });
       approveMock.mockRejectedValue(
@@ -304,14 +435,17 @@ describe('ReservationsAdminPage', () => {
       renderPage();
 
       await user.click(await screen.findByRole('button', { name: 'Aprobar' }));
-      await user.click(
-        within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Aprobar' }),
-      );
+      const dialog = screen.getByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Aprobar' }));
 
-      const alert = await screen.findByRole('alert');
+      const alert = await within(dialog).findByRole('alert');
       expect(alert).toHaveTextContent('La solicitud ya no está pendiente');
       expect(alert).not.toHaveTextContent('message crudo del servidor');
       await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
+
+      await user.click(within(dialog).getByRole('button', { name: 'Actualizar' }));
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(approveMock).toHaveBeenCalledTimes(1);
     });
 
     it('exige un motivo antes de poder rechazar y lo envía', async () => {
@@ -325,7 +459,8 @@ describe('ReservationsAdminPage', () => {
       renderPage();
 
       await user.click(await screen.findByRole('button', { name: 'Rechazar' }));
-      const dialog = screen.getByRole('alertdialog');
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveTextContent('El socio verá este motivo');
       const confirm = within(dialog).getByRole('button', { name: 'Rechazar' });
       expect(confirm).toBeDisabled();
 
@@ -343,7 +478,7 @@ describe('ReservationsAdminPage', () => {
           reason: 'abc Mantenimiento programado',
         }),
       );
-      expect(await screen.findByText('Solicitud rechazada')).toBeInTheDocument();
+      expect(await screen.findByText('Reserva rechazada')).toBeInTheDocument();
     });
 
     it('400 VALIDATION_ERROR al rechazar muestra el requisito del motivo', async () => {
@@ -353,13 +488,31 @@ describe('ReservationsAdminPage', () => {
       renderPage();
 
       await user.click(await screen.findByRole('button', { name: 'Rechazar' }));
-      const dialog = screen.getByRole('alertdialog');
+      const dialog = screen.getByRole('dialog');
       await user.type(within(dialog).getByLabelText(/Motivo del rechazo/), 'Sin cupo');
       await user.click(within(dialog).getByRole('button', { name: 'Rechazar' }));
 
-      const alert = await screen.findByRole('alert');
+      const alert = await within(dialog).findByRole('alert');
       expect(alert).toHaveTextContent('entre 3 y 280 caracteres');
       expect(alert).not.toHaveTextContent('zod crudo');
+    });
+
+    it('409 al rechazar se muestra dentro de la ventana de rechazo', async () => {
+      const user = userEvent.setup();
+      listMock.mockResolvedValue({ items: [item()], nextCursor: null });
+      rejectMock.mockRejectedValue(new ApiRequestError(409, 'RESERVATION_NOT_PENDING', 'crudo'));
+      renderPage();
+
+      await user.click(await screen.findByRole('button', { name: 'Rechazar' }));
+      const dialog = screen.getByRole('dialog');
+      await user.type(within(dialog).getByLabelText(/Motivo del rechazo/), 'Sin cupo');
+      await user.click(within(dialog).getByRole('button', { name: 'Rechazar' }));
+
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+        'La solicitud ya no está pendiente',
+      );
+      await user.click(within(dialog).getByRole('button', { name: 'Actualizar' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it.each([
@@ -429,9 +582,8 @@ describe('ReservationsAdminPage', () => {
       renderPage();
       await openAllTab(user);
 
-      expect(
-        await screen.findByRole('heading', { name: 'Cancha de fútbol 1' }),
-      ).toBeInTheDocument();
+      const table = await screen.findByRole('table');
+      expect(within(table).getByText('Cancha de fútbol 1')).toBeInTheDocument();
       expect(listMock).toHaveBeenLastCalledWith({
         status: 'CONFIRMED',
         resourceId: undefined,
@@ -439,10 +591,10 @@ describe('ReservationsAdminPage', () => {
         to: undefined,
         cursor: null,
       });
-      expect(within(screen.getByRole('listitem')).getByText('Confirmada')).toBeInTheDocument();
+      expect(within(table).getByText('Confirmada')).toBeInTheDocument();
     });
 
-    it('combina filtros de estado, instalación y fechas en hora de Lima', async () => {
+    it('combina filtros de estado, instalación y fechas en hora de Lima y los guarda en la URL', async () => {
       const user = userEvent.setup();
       renderPage();
       await openAllTab(user);
@@ -463,6 +615,22 @@ describe('ReservationsAdminPage', () => {
           cursor: null,
         }),
       );
+      const search = screen.getByTestId('location').textContent ?? '';
+      expect(search).toContain('estado=CANCELLED');
+      expect(search).toContain('instalacion=parrilla-1');
+      expect(search).toContain('desde=2026-07-01');
+      expect(search).toContain('hasta=2026-07-31');
+    });
+
+    it('restaura los filtros desde la URL', async () => {
+      renderPage('/admin/reservas?tab=todas&estado=REJECTED&instalacion=futbol-1');
+
+      await waitFor(() =>
+        expect(listMock).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'REJECTED', resourceId: 'futbol-1' }),
+        ),
+      );
+      expect(screen.getByLabelText('Estado')).toHaveValue('REJECTED');
     });
 
     it('no consulta sin estado ni instalación y lo explica', async () => {
@@ -532,10 +700,10 @@ describe('ReservationsAdminPage', () => {
       await waitFor(() =>
         expect(listMock).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'next-1' })),
       );
-      await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2));
+      await waitFor(() => expect(bodyRows()).toHaveLength(2));
     });
 
-    it('muestra estado de carga, vacío y error con reintento', async () => {
+    it('muestra estado de carga', async () => {
       const user = userEvent.setup();
       listMock
         .mockResolvedValueOnce({ items: [], nextCursor: null })
@@ -560,7 +728,7 @@ describe('ReservationsAdminPage', () => {
       expect(await screen.findByText('No hay reservas con esos filtros')).toBeInTheDocument();
     });
 
-    it('cancela con confirmación sin ventana de 24 h y refresca', async () => {
+    it('cancela desde el panel con confirmación sin ventana de 24 h, avisa y refresca', async () => {
       const user = userEvent.setup();
       listMock
         .mockResolvedValueOnce({ items: [], nextCursor: null })
@@ -569,51 +737,58 @@ describe('ReservationsAdminPage', () => {
           nextCursor: null,
         })
         .mockResolvedValue({ items: [], nextCursor: null });
+      detailMock.mockResolvedValue(detail({ reservationStatus: 'CONFIRMED' }));
       cancelMock.mockResolvedValue({ reservationId: 'res-1', reservationStatus: 'CANCELLED' });
       renderPage();
       await openAllTab(user);
 
+      await openFirstRow(user);
       await user.click(await screen.findByRole('button', { name: 'Cancelar reserva' }));
       const dialog = screen.getByRole('alertdialog');
       expect(dialog).toHaveTextContent('no tiene ventana de 24 horas');
+      expect(dialog).toHaveTextContent('menos de 24 horas');
+      expect(dialog).toHaveTextContent('cupo mensual del invitado se devolverá');
       expect(cancelMock).not.toHaveBeenCalled();
       await user.click(within(dialog).getByRole('button', { name: 'Sí, cancelar reserva' }));
 
       await waitFor(() => expect(cancelMock).toHaveBeenCalledWith('res-1'));
       expect(await screen.findByText('Reserva cancelada')).toBeInTheDocument();
+      await screen.findByText('No hay reservas con esos filtros');
     });
 
     it('avisa que para dejar motivo en una pendiente hay que rechazarla', async () => {
       const user = userEvent.setup();
       listMock.mockResolvedValue({ items: [item()], nextCursor: null });
+      detailMock.mockResolvedValue(detail());
       renderPage();
       await openAllTab(user);
 
+      await openFirstRow(user);
       await user.click(await screen.findByRole('button', { name: 'Cancelar reserva' }));
 
-      expect(screen.getByRole('alertdialog')).toHaveTextContent(
-        'lo correcto es rechazarla desde la bandeja',
-      );
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('lo correcto es rechazarla');
     });
 
-    it('409 CONFLICT al cancelar avisa que ya no está activa', async () => {
+    it('409 CONFLICT al cancelar avisa dentro de la ventana que ya no está activa', async () => {
       const user = userEvent.setup();
       listMock.mockResolvedValue({
         items: [item({ reservationStatus: 'CONFIRMED' })],
         nextCursor: null,
       });
+      detailMock.mockResolvedValue(detail({ reservationStatus: 'CONFIRMED' }));
       cancelMock.mockRejectedValue(new ApiRequestError(409, 'CONFLICT', 'crudo'));
       renderPage();
       await openAllTab(user);
 
+      await openFirstRow(user);
       await user.click(await screen.findByRole('button', { name: 'Cancelar reserva' }));
-      await user.click(
-        within(screen.getByRole('alertdialog')).getByRole('button', {
-          name: 'Sí, cancelar reserva',
-        }),
-      );
+      const dialog = screen.getByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Sí, cancelar reserva' }));
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('La reserva ya no está activa');
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+        'La reserva ya no está activa',
+      );
+      expect(within(dialog).getByRole('button', { name: 'Actualizar' })).toBeInTheDocument();
     });
 
     it('404 NOT_FOUND al cancelar muestra el mensaje de no encontrada', async () => {
@@ -622,10 +797,12 @@ describe('ReservationsAdminPage', () => {
         items: [item({ reservationStatus: 'APPROVED' })],
         nextCursor: null,
       });
+      detailMock.mockResolvedValue(detail({ reservationStatus: 'APPROVED' }));
       cancelMock.mockRejectedValue(new ApiRequestError(404, 'NOT_FOUND', 'crudo'));
       renderPage();
       await openAllTab(user);
 
+      await openFirstRow(user);
       await user.click(await screen.findByRole('button', { name: 'Cancelar reserva' }));
       await user.click(
         within(screen.getByRole('alertdialog')).getByRole('button', {
@@ -636,7 +813,7 @@ describe('ReservationsAdminPage', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('No encontramos la reserva');
     });
 
-    it('no ofrece cancelar reservas rechazadas ni canceladas y muestra el motivo', async () => {
+    it('no ofrece acciones en rechazadas ni canceladas y muestra el motivo y la cancelación', async () => {
       const user = userEvent.setup();
       listMock.mockResolvedValue({
         items: [
@@ -648,10 +825,31 @@ describe('ReservationsAdminPage', () => {
         ],
         nextCursor: null,
       });
+      detailMock.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === 'res-1'
+            ? detail({ reservationStatus: 'REJECTED', rejectionReason: 'Mantenimiento' })
+            : detail({
+                reservationId: 'res-2',
+                reservationStatus: 'CANCELLED',
+                cancelledAt: '2026-07-05T15:00:00Z',
+              }),
+        ),
+      );
       renderPage();
       await openAllTab(user);
 
+      await screen.findByRole('table');
+      expect(within(screen.getByRole('table')).getByText('Rechazada')).toBeInTheDocument();
+      await user.click(bodyRows()[0]!);
       expect(await screen.findByText(/Mantenimiento/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Cancelar reserva' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Aprobar' })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Cerrar' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await user.click(bodyRows()[1]!);
+      expect(await screen.findByText('Cancelada el')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Cancelar reserva' })).not.toBeInTheDocument();
     });
   });
