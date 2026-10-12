@@ -1,5 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+
+// US-044: el emisor real se prueba en notifications/ y notify.test.ts; aquí se
+// verifica qué evento y qué datos pide el orquestador.
+vi.mock('../notifications', () => ({ emitNotification: vi.fn() }));
 
 vi.mock('../lib/dynamo', async () => {
   const actual = await vi.importActual<typeof import('../lib/dynamo')>('../lib/dynamo');
@@ -7,6 +11,8 @@ vi.mock('../lib/dynamo', async () => {
 });
 
 const { cancelReservation } = await import('./cancel');
+const { emitNotification } = await import('../notifications');
+const emitMock = vi.mocked(emitNotification);
 
 interface CommandLike {
   constructor: { name: string };
@@ -86,6 +92,10 @@ function buildClient(options: BuildClientOptions) {
       const sk = (cmd.input.Key?.['SK'] as string | undefined) ?? '';
       if (pk.startsWith('RESERVATION#')) {
         return options.reservation ? { Item: options.reservation } : {};
+      }
+      if (pk.startsWith('RESOURCE#')) {
+        // US-044: nombre de la instalación para el aviso.
+        return { Item: { resourceId: 'futbol-1', name: 'Cancha de fútbol 1' } };
       }
       if (pk.startsWith('GUEST#') && sk.startsWith('MONTH#')) {
         const dni = pk.slice('GUEST#'.length);
@@ -287,5 +297,131 @@ describe('cancelReservation (US-033, criterios 5-12)', () => {
     await expect(
       cancelReservation({ cognitoSub: 'sub-1', reservationId: 'res-1', client, now: farEnoughNow }),
     ).rejects.toThrowError(expect.objectContaining({ code: 'CONFLICT' }));
+  });
+});
+
+describe('cancelReservation - aviso al titular (US-044, criterios 4/6/9)', () => {
+  const farEnoughNow = new Date('2026-07-10T00:00:00.000Z');
+
+  beforeEach(() => {
+    emitMock.mockReset();
+    emitMock.mockResolvedValue({ inbox: 'WRITTEN', email: 'SENT', notificationId: 'n-1' });
+  });
+
+  it('cancelación del socio titular: emite RESERVATION_CANCELLED con cancelledBy MEMBER', async () => {
+    const client = buildClient({ reservation: baseReservationRaw, participants: [] });
+
+    await cancelReservation({
+      cognitoSub: 'sub-1',
+      reservationId: 'res-1',
+      client,
+      now: farEnoughNow,
+    });
+
+    expect(emitMock).toHaveBeenCalledTimes(1);
+    expect(emitMock.mock.calls[0]?.[0]).toMatchObject({
+      event: 'RESERVATION_CANCELLED',
+      entityId: 'res-1',
+      memberId: 'member-1',
+      data: {
+        resourceName: 'Cancha de fútbol 1',
+        startsAt: baseReservationRaw.startsAt,
+        endsAt: baseReservationRaw.endsAt,
+        cancelledBy: 'MEMBER',
+      },
+    });
+  });
+
+  it('cancelación del administrador: avisa al titular (no al admin) con cancelledBy ADMIN', async () => {
+    const client = buildClient({
+      reservation: { ...baseReservationRaw, holderMemberId: 'member-otro' },
+      participants: [],
+    });
+
+    await cancelReservation({
+      cognitoSub: 'admin-sub',
+      actorRole: 'admin',
+      reservationId: 'res-1',
+      client,
+      now: new Date('2026-07-12T10:00:00.000Z'), // < 24h: el admin está exento
+    });
+
+    expect(emitMock).toHaveBeenCalledTimes(1);
+    const input = emitMock.mock.calls[0]?.[0];
+    expect(input).toMatchObject({
+      event: 'RESERVATION_CANCELLED',
+      memberId: 'member-otro',
+      data: { cancelledBy: 'ADMIN' },
+    });
+    expect(JSON.stringify(input)).not.toContain('admin-sub');
+  });
+
+  it('criterio 6: CANCELLATION_TOO_LATE no emite', async () => {
+    const client = buildClient({ reservation: baseReservationRaw, participants: [] });
+
+    await expect(
+      cancelReservation({
+        cognitoSub: 'sub-1',
+        reservationId: 'res-1',
+        client,
+        now: new Date('2026-07-12T00:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'CANCELLATION_TOO_LATE' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('una reserva ya cancelada (409 CONFLICT) no emite', async () => {
+    const client = buildClient({
+      reservation: { ...baseReservationRaw, reservationStatus: 'CANCELLED' },
+      participants: [],
+    });
+
+    await expect(
+      cancelReservation({ cognitoSub: 'sub-1', reservationId: 'res-1', client, now: farEnoughNow }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('una carrera perdida en la transacción (ALREADY_DECIDED) no emite', async () => {
+    const conditionalError = Object.assign(new Error('cancelled'), {
+      name: 'TransactionCanceledException',
+      CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+    });
+    const client = buildClient({
+      reservation: baseReservationRaw,
+      participants: [],
+      writeError: conditionalError,
+    });
+
+    await expect(
+      cancelReservation({ cognitoSub: 'sub-1', reservationId: 'res-1', client, now: farEnoughNow }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('un titular ajeno (404) no emite', async () => {
+    const client = buildClient({
+      reservation: { ...baseReservationRaw, holderMemberId: 'member-otro' },
+      participants: [],
+    });
+
+    await expect(
+      cancelReservation({ cognitoSub: 'sub-1', reservationId: 'res-1', client, now: farEnoughNow }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('criterio 9: un emisor que rechaza no altera la respuesta', async () => {
+    emitMock.mockRejectedValueOnce(new Error('SES caído'));
+    const client = buildClient({ reservation: baseReservationRaw, participants: [] });
+
+    const result = await cancelReservation({
+      cognitoSub: 'sub-1',
+      reservationId: 'res-1',
+      client,
+      now: farEnoughNow,
+    });
+
+    expect(result).toEqual({ reservationId: 'res-1', reservationStatus: 'CANCELLED' });
   });
 });

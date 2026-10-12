@@ -63,6 +63,7 @@ describe('completeActivation', () => {
       request: validRequest,
       client,
       createCognitoUser,
+      emitNotification: vi.fn().mockResolvedValue({}),
       now: new Date('2026-07-21T00:00:00Z'),
     });
 
@@ -85,6 +86,7 @@ describe('completeActivation', () => {
       request: validRequest,
       client,
       createCognitoUser,
+      emitNotification: vi.fn().mockResolvedValue({}),
       now: new Date('2026-07-21T00:00:00Z'),
     });
 
@@ -102,6 +104,7 @@ describe('completeActivation', () => {
       request: validRequest,
       client,
       createCognitoUser,
+      emitNotification: vi.fn().mockResolvedValue({}),
       now: new Date('2026-07-21T00:00:00Z'),
     });
 
@@ -191,6 +194,7 @@ describe('completeActivation', () => {
       request: ownEmailRequest,
       client,
       createCognitoUser,
+      emitNotification: vi.fn().mockResolvedValue({}),
       now: new Date('2026-07-21T00:00:00Z'),
     });
 
@@ -231,6 +235,7 @@ describe('completeActivation', () => {
       request: validRequest,
       client,
       createCognitoUser,
+      emitNotification: vi.fn().mockResolvedValue({}),
       now: new Date('2026-07-21T00:00:00Z'),
     });
 
@@ -246,5 +251,134 @@ describe('completeActivation', () => {
     });
     expect(updateItem.Update.UpdateExpression).toContain('email = :email');
     expect(updateItem.Update.ExpressionAttributeValues[':email']).toBe('maria@example.com');
+  });
+
+  describe('aviso ACCOUNT_ACTIVATED (US-042)', () => {
+    it('emite ACCOUNT_ACTIVATED al socio activado, sin lecturas extra y con el correo nuevo', async () => {
+      const client = fakeClient(defaultRouting(migratedMember));
+      const emit = vi
+        .fn()
+        .mockResolvedValue({ inbox: 'WRITTEN', email: 'SENT', notificationId: 'n' });
+
+      await completeActivation({
+        request: validRequest,
+        client,
+        createCognitoUser: vi.fn().mockResolvedValue('cognito-sub-1'),
+        emitNotification: emit,
+        now: new Date('2026-07-21T00:00:00Z'),
+      });
+
+      expect(emit).toHaveBeenCalledTimes(1);
+      const [payload, deps] = emit.mock.calls[0] as [Record<string, unknown>, { client: unknown }];
+      expect(payload).toMatchObject({
+        event: 'ACCOUNT_ACTIVATED',
+        data: {},
+        entityId: 'member-1',
+        member: { memberId: 'member-1', email: 'maria@example.com', firstName: 'María' },
+      });
+      expect(deps.client).toBe(client);
+      // El emisor es un mock: el orquestador no hace ninguna llamada a DynamoDB para avisar.
+      expect(client.send.mock.calls.every(([c]) => ctorName(c) !== 'GetCommand')).toBe(true);
+    });
+
+    it('no emite si la activación falla (DNI no encontrado, ya activado, correo en uso, carrera)', async () => {
+      const emit = vi.fn();
+      const createCognitoUser = vi.fn().mockResolvedValue('cognito-sub-1');
+
+      await expect(
+        completeActivation({
+          request: validRequest,
+          client: fakeClient(defaultRouting(null)),
+          createCognitoUser,
+          emitNotification: emit,
+        }),
+      ).rejects.toMatchObject({ code: 'DNI_NOT_FOUND' });
+
+      await expect(
+        completeActivation({
+          request: validRequest,
+          client: fakeClient(defaultRouting({ ...migratedMember, cognitoSub: 'sub-0' })),
+          createCognitoUser,
+          emitNotification: emit,
+        }),
+      ).rejects.toMatchObject({ code: 'ALREADY_ACTIVATED' });
+
+      const race = Object.assign(new Error('cancelled'), {
+        name: 'TransactionCanceledException',
+        CancellationReasons: [
+          { Code: 'None' },
+          { Code: 'None' },
+          { Code: 'ConditionalCheckFailed' },
+        ],
+      });
+      await expect(
+        completeActivation({
+          request: validRequest,
+          client: fakeClient(async (command) => {
+            if (ctorName(command) === 'TransactWriteCommand') throw race;
+            return defaultRouting(migratedMember)(command);
+          }),
+          createCognitoUser,
+          emitNotification: emit,
+        }),
+      ).rejects.toMatchObject({ code: 'ALREADY_ACTIVATED' });
+
+      expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('un emisor que lanza no altera la respuesta de la activación', async () => {
+      const result = await completeActivation({
+        request: validRequest,
+        client: fakeClient(defaultRouting(migratedMember)),
+        createCognitoUser: vi.fn().mockResolvedValue('cognito-sub-1'),
+        emitNotification: vi.fn().mockRejectedValue(new TypeError('error de programación')),
+        now: new Date('2026-07-21T00:00:00Z'),
+      });
+
+      expect(result).toEqual({
+        memberId: 'member-1',
+        memberStatus: 'ACTIVE',
+        membershipStatus: 'ACTIVE',
+      });
+    });
+
+    it('con el emisor real, una bandeja caída no cambia la respuesta y el reintento es duplicado', async () => {
+      const duplicate = Object.assign(new Error('cancelled'), {
+        name: 'TransactionCanceledException',
+        CancellationReasons: [{ Code: 'ConditionalCheckFailed' }, { Code: 'None' }],
+      });
+      const notificationWrites: string[][] = [];
+      let notificationAttempt = 0;
+      const client = fakeClient(async (command) => {
+        if (ctorName(command) === 'TransactWriteCommand') {
+          const items = (
+            command as { input: { TransactItems: { Put?: { Item: { PK: string } } }[] } }
+          ).input.TransactItems;
+          if (items[0]?.Put) {
+            notificationWrites.push(items.map((t) => t.Put?.Item.PK ?? ''));
+            notificationAttempt += 1;
+            if (notificationAttempt === 1) throw new Error('ServiceUnavailable');
+            throw duplicate;
+          }
+          return {};
+        }
+        return defaultRouting(migratedMember)(command);
+      });
+      const run = () =>
+        completeActivation({
+          request: validRequest,
+          client,
+          createCognitoUser: vi.fn().mockResolvedValue('cognito-sub-1'),
+          now: new Date('2026-07-21T00:00:00Z'),
+        });
+
+      const first = await run();
+      const second = await run();
+
+      expect(first).toEqual(second);
+      expect(first.memberStatus).toBe('ACTIVE');
+      expect(notificationWrites).toHaveLength(2);
+      expect(notificationWrites[0]).toEqual(notificationWrites[1]);
+    });
   });
 });

@@ -65,3 +65,7 @@ Como el bloqueo no cancela las reservas existentes, el socio afectado necesita e
 - Casos de prueba: R-21.
 - Depende de: US-040.
 - Habilita: cierre de R-21 (pendiente desde EP-04).
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en backend (`apps/api/src/resources/maintenance-notify.ts`, invocada desde `POST /resources/{id}/maintenance` y `PATCH /resources/{id}`). Aviso por reserva afectada con la franja de la reserva; idempotente (`<reservationId>:<blockId>` o `<reservationId>:status-maintenance`). Acotado por petición: 100 avisos, concurrencia 10 y presupuesto de 6 s; lo que exceda se omite con `metric=MAINTENANCE_NOTIFY_TRUNCATED` (la alternativa asíncrona queda como decisión del Arquitecto si el volumen real lo exige). Sin cambios de contrato ni de IAM.

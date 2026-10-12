@@ -38,6 +38,44 @@ backlog en `docs/scrum/`.
   de bandeja o de SES nunca cambia la respuesta HTTP ni el estado del pago. Sin
   cambios de contrato ni de infraestructura.
 
+- Aviso de mantenimiento a los socios afectados (US-045, EP-05):
+  `POST /resources/{resourceId}/maintenance` y `PATCH /resources/{resourceId}`
+  (al pasar a `MAINTENANCE`) emiten `RESOURCE_MAINTENANCE` al titular de cada
+  reserva activa afectada (una por reserva, con su franja en hora de Lima y
+  la indicación de que no se canceló automáticamente). Reutiliza la lectura de
+  ocupación ya hecha, resuelve titulares con un `GetItem` por socio y emite en
+  paralelo acotado (máx. 100 avisos, 10 en paralelo, 6 s por petición; el
+  exceso se omite con la métrica `MAINTENANCE_NOTIFY_TRUNCATED`). Idempotente
+  y best-effort: un fallo de bandeja o correo no cambia la respuesta ni el
+  bloqueo. Sin cambios de contrato ni de IAM.
+
+- Avisos de cambio de estado de una reserva (US-044, EP-05): al crear una
+  reserva con confirmación automática (`RESERVATION_CONFIRMED`) y al aprobarla,
+  rechazarla (con el motivo) o cancelarla (`RESERVATION_CANCELLED`, indicando si
+  la canceló el club o el propio socio), el titular recibe un aviso en su
+  bandeja y un correo best-effort. No se avisa a participantes ni al crear una
+  reserva `PENDING_APPROVAL`; un fallo del aviso nunca cambia la respuesta de
+  la operación. Idempotente por reserva y evento. Sin cambios de API ni de IAM.
+
+- Avisos de cuenta y de solicitud (US-042, EP-05): `POST /activation/complete`,
+  `POST /members/{memberId}/approve` y `POST /members/{memberId}/reject`
+  emiten `ACCOUNT_ACTIVATED`, `MEMBER_APPROVED` y `MEMBER_REJECTED` (con el
+  motivo) al socio afectado una vez confirmada la operación, a través de
+  `safeEmitNotification` (nuevo envoltorio defensivo en `notifications/`): un
+  fallo del aviso jamás cambia la respuesta HTTP. Sin cambios de contrato ni de
+  infraestructura.
+- Bandeja de notificaciones del socio en `/socio/notificaciones` (US-041,
+  EP-05): tabla con fecha en hora de Lima y estado Leída/No leída en texto,
+  pestañas Todas / No leídas (`?tab=`), "Cargar más", panel lateral con el
+  detalle y acceso a Mis reservas o Membresía según el evento. Abrir una
+  notificación la marca como leída de forma optimista (con rollback y aviso
+  solo si falla). Sin contador de no leídas en el menú.
+
+- Bandeja de notificaciones del socio, parte backend (US-041, EP-05):
+  `GET /notifications` (más reciente primero, paginado por cursor, filtro
+  `unread=true`) y `POST /notifications/{notificationId}/read` (idempotente;
+  404 si no es del socio). Reemplaza el placeholder 501 de ambas Lambdas en
+  `scripts/package-lambdas.mjs`. Sin cambios de infraestructura.
 - Motor de notificaciones del backend (US-040, EP-05): módulo
   `apps/api/src/notifications/` con `emitNotification()`, que escribe en una
   transacción idempotente la `Notification` (`createdBy=SYSTEM`) y la

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type {
   CreateReservationRequest,
@@ -8,6 +8,10 @@ import type {
   Resource,
   ReservationParticipantInput,
 } from '@activa-club/shared-types';
+
+// US-044: el emisor real se prueba en notifications/ y notify.test.ts; aquí se
+// verifica qué evento y qué datos pide el orquestador.
+vi.mock('../notifications', () => ({ emitNotification: vi.fn() }));
 
 vi.mock('../lib/dynamo', async () => {
   const actual = await vi.importActual<typeof import('../lib/dynamo')>('../lib/dynamo');
@@ -20,6 +24,8 @@ const {
   assertNoDuplicateParticipants,
   isWithinResourceSchedule,
 } = await import('./create');
+const { emitNotification } = await import('../notifications');
+const emitMock = vi.mocked(emitNotification);
 
 interface CommandLike {
   constructor: { name: string };
@@ -1184,5 +1190,140 @@ describe('createReservation', () => {
       }),
     ).rejects.toMatchObject({ code: 'GUEST_MONTHLY_LIMIT' });
     expect(calls).not.toContain('audit-put');
+  });
+});
+
+describe('createReservation - aviso al titular (US-044, criterios 1/5/6/7/9)', () => {
+  const now = new Date('2026-07-01T00:00:00.000Z');
+
+  beforeEach(() => {
+    emitMock.mockReset();
+    emitMock.mockResolvedValue({ inbox: 'WRITTEN', email: 'SENT', notificationId: 'n-1' });
+  });
+
+  it('criterio 1: una reserva CONFIRMED emite RESERVATION_CONFIRMED al titular, sin lectura extra', async () => {
+    const { client, calls } = buildClient({
+      member: baseMember,
+      resource: futbol1,
+      occupancyItems: [],
+    });
+
+    await createReservation({
+      cognitoSub: 'sub-1',
+      request: buildRequest(),
+      client,
+      now,
+      reservationId: 'res-new',
+    });
+
+    expect(emitMock).toHaveBeenCalledTimes(1);
+    expect(emitMock.mock.calls[0]?.[0]).toMatchObject({
+      event: 'RESERVATION_CONFIRMED',
+      entityId: 'res-new',
+      memberId: 'member-1',
+      data: {
+        resourceName: 'Cancha de fútbol 1',
+        startsAt: validFutbolStartsAt,
+        endsAt: '2026-07-12T12:30:00.000Z',
+      },
+    });
+    // El nombre sale del recurso ya leído: una sola lectura de RESOURCE#.
+    expect(calls.filter((call) => call === 'resource-get')).toHaveLength(1);
+  });
+
+  it('criterio 7: con participantes, el aviso sigue siendo uno solo y solo al titular', async () => {
+    const { client } = buildClient({
+      member: baseMember,
+      resource: futbol1,
+      occupancyItems: [],
+      participantMembers: { 'member-2': accompanyingMember },
+    });
+
+    await createReservation({
+      cognitoSub: 'sub-1',
+      request: buildRequest({ participants: [{ type: 'MEMBER', memberId: 'member-2' }] }),
+      client,
+      now,
+      reservationId: 'res-new',
+    });
+
+    expect(emitMock).toHaveBeenCalledTimes(1);
+    expect(emitMock.mock.calls[0]?.[0]).toMatchObject({ memberId: 'member-1' });
+  });
+
+  it('criterio 5: una reserva PENDING_APPROVAL no emite', async () => {
+    const { client } = buildClient({
+      member: baseMember,
+      resource: parrilla1,
+      occupancyItems: [],
+    });
+
+    const result = await createReservation({
+      cognitoSub: 'sub-1',
+      request: buildRequest({ resourceId: 'parrilla-1', startsAt: validParrillaStartsAt }),
+      client,
+      now,
+    });
+
+    expect(result.reservationStatus).toBe('PENDING_APPROVAL');
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('criterio 6: un cruce de franja (409) no emite', async () => {
+    const { client } = buildClient({
+      member: baseMember,
+      resource: futbol1,
+      occupancyItems: [activeReservationOverlapping],
+    });
+
+    await expect(
+      createReservation({ cognitoSub: 'sub-1', request: buildRequest(), client, now }),
+    ).rejects.toMatchObject({ code: 'RESERVATION_OVERLAP' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('criterio 6: la franja ganada por otra petición concurrente (SLOT_TAKEN) no emite', async () => {
+    const writeError = Object.assign(new Error('cancelled'), {
+      name: 'TransactionCanceledException',
+      CancellationReasons: [{ Code: 'ConditionalCheckFailed' }],
+    });
+    const { client } = buildClient({
+      member: baseMember,
+      resource: futbol1,
+      occupancyItems: [],
+      writeError,
+    });
+
+    await expect(
+      createReservation({ cognitoSub: 'sub-1', request: buildRequest(), client, now }),
+    ).rejects.toThrow();
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('criterio 6: un socio con deuda (422) no emite', async () => {
+    const { client } = buildClient({
+      member: { ...baseMember, membershipStatus: 'DEBT' },
+      resource: futbol1,
+    });
+
+    await expect(
+      createReservation({ cognitoSub: 'sub-1', request: buildRequest(), client, now }),
+    ).rejects.toMatchObject({ code: 'MEMBER_HAS_DEBT' });
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('criterio 9: un emisor que rechaza no altera la respuesta', async () => {
+    emitMock.mockRejectedValueOnce(new Error('SES caído'));
+    const { client } = buildClient({ member: baseMember, resource: futbol1, occupancyItems: [] });
+
+    const result = await createReservation({
+      cognitoSub: 'sub-1',
+      request: buildRequest(),
+      client,
+      now,
+      reservationId: 'res-new',
+    });
+
+    expect(result).toMatchObject({ reservationId: 'res-new', reservationStatus: 'CONFIRMED' });
   });
 });

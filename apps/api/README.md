@@ -37,6 +37,8 @@ src/
     activation/verify.ts      # POST /activation/verify (público) — wiring de src/activation/verify.ts.
     activation/complete.ts    # POST /activation/complete (público) — wiring de src/activation/complete.ts.
     registration/post.ts      # POST /registration (público) — wiring de src/registration/register.ts.
+    notifications/list.ts     # GET /notifications (member) — bandeja paginada, filtro unread (US-041).
+    notifications/read.ts     # POST /notifications/{notificationId}/read (member) — marca leída, idempotente (US-041).
     (Sprint 1+: members/, payments/, resources/, reservations/,
      notifications/, dashboard/ — un archivo por endpoint de
      docs/api/contratos-api.md.)
@@ -72,6 +74,7 @@ src/
     format.ts          # Fechas en America/Lima, soles, escape HTML, limpieza de texto libre.
     dedupe.ts          # dedupeKey `<evento>#<memberId>#<entityId>` y notificationId determinista.
     mailer.ts          # Envío SES v2 SendEmail (contenido Simple; solo requiere ses:SendEmail).
+    safe-emit.ts       # safeEmitNotification(): envoltorio que usan los orquestadores (US-042+); nunca lanza.
   testing/
     fixtures.ts          # Constructores de eventos de API Gateway para pruebas de handlers.
 ```

@@ -17,7 +17,13 @@ import type { Resource, UpdateResourceRequest } from '@activa-club/shared-types'
 import { recordAuditLog, type AuditActor } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { findResourceOccupancy } from '../reservations/repository';
+import { notifyAffectedReservations } from './maintenance-notify';
 import { getResourceById, updateResourceFields } from './repository';
+
+/** Fin de ventana "abierta": toda reserva futura del recurso (bloqueo indefinido). */
+const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
 
 const EDITABLE_FIELDS = ['capacity', 'opensAt', 'closesAt', 'resourceStatus'] as const;
 
@@ -27,6 +33,8 @@ export interface UpdateResourceInput {
   actor: AuditActor;
   client?: DynamoDBDocumentClient;
   now?: Date;
+  /** Correlación con la solicitud HTTP (logs de los avisos). */
+  requestId?: string;
 }
 
 /** Proyecta el ítem de DynamoDB al tipo `Resource` (sin PK/SK/entityType). */
@@ -92,5 +100,43 @@ export async function updateResource(input: UpdateResourceInput): Promise<Resour
     now,
   });
 
+  // US-045 (criterio 2): al entrar en MAINTENANCE (bloqueo indefinido) se
+  // avisa a los titulares de las reservas activas futuras. Solo en la
+  // transición; volver a AVAILABLE u otros cambios no avisan (criterio 7).
+  if (changed.resourceStatus === 'MAINTENANCE') {
+    await notifyFutureReservations(client, updated, now, input.requestId);
+  }
+
   return toResource(updated);
+}
+
+/** Nunca lanza: la actualización ya está aplicada y auditada. */
+async function notifyFutureReservations(
+  client: DynamoDBDocumentClient,
+  resource: Resource,
+  now: string,
+  requestId: string | undefined,
+): Promise<void> {
+  try {
+    const { activeReservations } = await findResourceOccupancy(client, resource.resourceId, {
+      from: now,
+      to: FAR_FUTURE,
+    });
+    await notifyAffectedReservations({
+      client,
+      resourceName: resource.name,
+      reservations: activeReservations,
+      factId: 'status-maintenance',
+      requestId,
+      now,
+    });
+  } catch (error) {
+    logger.error('No se pudo consultar las reservas futuras para avisar del mantenimiento', {
+      requestId: requestId ?? 'resource-update',
+      entityType: 'MaintenanceNotification',
+      action: 'MAINTENANCE_NOTIFY',
+      outcome: 'FAILURE',
+      reason: error instanceof Error ? error.name : 'UnknownError',
+    });
+  }
 }

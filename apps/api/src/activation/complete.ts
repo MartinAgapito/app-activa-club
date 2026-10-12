@@ -15,6 +15,7 @@ import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { limaDateOnly } from '../memberships/vigency';
+import { safeEmitNotification, type NotificationEmitter } from '../notifications';
 import { createActivationCognitoUser, type CreateActivationCognitoUser } from './cognito';
 import {
   completeActivationWrite,
@@ -31,6 +32,8 @@ export interface CompleteActivationInput {
   client?: DynamoDBDocumentClient;
   /** Creador de usuario Cognito inyectable, para pruebas sin AWS real. */
   createCognitoUser?: CreateActivationCognitoUser;
+  /** Emisor de notificaciones inyectable (US-042), para pruebas sin SES/DynamoDB reales. */
+  emitNotification?: NotificationEmitter;
   /** Fecha de referencia inyectable, para pruebas deterministas. */
   now?: Date;
 }
@@ -135,6 +138,22 @@ export async function completeActivation(
     });
     throw conflictError(outcome);
   }
+
+  // US-042: aviso de bienvenida DESPUÉS de la activación confirmada. Nunca
+  // altera la respuesta (la bandeja es obligatoria pero su fallo no revierte
+  // la activación, US-040). Se reutiliza el `Member` ya leído: sin lecturas
+  // extra; el correo es el que el socio acaba de registrar en Cognito.
+  await safeEmitNotification(
+    {
+      event: 'ACCOUNT_ACTIVATED',
+      data: {},
+      entityId: member.memberId,
+      member: { memberId: member.memberId, email: emailLower, firstName: member.firstName },
+      now: now.toISOString(),
+      requestId: 'activation-complete',
+    },
+    { client, emit: input.emitNotification },
+  );
 
   return {
     memberId: member.memberId,

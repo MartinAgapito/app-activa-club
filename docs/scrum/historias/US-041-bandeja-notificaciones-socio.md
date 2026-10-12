@@ -68,3 +68,7 @@ La bandeja es el canal que el club **siempre** puede garantizar: el correo es co
 - Casos de prueba: N-01, N-02.
 - Depende de: US-039 (endpoints), US-040 (notificaciones reales que mostrar).
 - Habilita: US-055 (notificaciones recientes del dashboard del socio).
+
+## Historial de cambios
+
+- 2026-10-12: US-041 implementada (backend y frontend), pendiente verificación en dev.
