@@ -20,7 +20,7 @@ Construir **una sola vez** la capacidad de emitir una notificación de evento au
 
 - Un módulo de backend reutilizable que, dado un socio, un evento del catálogo `NotificationEvent` y los datos del evento, registra la `Notification` (con `createdBy=SYSTEM`) y la `MemberNotification` del socio, y envía el correo.
 - Un texto (título, cuerpo y correo) en español por cada uno de los trece eventos de `docs/data/diccionario-de-datos.md` (`NotificationEvent`), sin datos sensibles.
-- Las plantillas de correo SES por evento, definidas en Terraform ([ADR-0006](../../architecture/adr/ADR-0006-ses-correos-transaccionales.md)).
+- Las plantillas de correo SES por evento, definidas en Terraform ([ADR-0006](../../architecture/adr/ADR-0006-ses-correos-transaccionales.md)). **Desvío en la implementación (2026-10-12):** el asunto y el cuerpo (texto y HTML) se generan en código con SES v2 `SendEmail` de contenido simple, no con plantillas SES; así solo hace falta `ses:SendEmail` (ya concedido en US-039), el texto del correo y el de la bandeja salen de una sola fuente y no hay recursos Terraform adicionales. El criterio 9 se cumple en su intención (contenido del correo = texto de la bandeja).
 
 ## Reglas de negocio
 
@@ -71,3 +71,7 @@ Siete eventos de los Sprints 1 a 3 quedaron con "el rastro previsto" pero sin av
 - Casos de prueba: N-01, N-03, N-11 (habilitados); T-04.
 - Depende de: US-039.
 - Habilita: US-041, US-042, US-043, US-044, US-045, US-046, US-047.
+
+## Historial de cambios
+
+- 2026-10-12: Implementada (motor reutilizable `apps/api/src/notifications/`, con pruebas), pendiente consumo por US-042..US-047. Desvío: correo armado en código con SES v2 `SendEmail`, sin plantillas SES en Terraform (ver Entregable).

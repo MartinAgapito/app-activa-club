@@ -264,6 +264,17 @@ eventos automáticos, ver diccionario), `alsoEmail` (boolean), `createdBy`
 (adminId | `SYSTEM`), `recipientCount`, `createdAt`. Analytics "notificaciones
 enviadas" (RN-ANL-08) vía GSI2. Segmentación RN-NOT-03.
 
+Eventos automáticos (US-040): `createdBy=SYSTEM`, `segment=SINGLE`,
+`recipientCount=1` y el atributo adicional `dedupeKey`
+(`<event>#<memberId>#<entityId>`, `entityId` = hecho que origina el aviso:
+paymentId, reservationId, ciclo de membresía...). El `notificationId` se deriva
+de esa clave con SHA-256 (26 caracteres con alfabeto ULID), de modo que la
+emisión es idempotente: la transacción que escribe `Notification` y
+`MemberNotification` usa `attribute_not_exists(PK)` y un reintento no duplica la
+bandeja, aunque `createdAt` cambie. `dedupeKey` no forma parte del contrato de
+API; las notificaciones publicadas por administradores (US-048) no lo llevan y
+conservan un `notificationId` ULID aleatorio.
+
 ### 3.13 Notificación por socio (inbox) — **MemberNotification**
 
 | Campo | Valor                                |

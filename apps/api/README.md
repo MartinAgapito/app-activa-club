@@ -67,6 +67,13 @@ src/
     repository.ts       # Lookup DNI->Member + TransactWriteItems (Put UniqueEmail + Update Member).
     verify.ts             # Orquestador de POST /activation/verify.
     complete.ts           # Orquestador de POST /activation/complete.
+  notifications/       # Motor de notificaciones (US-040): bandeja interna + correo best-effort.
+    index.ts           # API pública: emitNotification(), renderNotification(), eventos del catálogo.
+    emit.ts            # Emisión idempotente: TransactWrite Notification + MemberNotification, luego SES.
+    templates.ts       # Textos en español de los 13 NotificationEvent (puro, con escape HTML).
+    format.ts          # Fechas en America/Lima, soles, escape HTML, limpieza de texto libre.
+    dedupe.ts          # dedupeKey `<evento>#<memberId>#<entityId>` y notificationId determinista.
+    mailer.ts          # Envío SES v2 SendEmail (contenido Simple; solo requiere ses:SendEmail).
   testing/
     fixtures.ts          # Constructores de eventos de API Gateway para pruebas de handlers.
 ```
