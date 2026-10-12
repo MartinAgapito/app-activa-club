@@ -811,6 +811,10 @@ module "endpoint_members_approve" {
     # EP-05, US-039: correo de MEMBER_APPROVED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 module "endpoint_members_reject" {
@@ -851,6 +855,10 @@ module "endpoint_members_reject" {
     # EP-05, US-039: correo de MEMBER_REJECTED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 # --- Membresías y pagos (docs/api/contratos-api.md §5) — EP-03, US-019 ----
@@ -1615,6 +1623,10 @@ module "endpoint_reservations_approve" {
     # EP-05, US-039: correo de RESERVATION_APPROVED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 module "endpoint_reservations_reject" {
@@ -1655,6 +1667,10 @@ module "endpoint_reservations_reject" {
     # EP-05, US-039: correo de RESERVATION_REJECTED, best-effort (ADR-0006).
     local.ses_send_email_statement,
   ]
+
+  # Alarma apagada (ADR-0008): operacion admin de bajo volumen; mantiene dev
+  # dentro del limite gratuito de 10 alarmas de CloudWatch.
+  enable_error_alarm = false
 }
 
 # --- Resolución de participantes por DNI (docs/api/contratos-api.md §4 y §7,
