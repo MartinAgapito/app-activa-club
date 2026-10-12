@@ -117,3 +117,4 @@ Cada una trae una propuesta del Product Analyst para que la Planning no arranque
 - 2026-10-12: US-045 implementada (aviso de mantenimiento a titulares de reservas afectadas desde el bloqueo y desde el PATCH a MAINTENANCE), pendiente verificación en `dev`.
 - 2026-10-12: US-044 implementada: las Lambdas de reservas (crear con confirmación automática, aprobar, rechazar y cancelar) avisan al titular con el motor de US-040; sin aviso en `PENDING_APPROVAL` ni a participantes.
 - 2026-10-12: US-042 implementada (activación, aprobación y rechazo emiten sus avisos a través de `safeEmitNotification`), pendiente US-043..US-047.
+- 2026-10-12: US-048 implementada (`POST /notifications` y `GET /notifications/sent`): segmentos sin Scan, bandejas en bloques de 100 con reintento idempotente, correo acotado (15 por publicación, 1/s, 22 s), códigos `NO_RECIPIENTS` y `RECIPIENT_LIMIT_EXCEEDED`. Sin cambios de Terraform. Pendiente verificación en `dev` y la consola (US-049).

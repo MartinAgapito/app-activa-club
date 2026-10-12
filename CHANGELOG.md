@@ -28,6 +28,17 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Publicación de notificaciones segmentadas (US-048, EP-05): `POST /notifications`
+  (admin) entrega un aviso a la bandeja de los socios de `ALL`, `ACTIVE`, `DEBT`,
+  `EXPIRED`, `EXPIRING_SOON`, `SINGLE` o `BY_RESOURCE` (sin `Scan`: GSI2/GSI3 y
+  `GetItem`), con un solo aviso por socio, auditoría `NOTIFICATION_SENT`,
+  bandejas en bloques de 100 ítems y reintento idempotente (mismo id dentro de
+  5 minutos). Segmento sin destinatarios: 422 `NO_RECIPIENTS`; más de 500
+  destinatarios: 422 `RECIPIENT_LIMIT_EXCEEDED`. Con `alsoEmail=true` el correo
+  es best-effort con tope de 15 por publicación, ritmo de 1/s y presupuesto de
+  22 s; la respuesta informa `emailsSent`, `emailsFailed` y `emailsSkipped`.
+  `GET /notifications/sent` (admin) lista el historial paginado por cursor con
+  `origin` `MANUAL`/`SYSTEM`. Sin cambios de Terraform.
 - Avisos del resultado de un pago (US-043, EP-05): `POST /payments` y el
   webhook `POST /payments/webhook` emiten `PAYMENT_SUCCEEDED` (plan, monto y
   nueva vigencia) o `PAYMENT_FAILED` (motivo del catálogo propio) al socio

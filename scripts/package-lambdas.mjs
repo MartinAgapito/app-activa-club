@@ -97,13 +97,8 @@ const HANDLERS = {
   // EP-05 (US-039 infra ya desplegada; logica de negocio por historia).
   'notifications-list': 'handlers/notifications/list.ts', // US-041 (implementado)
   'notifications-read': 'handlers/notifications/read.ts', // US-041 (implementado)
-  // TEMPORAL: las 2 restantes apuntan al placeholder compartido
-  // (handlers/not-implemented.ts, responde 501) hasta que la historia
-  // indicada en cada entrada las reemplace por su handler real.
-  // PLACEHOLDER(US-048)
-  'notifications-create': 'handlers/not-implemented.ts', // POST /notifications; lo reemplaza US-048
-  // PLACEHOLDER(US-049)
-  'notifications-sent': 'handlers/not-implemented.ts', // GET /notifications/sent; lo reemplaza US-049
+  'notifications-create': 'handlers/notifications/create.ts', // US-048 (implementado)
+  'notifications-sent': 'handlers/notifications/sent.ts', // US-048 (implementado)
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');
