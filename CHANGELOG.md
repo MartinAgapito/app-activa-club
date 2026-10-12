@@ -39,6 +39,11 @@ backlog en `docs/scrum/`.
   Barlow Semi Condensed y Hanken Grotesk autoalojadas, muestra en
   `/_dev/design-system`, script de verificación de contraste AA y
   `design-foundation.md` v2.0. Modo oscuro preparado en estructura, no activo.
+- Sprint 4B (EP-08, US-062): componente `Modal` accesible en `@activa-club/ui`
+  sobre `@radix-ui/react-dialog` (foco atrapado y devuelto, Escape, clic fuera
+  configurable, identificadores únicos, scroll interno, pantalla completa en
+  móvil); `ConfirmDialog` reconstruido sobre él sin cambiar su API. Ver
+  ADR-0013.
 
 ### Changed
 

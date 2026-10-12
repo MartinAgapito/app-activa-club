@@ -20,6 +20,7 @@ arquitectónica no se cambia sin crear o actualizar el ADR correspondiente.
 | [ADR-0010](./ADR-0010-catalogo-recursos-como-datos-de-infraestructura.md) | Catálogo de recursos como datos de infraestructura (Terraform)           | Aceptado                     |
 | [ADR-0011](./ADR-0011-stripe-sandbox-reemplaza-culqi.md)                  | Stripe (test mode) reemplaza a Culqi como pasarela                       | Aceptado                     |
 | [ADR-0012](./ADR-0012-migracion-lambda-invocacion-directa.md)             | La carga inicial de socios es una Lambda de invocación directa           | Aceptado                     |
+| [ADR-0013](./ADR-0013-primitivas-accesibles-radix-ui.md)                  | Primitivas accesibles de Radix UI para componentes interactivos          | Aceptado                     |
 
 ## Plantilla
 

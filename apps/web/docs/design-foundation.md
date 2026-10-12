@@ -242,6 +242,34 @@ de cada componente (`Button`/`buttonVariants`, `Input`, `Card`/`CardHeader`,
 Ninguno decide reglas de negocio ni conoce las entidades de
 `packages/shared-types`.
 
+### 7.1 `Modal` (US-062)
+
+Ventana modal general, construida sobre `@radix-ui/react-dialog`
+([ADR-0013](../../../docs/architecture/adr/ADR-0013-primitivas-accesibles-radix-ui.md));
+los estilos son de la design foundation (`surface-card`, `rounded-dialog`,
+`shadow-dialog`, `z-layer-dialog`, `type-section-title`, `focus-ring`).
+
+| Prop                  | Tipo                          | Por defecto | Notas                                                       |
+| --------------------- | ----------------------------- | ----------- | ----------------------------------------------------------- |
+| `open`/`onOpenChange` | `boolean`/`(boolean) => void` | —           | Controlado por el llamador                                  |
+| `title`               | `ReactNode`                   | —           | Obligatorio; nombra la ventana (`aria-labelledby`)          |
+| `description`         | `ReactNode`                   | —           | Opcional (`aria-describedby` solo si existe)                |
+| `children`            | `ReactNode`                   | —           | Cuerpo con scroll interno                                   |
+| `footer`              | `ReactNode`                   | —           | Acciones fijas al pie                                       |
+| `size`                | `sm` \| `md` \| `lg`          | `md`        | Ancho máximo 24 / 32 / 42rem desde 640px                    |
+| `dismissible`         | `boolean`                     | `true`      | `false` bloquea Escape, clic fuera y X (operación en curso) |
+| `closeOnOverlayClick` | `boolean`                     | `false`     | Evita perder un formulario a medio llenar                   |
+| `showCloseButton`     | `boolean`                     | `true`      | Botón X con nombre accesible `closeLabel` ("Cerrar")        |
+| `role`                | `dialog` \| `alertdialog`     | `dialog`    | `alertdialog` para confirmaciones                           |
+
+Comportamiento: al abrir, el foco va al primer control del cuerpo o, si no
+hay, al título; Tab queda atrapado; al cerrar el foco vuelve al control que
+abrió la ventana; el fondo no se desplaza y se oculta a lectores de pantalla.
+Por debajo de 640px ocupa toda la pantalla con cabecera y pie fijos. No usa
+animación de entrada, por lo que no hay movimiento que reducir con
+`prefers-reduced-motion`. No se admite una ventana dentro de otra.
+`ConfirmDialog` se apoya en `Modal` y conserva su API.
+
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
@@ -277,3 +305,4 @@ Ninguno decide reglas de negocio ni conoce las entidades de
   `Card`, `Badge`, `Input`, `Textarea` y `PageLayout` migrados sin cambiar su
   API; tabla de contrastes AA; muestra en `/_dev/design-system`. Modo oscuro
   preparado en la estructura, no activado.
+- 2026-10-11: US-062. Componente `Modal` (§7.1) y `ConfirmDialog` sobre él.
