@@ -38,10 +38,12 @@ export function useMyReservationsQuery(
 
 export function useReservationDetailQuery(
   reservationId: string,
+  enabled = true,
 ): UseQueryResult<ReservationDetail> {
   return useQuery({
     queryKey: [...MY_RESERVATIONS_QUERY_KEY, 'detail', reservationId],
     queryFn: () => fetchReservationDetail(reservationId),
+    enabled,
   });
 }
 
