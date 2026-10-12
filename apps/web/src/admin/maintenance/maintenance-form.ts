@@ -2,7 +2,8 @@
 //
 // El administrador elige fecha y hora en la hora del club (`America/Lima`);
 // se convierten a UTC ISO-8601 para el contrato. La interfaz anticipa que el
-// fin sea posterior al inicio; el servidor es la fuente de verdad (400).
+// inicio no esté en el pasado y que el fin sea posterior al inicio (US-076,
+// criterio 3); el servidor es la fuente de verdad (400).
 
 import { z } from 'zod';
 import type { CreateMaintenanceRequest } from '@activa-club/shared-types';
@@ -38,6 +39,13 @@ export const maintenanceFormSchema = z
     }
     const startsAt = limaLocalTimeToUtcIso(values.startDate, values.startTime);
     const endsAt = limaLocalTimeToUtcIso(values.endDate, values.endTime);
+    if (new Date(startsAt).getTime() < Date.now()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'El inicio no puede estar en el pasado.',
+        path: ['startDate'],
+      });
+    }
     if (endsAt <= startsAt) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -72,6 +80,11 @@ const DATE_FORMAT = new Intl.DateTimeFormat('es-PE', {
   minute: '2-digit',
   hour12: false,
 });
+
+/** Clave de TanStack Query de los bloqueos de una instalación. */
+export function maintenanceBlocksQueryKey(resourceId: string) {
+  return ['resources', resourceId, 'maintenance'] as const;
+}
 
 /** Instante UTC como fecha y hora de Lima, p. ej. "20 jul 2026, 08:00". */
 export function formatDateTimeInLima(iso: string): string {
