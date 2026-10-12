@@ -242,6 +242,32 @@ de cada componente (`Button`/`buttonVariants`, `Input`, `Card`/`CardHeader`,
 Ninguno decide reglas de negocio ni conoce las entidades de
 `packages/shared-types`.
 
+### 7.1 Avisos efímeros (`ToastProvider` / `useToast`, US-066)
+
+Confirman el resultado inmediato de una acción del propio usuario. No son las
+notificaciones de EP-05 (no se guardan, no llegan por correo).
+
+- API: `const toast = useToast()` con
+  `toast.success | info | warning | error(mensaje, { id?, duration?, action? })`
+  y `toast.dismiss(id?)`. El proveedor se montará en la raíz de `apps/web`
+  en la historia de layout; mientras tanto solo la página de referencia lo
+  monta.
+- Duración: 5 s por defecto; los errores permanecen hasta cerrarse
+  (`duration: null`). Se pausa con el puntero encima o con foco dentro.
+- Máximo 3 visibles: al llegar el cuarto sale el más antiguo.
+- ARIA: región `aria-live="polite"` (éxito, información, alerta; cada aviso
+  `role="status"`) y `aria-live="assertive"` (errores, `role="alert"`). Nunca
+  mueve el foco. Siempre icono + texto, con botón "Cerrar aviso".
+- Posición y capa: inferior centrado y a lo ancho en móvil, esquina inferior
+  derecha desde `sm`; `z-layer-toast`, `shadow-toast`, tokens `status-*`.
+- Movimiento: entrada con `--motion-base`; sin transición con
+  `prefers-reduced-motion`.
+- **Convención de texto**: el mensaje usa el mismo verbo del botón que originó
+  la acción, en participio: "Reservar cancha" -> "Cancha reservada", "Liberar
+  bloqueo" -> "Bloqueo liberado", "Aprobar solicitud" -> "Solicitud aprobada".
+  Frases breves, sin códigos técnicos; un error explica qué pasó y, si aplica,
+  cómo resolverlo.
+
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
 - **Cliente HTTP** (`apps/web/src/lib/api/http-client.ts`): `fetch` tipado
