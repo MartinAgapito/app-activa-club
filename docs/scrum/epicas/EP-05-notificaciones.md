@@ -110,3 +110,4 @@ Cada una trae una propuesta del Product Analyst para que la Planning no arranque
 ## Historial de cambios
 
 - 2026-10-11: Creación de la épica EP-05 y asociación de las historias del Sprint 4 (US-039..US-049), con US-038 como deuda técnica de EP-03 de la que depende.
+- 2026-10-12: US-039 con infraestructura desplegada, pendiente lógica (endpoints en 501 hasta US-041, US-048 y US-049; `ses:SendEmail` concedido a las Lambdas emisoras).
