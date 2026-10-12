@@ -61,6 +61,10 @@ El recordatorio reduce las reservas olvidadas: una cancha vacía con una reserva
 - Doble ejecución → un solo recordatorio por reserva.
 - Borde de zona horaria: reserva a las 06:00 de Lima del día siguiente (11:00 UTC) se incluye; reserva a las 23:00 de Lima de hoy no.
 
+## Historial de cambios
+
+- 2026-10-12: Implementada en backend y Terraform. Lambda `reservations-remind` (`apps/api/src/reservations/remind-reservations.ts`, handler `handlers/reservations/remind.ts`) con regla EventBridge `cron(0 23 * * ? *)` (18:00 America/Lima). Recorre los diez recursos del catálogo (`GetItem`, sin `Scan`), consulta GSI3 por recurso y rango [00:00 de mañana, 00:00 de pasado mañana) de Lima en UTC (patrón 21), emite `RESERVATION_REMINDER` al titular con `entityId = reservationId` (idempotente). Un error parcial no detiene el lote, pero la invocación termina en error para disparar la alarma `activa-club-dev-reservations-remind-errors` (ADR-0008). Pendiente verificación en `dev`.
+
 ## Trazabilidad
 
 - Épica: EP-05
