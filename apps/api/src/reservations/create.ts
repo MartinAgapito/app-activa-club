@@ -39,6 +39,7 @@ import {
   hasActiveSubjectOverlap,
   writeReservation,
 } from './repository';
+import { notifyReservationHolder } from './notify';
 import { limaCalendarDate, limaWallTimeToUtc } from './time';
 
 export interface CreateReservationInput {
@@ -494,6 +495,18 @@ export async function createReservation(
     metadata: { resourceId: resource.resourceId, reservationStatus, startsAt, endsAt },
     now: nowIso,
   });
+
+  // US-044 criterios 1 y 5: solo la confirmación automática avisa; una
+  // reserva PENDING_APPROVAL no tiene evento en el catálogo.
+  if (reservationStatus === 'CONFIRMED') {
+    await notifyReservationHolder({
+      client,
+      reservation,
+      resourceName: resource.name,
+      notification: { event: 'RESERVATION_CONFIRMED' },
+      now: nowIso,
+    });
+  }
 
   return {
     reservationId,

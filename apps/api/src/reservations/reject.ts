@@ -15,6 +15,7 @@ import { recordAuditLog, type AuditActor } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
 import { guestMonthlyCounterMonth } from './guest-month';
+import { notifyReservationHolder } from './notify';
 import type { GuestMonthlyCounterRecord } from './repository';
 import {
   getGuestMonthlyCounter,
@@ -94,6 +95,14 @@ export async function rejectReservation(
     targetType: 'Reservation',
     targetId: reservation.reservationId,
     metadata: { resourceId: reservation.resourceId, reason: input.reason },
+    now: nowIso,
+  });
+
+  // US-044 criterio 3: aviso al titular con el motivo, después del éxito.
+  await notifyReservationHolder({
+    client,
+    reservation,
+    notification: { event: 'RESERVATION_REJECTED', reason: input.reason },
     now: nowIso,
   });
 

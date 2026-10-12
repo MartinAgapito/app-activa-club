@@ -113,4 +113,5 @@ Cada una trae una propuesta del Product Analyst para que la Planning no arranque
 - 2026-10-12: US-039 con infraestructura desplegada, pendiente lógica (endpoints en 501 hasta US-041, US-048 y US-049; `ses:SendEmail` concedido a las Lambdas emisoras).
 - 2026-10-12: US-041 implementada (`GET /notifications`, `POST /notifications/{id}/read` y bandeja `/socio/notificaciones`), pendiente verificación en dev.
 - 2026-10-12: US-040 implementada (motor de emisión: bandeja idempotente + correo best-effort + 13 textos), pendiente consumo por US-042..US-047.
+- 2026-10-12: US-044 implementada: las Lambdas de reservas (crear con confirmación automática, aprobar, rechazar y cancelar) avisan al titular con el motor de US-040; sin aviso en `PENDING_APPROVAL` ni a participantes.
 - 2026-10-12: US-042 implementada (activación, aprobación y rechazo emiten sus avisos a través de `safeEmitNotification`), pendiente US-043..US-047.

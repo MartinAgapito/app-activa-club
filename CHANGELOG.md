@@ -28,6 +28,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Avisos de cambio de estado de una reserva (US-044, EP-05): al crear una
+  reserva con confirmación automática (`RESERVATION_CONFIRMED`) y al aprobarla,
+  rechazarla (con el motivo) o cancelarla (`RESERVATION_CANCELLED`, indicando si
+  la canceló el club o el propio socio), el titular recibe un aviso en su
+  bandeja y un correo best-effort. No se avisa a participantes ni al crear una
+  reserva `PENDING_APPROVAL`; un fallo del aviso nunca cambia la respuesta de
+  la operación. Idempotente por reserva y evento. Sin cambios de API ni de IAM.
+
 - Avisos de cuenta y de solicitud (US-042, EP-05): `POST /activation/complete`,
   `POST /members/{memberId}/approve` y `POST /members/{memberId}/reject`
   emiten `ACCOUNT_ACTIVATED`, `MEMBER_APPROVED` y `MEMBER_REJECTED` (con el
