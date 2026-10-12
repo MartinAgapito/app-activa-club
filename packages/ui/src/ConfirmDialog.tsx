@@ -3,10 +3,11 @@
 // confirmación explícita del usuario antes de ejecutarse (p. ej. aprobar o
 // rechazar una solicitud, cancelar una reserva). Componente puramente
 // presentacional: no decide reglas de negocio ni realiza llamadas a la API.
+// Construido sobre `Modal` (US-062): conserva su API pública y `alertdialog`.
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Button, type ButtonVariant } from './Button';
-import { cn } from './cn';
+import { Modal } from './Modal';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -38,61 +39,20 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  // `onCancel` suele ser una función inline nueva en cada render del llamador;
-  // se guarda en un ref para no reejecutar el efecto de foco (y así no robar
-  // el foco) en cada tecleo dentro del diálogo (p. ej. al escribir el motivo
-  // de rechazo). Se actualiza en un efecto, nunca durante el render.
-  const onCancelRef = useRef(onCancel);
-
-  useEffect(() => {
-    onCancelRef.current = onCancel;
-  }, [onCancel]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    panelRef.current?.focus();
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        onCancelRef.current();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open]);
-
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6"
-      onClick={onCancel}
-    >
-      <div
-        ref={panelRef}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        aria-describedby={description ? 'confirm-dialog-description' : undefined}
-        tabIndex={-1}
-        className={cn('w-full max-w-md rounded-2xl bg-white p-6 shadow-lg', 'focus:outline-none')}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="confirm-dialog-title" className="text-base font-semibold text-slate-900">
-          {title}
-        </h2>
-        {description ? (
-          <p id="confirm-dialog-description" className="mt-2 text-sm text-slate-600">
-            {description}
-          </p>
-        ) : null}
-        {children ? <div className="mt-4">{children}</div> : null}
-        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    <Modal
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onCancel();
+      }}
+      role="alertdialog"
+      size="sm"
+      title={title}
+      description={description}
+      showCloseButton={false}
+      closeOnOverlayClick
+      footer={
+        <>
           <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
             {cancelLabel}
           </Button>
@@ -104,8 +64,10 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {children}
+    </Modal>
   );
 }

@@ -9,6 +9,7 @@ import {
   Card,
   CardHeader,
   Input,
+  Modal,
   PageHeader,
   ToastProvider,
   useToast,
@@ -102,6 +103,7 @@ export function DesignSystemPage() {
         </div>
       </Card>
 
+      <ModalDemo />
       <ToastProvider>
         <Card>
           <CardHeader
@@ -120,6 +122,34 @@ export function DesignSystemPage() {
       <ReferenceForm />
       <ReferenceQueryDemo />
     </div>
+  );
+}
+
+function ModalDemo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card>
+      <CardHeader title="Ventana modal" description="Foco atrapado, Escape y cierre con X." />
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Abrir ventana
+      </Button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Editar instalación"
+        description="Ejemplo de ventana con formulario y acciones fijas al pie."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => setOpen(false)}>Guardar</Button>
+          </>
+        }
+      >
+        <Input label="Nombre" defaultValue="Cancha de tenis 1" />
+      </Modal>
+    </Card>
   );
 }
 
