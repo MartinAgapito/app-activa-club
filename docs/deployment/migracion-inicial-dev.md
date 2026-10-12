@@ -129,6 +129,7 @@ Script versionado: [`scripts/dev-reset.mjs`](../../scripts/dev-reset.mjs).
 node scripts/dev-reset.mjs            # simulacro: muestra qué borraría
 node scripts/dev-reset.mjs --apply    # respalda y borra (pide escribir BORRAR)
 node scripts/dev-reset.mjs --apply --keep-cognito   # sin tocar Cognito
+node scripts/dev-reset.mjs --apply --yes             # sin pedir BORRAR (terminales sin entrada interactiva)
 ```
 
 Qué hace, en este orden:
