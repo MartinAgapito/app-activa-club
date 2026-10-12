@@ -43,6 +43,10 @@ backlog en `docs/scrum/`.
   Barlow Semi Condensed y Hanken Grotesk autoalojadas, muestra en
   `/_dev/design-system`, script de verificación de contraste AA y
   `design-foundation.md` v2.0. Modo oscuro preparado en estructura, no activo.
+- Sprint 4B (EP-08, US-066): `ToastProvider` y `useToast()` en `packages/ui`
+  (avisos efímeros accesibles: 5 s, error persistente, pausa al hover/foco,
+  máximo 3, regiones ARIA live) y muestra en `/_dev/design-system`. Aún no
+  montado en la raíz de la app.
 - Sprint 4B (EP-08, US-065): componente `DataTable` en `@activa-club/ui`, tabla
   responsive (tarjetas bajo 640 px), fila accionable por teclado, columna de
   acciones, estados de carga, error y vacío, y pie "Cargar más" por cursor.

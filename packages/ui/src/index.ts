@@ -41,3 +41,6 @@ export { Stepper } from './Stepper';
 export type { StepperProps, StepperStep, StepperStepState } from './Stepper';
 
 export { cn } from './cn';
+
+export { ToastProvider, useToast } from './Toast';
+export type { ToastApi, ToastOptions, ToastAction, ToastType, ToastProviderProps } from './Toast';
