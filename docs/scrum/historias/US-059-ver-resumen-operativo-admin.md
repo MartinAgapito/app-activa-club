@@ -67,3 +67,7 @@ Convierte las cifras en una lista de pendientes: cada indicador lleva a la panta
 - Casos de prueba: DA-03, DA-04, DA-07, DA-08, T-06.
 - Depende de: US-057.
 - Habilita: —
+
+## Historial de cambios
+
+- 2026-10-12: Implementada (Frontend). `/admin` consume `GET /dashboard/admin` mediante `useAdminDashboard` (`apps/web/src/admin/dashboard/`, clave de caché `['dashboard','admin']`, compartida con US-060). Bloques: "Requiere tu atención" (solicitudes = `membersByStatus.PENDING` y reservas = `pendingApprovals`, cifras exactas), "Resumen del club" (socios por estado con total, membresías por vencer, pagos exitosos/fallidos y notificaciones enviadas del mes con `periods.currentMonth` en hora de Lima, aviso destacado con texto cuando hay pagos fallidos) y la tabla de reservas por aprobar de US-071 (lista admin). Cada cifra enlaza a su pantalla (`/admin/socios?tab=`, `/admin/membresias?estado=`, `/admin/notificaciones?tab=enviadas`, `/admin/analytics`). Dependencia: el enlace "Por vencer" usa `/admin/socios?tab=activos&membresia=EXPIRING_SOON`; la pantalla de socios lo respetará cuando US-052 la implemente (hoy abre la lista de activos).

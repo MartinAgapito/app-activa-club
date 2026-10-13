@@ -124,3 +124,4 @@ La pregunta abierta 4 de EP-06 y las preguntas 1, 2 y 5 de EP-07 (en lo que toca
 - 2026-10-12: US-055 implementada: `GET /dashboard/member` con `canReserve` de la misma función que la reserva, alertas `RENEWAL_DUE`/`MEMBERSHIP_EXPIRED`/`PAYMENT_DEBT` y solo lecturas. Pendiente verificación en `dev`.
 - 2026-10-12: US-057 implementada (Backend): `GET /dashboard/admin` entrega socios, membresías, pendientes, pagos y notificaciones con `Query` `Select: COUNT` sobre GSI2; el handler deja un punto de extensión para US-058.
 - 2026-10-12: US-056 implementada en frontend (inicio del socio sobre `GET /dashboard/member`); pendiente verificación en `dev`.
+- 2026-10-12: US-059 implementada (Frontend): el inicio del administrador consume `GET /dashboard/admin` con el hook compartido `useAdminDashboard` (clave `['dashboard','admin']`, reutilizable por US-060); pendientes exactos, socios por estado, por vencer, pagos y notificaciones del mes con su período en hora de Lima.
