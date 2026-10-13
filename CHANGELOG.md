@@ -28,6 +28,13 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Infraestructura de dashboards en `dev` (US-054, EP-07): dos endpoints
+  serverless (`GET /dashboard/member` para socios y `GET /dashboard/admin` para
+  administradores) con Cognito, IAM de solo lectura (`GetItem` y `Query`) con
+  cada índice como ARN explícito (GSI1 y GSI2 para el socio; GSI1, GSI2 y GSI3
+  para el administrador), log group y sin alarma de errores (ADR-0008). La del
+  administrador con tiempo máximo de 29 s y 512 MB. Ambas devuelven 501 hasta
+  US-055, US-057 y US-058. Sin cambios de API ni de lógica de negocio.
 - Avisos de renovación (US-047, EP-05): nuevo proceso diario
   `memberships-notify` (EventBridge 08:00 America/Lima, módulo
   `scheduled-job`, alarma de errores) que consume el rastro

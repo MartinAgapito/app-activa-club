@@ -183,7 +183,7 @@ Configuración: `index.html` (entrada), `vite.config.ts` (Vite + Tailwind v4),
 </details>
 
 <details>
-<summary><strong>apps/api</strong> — backend serverless (una Lambda por endpoint: 33 HTTP + 3 no-HTTP, <code>memberships-expire</code>, <code>reservations-remind</code> y <code>migration-run</code>)</summary>
+<summary><strong>apps/api</strong> — backend serverless (una Lambda por endpoint: 35 HTTP + 3 no-HTTP, <code>memberships-expire</code>, <code>reservations-remind</code> y <code>migration-run</code>)</summary>
 
 Patrón en capas: **handler** (HTTP, auth y validación) → **orquestador** (reglas
 de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.json`,
@@ -207,7 +207,7 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `guests/`            | `GET /guests/lookup`.                                                                                                                                   |
 | `migration/`         | `run.ts`: Lambda `migration-run`, carga inicial de socios por invocación directa (no HTTP, ADR-0012).                                                   |
 | `health/`            | `GET /health`.                                                                                                                                          |
-| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy ningún endpoint lo usa.                                                                                 |
+| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy lo usan los 2 de dashboards (US-054) hasta US-055, US-057 y US-058.                                     |
 
 </details>
 

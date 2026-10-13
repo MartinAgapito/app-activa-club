@@ -56,6 +56,10 @@ Habilita RN-ANL-01..08, RN-ADM-08 y el dashboard del socio (Contexto Maestro, "D
 
 - Si el rol de despliegue de CI necesita permisos nuevos, se aplica `bootstrap` antes de mergear (`docs/deployment/despliegue-dev.md`).
 
+## Historial de cambios
+
+- 2026-10-12: Infraestructura desplegada en `dev` por Terraform (PR de US-054), pendiente lógica: los dos endpoints responden 501 con el placeholder hasta US-055, US-057 y US-058; IAM de solo lectura con índices explícitos y `dashboard-admin` con 29 s y 512 MB. Detalle en `docs/deployment/terraform-infraestructura.md` sección 13. Verificación en `dev` tras el despliegue.
+
 ## Sugerencia de pruebas funcionales
 
 - Sin token → 401; token cruzado → 403 en ambos endpoints.
