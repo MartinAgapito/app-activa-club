@@ -1,22 +1,23 @@
 import { Link } from 'react-router-dom';
 import { Badge, buttonVariants } from '@activa-club/ui';
-import type { Reservation } from '@activa-club/shared-types';
-import { formatDayPartsInLima, formatTimeRangeInLima } from '../lib/format/lima-time';
+import type { MemberDashboardReservation } from '@activa-club/shared-types';
+import { formatDayPartsInLima, formatTimeInLima } from '../lib/format/lima-time';
 import { RESOURCE_TYPE_LABEL } from '../lib/format/resource';
 import {
   RESERVATION_STATUS_BADGE_VARIANT,
   RESERVATION_STATUS_LABEL,
 } from '../reservations/reservation-status';
-import { useResourcesQuery } from '../resources/resources-query';
-import { BlockError, BlockLoading } from './BlockState';
-import { useUpcomingReservationsQuery } from './upcoming-reservations';
 
-/** Próximas reservas (máx. 3). Fuente: `GET /reservations?scope=me&from=`. */
-export function UpcomingReservationsBlock() {
-  const query = useUpcomingReservationsQuery();
-  const resourcesQuery = useResourcesQuery();
-  const names = new Map((resourcesQuery.data ?? []).map((r) => [r.resourceId, r.name] as const));
-
+/** Próximas reservas (hasta 5, ya ordenadas por el servidor). Fuente:
+ * `GET /dashboard/member`. El resumen trae el tipo de instalación y el inicio
+ * (no el nombre ni la hora de fin): el detalle está en "Mis reservas". */
+export function UpcomingReservationsBlock({
+  reservations,
+  canReserve,
+}: {
+  reservations: MemberDashboardReservation[];
+  canReserve: boolean;
+}) {
   return (
     <section aria-labelledby="proximas-titulo" className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
@@ -28,44 +29,31 @@ export function UpcomingReservationsBlock() {
         </Link>
       </div>
 
-      {query.isPending ? <BlockLoading label="Cargando tus próximas reservas…" /> : null}
-
-      {query.isError ? (
-        <BlockError
-          title="No pudimos cargar tus próximas reservas"
-          onRetry={() => void query.refetch()}
-        />
-      ) : null}
-
-      {query.data && query.data.length === 0 ? (
+      {reservations.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-card border border-dashed border-line-strong bg-surface-card p-5">
           <p className="type-body text-ink">
-            No tienes reservas próximas. Reserva una cancha o una instalación del club.
+            {canReserve
+              ? 'No tienes reservas próximas. Reserva una cancha o una instalación del club.'
+              : 'No tienes reservas próximas. Regulariza tu membresía para volver a reservar.'}
           </p>
-          <Link to="/socio/reservas" className={buttonVariants({ variant: 'primary' })}>
-            Reservar una instalación
-          </Link>
+          {canReserve ? (
+            <Link to="/socio/reservas" className={buttonVariants({ variant: 'primary' })}>
+              Reservar una instalación
+            </Link>
+          ) : null}
         </div>
-      ) : null}
-
-      {query.data && query.data.length > 0 ? (
+      ) : (
         <ul className="flex flex-col gap-3">
-          {query.data.map((reservation) => (
-            <ReservationItem
-              key={reservation.reservationId}
-              reservation={reservation}
-              name={
-                names.get(reservation.resourceId) ?? RESOURCE_TYPE_LABEL[reservation.resourceType]
-              }
-            />
+          {reservations.map((reservation) => (
+            <ReservationItem key={reservation.reservationId} reservation={reservation} />
           ))}
         </ul>
-      ) : null}
+      )}
     </section>
   );
 }
 
-function ReservationItem({ reservation, name }: { reservation: Reservation; name: string }) {
+function ReservationItem({ reservation }: { reservation: MemberDashboardReservation }) {
   const { day, month, weekday } = formatDayPartsInLima(reservation.startsAt);
   return (
     <li>
@@ -79,9 +67,11 @@ function ReservationItem({ reservation, name }: { reservation: Reservation; name
           <span className="type-aux uppercase">{month}</span>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="type-card-title truncate text-ink">{name}</p>
+          <p className="type-card-title truncate text-ink">
+            {RESOURCE_TYPE_LABEL[reservation.resourceType]}
+          </p>
           <p className="type-body tabular-nums text-ink-muted">
-            {formatTimeRangeInLima(reservation.startsAt, reservation.endsAt)}
+            {formatTimeInLima(reservation.startsAt)}
           </p>
         </div>
         <Badge variant={RESERVATION_STATUS_BADGE_VARIANT[reservation.reservationStatus]}>

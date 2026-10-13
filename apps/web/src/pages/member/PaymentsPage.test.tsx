@@ -17,7 +17,7 @@ const { listMock, signOutMock } = vi.hoisted(() => ({
 
 vi.mock('../../payments/payments-list-client', () => ({
   PAYMENTS_PAGE_SIZE: 20,
-  fetchLatestPayment: vi.fn(),
+  fetchRecentPayments: vi.fn(),
   listMyPayments: listMock,
 }));
 

@@ -123,3 +123,4 @@ La pregunta abierta 4 de EP-06 y las preguntas 1, 2 y 5 de EP-07 (en lo que toca
 - 2026-10-12: US-058 implementada, pendiente verificación en `dev`: reservas y ocupación de `GET /dashboard/admin` (función sin handler en `apps/api/src/dashboard/`); el handler compartido `handlers/dashboard/admin.ts` espera componerse con US-057.
 - 2026-10-12: US-055 implementada: `GET /dashboard/member` con `canReserve` de la misma función que la reserva, alertas `RENEWAL_DUE`/`MEMBERSHIP_EXPIRED`/`PAYMENT_DEBT` y solo lecturas. Pendiente verificación en `dev`.
 - 2026-10-12: US-057 implementada (Backend): `GET /dashboard/admin` entrega socios, membresías, pendientes, pagos y notificaciones con `Query` `Select: COUNT` sobre GSI2; el handler deja un punto de extensión para US-058.
+- 2026-10-12: US-056 implementada en frontend (inicio del socio sobre `GET /dashboard/member`); pendiente verificación en `dev`.

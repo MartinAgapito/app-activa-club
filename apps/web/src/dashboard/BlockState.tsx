@@ -15,10 +15,12 @@ export function BlockError({
   title,
   onRetry,
   tone = 'light',
+  description = 'El resto del inicio sigue disponible. Intenta nuevamente.',
 }: {
   title: string;
   onRetry: () => void;
   tone?: 'light' | 'dark';
+  description?: string;
 }) {
   return (
     <div
@@ -31,7 +33,7 @@ export function BlockError({
     >
       <p className={tone === 'dark' ? 'font-medium' : 'font-medium text-danger-900'}>{title}</p>
       <p className={tone === 'dark' ? 'type-aux opacity-90' : 'type-aux text-danger-700'}>
-        El resto del inicio sigue disponible. Intenta nuevamente.
+        {description}
       </p>
       <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
         Reintentar
