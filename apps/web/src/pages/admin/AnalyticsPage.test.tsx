@@ -15,7 +15,7 @@ const { fetchDashboardMock, fetchResourcesMock } = vi.hoisted(() => ({
   fetchResourcesMock: vi.fn(),
 }));
 
-vi.mock('../../analytics/admin-dashboard-client', () => ({
+vi.mock('../../admin/dashboard/admin-dashboard-client', () => ({
   fetchAdminDashboard: fetchDashboardMock,
 }));
 

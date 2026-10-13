@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 import { Button, EmptyState, ErrorState, PageHeader, Spinner } from '@activa-club/ui';
 import { DashboardSection } from '../admin/dashboard/DashboardSection';
 import { useResourcesQuery } from '../resources/resources-query';
-import { useAdminDashboard } from './admin-dashboard-query';
+import { useAdminDashboard } from '../admin/dashboard/useAdminDashboard';
 import {
   buildOccupancyRows,
   buildResourceRows,
