@@ -28,6 +28,12 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Métricas de reservas y ocupación del administrador (US-058, EP-07):
+  `GET /dashboard/admin` calcula `periods`, `reservationsByResource`,
+  `reservationsByDay`, `reservationsByHour` y `occupancy` (con
+  `reservedHours` y `operatingHours`) sobre los últimos 30 días de America/Lima,
+  con `Query` por recurso en GSI3 y bloqueos de mantenimiento, sin `Scan`.
+  Tipos de `shared-types` extendidos de forma aditiva.
 - Infraestructura de dashboards en `dev` (US-054, EP-07): dos endpoints
   serverless (`GET /dashboard/member` para socios y `GET /dashboard/admin` para
   administradores) con Cognito, IAM de solo lectura (`GetItem` y `Query`) con

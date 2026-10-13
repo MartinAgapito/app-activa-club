@@ -47,17 +47,42 @@ export interface ReservationsByDayEntry {
   count: number;
 }
 
+/** Reservas por hora de inicio (`HH:00`, hora de Lima) del período (adenda 2026-10-12, US-058). */
+export interface ReservationsByHourEntry {
+  hour: string;
+  count: number;
+}
+
+/** Ventana semiabierta `[from, to)` expresada en UTC (adenda 2026-10-12, US-058). */
+export interface DashboardPeriod {
+  from: ISODateString;
+  to: ISODateString;
+  timeZone: 'America/Lima';
+}
+
+export interface DashboardPeriods {
+  currentMonth: DashboardPeriod;
+  last30Days: DashboardPeriod;
+}
+
 export interface OccupancyEntry {
   resourceId: string;
+  /** `reservedHours / operatingHours`, acotado a [0, 1], 4 decimales. */
   occupancyRate: number;
+  /** Horas reservadas (hasta 2 decimales), sin la parte solapada con mantenimiento. */
+  reservedHours: number;
+  /** Horas operativas del período (hasta 2 decimales), sin las cubiertas por mantenimiento. */
+  operatingHours: number;
 }
 
 /** Métricas administrativas del MVP (RN-ANL-01..08). */
 export interface AdminDashboard {
+  periods: DashboardPeriods;
   membersByStatus: Partial<Record<MemberStatus, number>>;
   membershipsExpiringSoon: number;
   reservationsByResource: Record<string, number>;
   reservationsByDay: ReservationsByDayEntry[];
+  reservationsByHour: ReservationsByHourEntry[];
   pendingApprovals: number;
   payments: { succeeded: number; failed: number };
   occupancy: OccupancyEntry[];

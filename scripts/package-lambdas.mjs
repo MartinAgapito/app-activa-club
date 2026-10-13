@@ -111,8 +111,7 @@ const HANDLERS = {
   // indicada en cada entrada las reemplace por su handler real.
   // PLACEHOLDER(US-055)
   'dashboard-member': 'handlers/not-implemented.ts', // GET /dashboard/member; lo reemplaza US-055
-  // PLACEHOLDER(US-057)
-  'dashboard-admin': 'handlers/not-implemented.ts', // GET /dashboard/admin; lo reemplazan US-057 y US-058
+  'dashboard-admin': 'handlers/dashboard/admin.ts', // GET /dashboard/admin; US-058 (reservas y ocupación) y US-057 (socios, pagos, notificaciones)
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');
