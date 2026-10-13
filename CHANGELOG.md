@@ -28,6 +28,13 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Métricas de socios, membresías, pagos y notificaciones del administrador
+  (US-057, EP-07): `GET /dashboard/admin` deja de responder 501 y devuelve
+  `membersByStatus` (con ceros), `membershipsExpiringSoon`, `pendingApprovals`,
+  `payments` y `notificationsSent`, más `periods.currentMonth` (mes calendario
+  en hora de Lima). Solo `Query` con `Select: COUNT` sobre GSI2, sin `Scan` ni
+  datos personales; las secciones de reservas y ocupación (US-058) salen vacías
+  hasta su historia.
 - Infraestructura de dashboards en `dev` (US-054, EP-07): dos endpoints
   serverless (`GET /dashboard/member` para socios y `GET /dashboard/admin` para
   administradores) con Cognito, IAM de solo lectura (`GetItem` y `Query`) con

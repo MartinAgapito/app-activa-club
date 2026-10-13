@@ -207,7 +207,8 @@ de negocio) → **repositorio** (acceso a DynamoDB). Configuración: `package.js
 | `guests/`            | `GET /guests/lookup`.                                                                                                                                   |
 | `migration/`         | `run.ts`: Lambda `migration-run`, carga inicial de socios por invocación directa (no HTTP, ADR-0012).                                                   |
 | `health/`            | `GET /health`.                                                                                                                                          |
-| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy lo usan los 2 de dashboards (US-054) hasta US-055, US-057 y US-058.                                     |
+| `dashboard/`         | `GET /dashboard/admin` (admin): socios, membresías, pendientes, pagos y notificaciones (US-057); US-058 añade reservas y ocupación.                     |
+| `not-implemented.ts` | Placeholder para endpoints sin implementar. Hoy lo usa `GET /dashboard/member` (US-054) hasta US-055.                                                   |
 
 </details>
 
