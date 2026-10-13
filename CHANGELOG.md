@@ -34,6 +34,14 @@ backlog en `docs/scrum/`.
   `reservedHours` y `operatingHours`) sobre los últimos 30 días de America/Lima,
   con `Query` por recurso en GSI3 y bloqueos de mantenimiento, sin `Scan`.
   Tipos de `shared-types` extendidos de forma aditiva.
+- Resumen personal del socio (US-055, EP-07): `GET /dashboard/member` (solo
+  `member`) devuelve en una consulta nombre de pila y estado, membresía (tipo,
+  estado efectivo, vencimiento, saldo y `daysRemaining` en días de Lima),
+  `canReserve`, alertas con código estable (`RENEWAL_DUE`,
+  `MEMBERSHIP_EXPIRED`, `PAYMENT_DEBT`), hasta 5 próximas reservas como titular
+  y los 5 avisos más recientes. `canReserve` usa la misma función que
+  `POST /reservations` (`reservations/eligibility.ts`). Solo lecturas
+  (`Query` GSI1 y tabla); reemplaza el placeholder 501 de `dashboard-member`.
 - Métricas de socios, membresías, pagos y notificaciones del administrador
   (US-057, EP-07): `GET /dashboard/admin` deja de responder 501 y devuelve
   `membersByStatus` (con ceros), `membershipsExpiringSoon`, `pendingApprovals`,
