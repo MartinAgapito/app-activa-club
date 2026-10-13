@@ -1,17 +1,12 @@
-// Fuentes de datos del inicio del administrador (US-071).
+// Fuentes de datos del inicio del administrador (US-071, US-059).
 //
-// Cada bloque recibe un `PendingSummary` y no conoce el endpoint: cuando exista
-// `GET /dashboard/admin` (US-057/US-059) basta con reemplazar el cuerpo de
-// estos hooks por las cifras exactas, sin reescribir bloques ni página.
-//
-// Usan las mismas claves de caché que las pantallas de destino
-// (`['members','pending']` y la lista admin `PENDING_APPROVAL`): entrar a
-// "Solicitudes" o "Reservas" reutiliza lo ya cargado y las decisiones tomadas
-// allí invalidan este resumen. Solo se usa la primera página.
+// Cada bloque recibe un `PendingSummary` y no conoce el endpoint. Las
+// cantidades exactas salen de `GET /dashboard/admin` (`summaryFromCount`);
+// la lista de las reservas por aprobar sigue viniendo de la lista admin
+// `PENDING_APPROVAL` (primera página), con la misma clave de caché que la
+// pantalla de reservas: las decisiones tomadas allí invalidan este resumen.
 
-import { useInfiniteQuery } from '@tanstack/react-query';
-import type { AdminReservationListItem, MemberSummary } from '@activa-club/shared-types';
-import { fetchPendingMembers } from '../pending-members-client';
+import type { AdminReservationListItem } from '@activa-club/shared-types';
 import { useAdminReservationsQuery } from '../reservations/admin-reservations-query';
 import type { PendingCount } from './pending-count';
 
@@ -23,20 +18,17 @@ export interface PendingSummary<T> extends PendingCount {
   refetch: () => void;
 }
 
-export function usePendingMembersSummary(): PendingSummary<MemberSummary> {
-  const query = useInfiniteQuery({
-    queryKey: ['members', 'pending'],
-    queryFn: ({ pageParam }) => fetchPendingMembers(pageParam),
-    initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-  });
-  const firstPage = query.data?.pages[0];
+/** Resumen con la cantidad exacta que informa el servidor (sin lista). */
+export function summaryFromCount(
+  query: { isPending: boolean; isError: boolean; refetch: () => unknown },
+  count: number | undefined,
+): PendingSummary<never> {
   return {
     isPending: query.isPending,
-    isError: query.isError && !firstPage,
-    items: firstPage?.items ?? [],
-    count: firstPage?.items.length ?? 0,
-    hasMore: firstPage?.nextCursor != null,
+    isError: query.isError,
+    items: [],
+    count: count ?? 0,
+    hasMore: false,
     refetch: () => void query.refetch(),
   };
 }

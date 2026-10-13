@@ -28,6 +28,16 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Resumen operativo del administrador (US-059, EP-07): `/admin` consume
+  `GET /dashboard/admin` con el hook compartido `useAdminDashboard` (clave
+  `['dashboard','admin']`, reutilizable por la analítica de US-060). Las
+  solicitudes y reservas por aprobar pasan a cifras exactas; nuevo bloque
+  "Resumen del club" con socios por estado y total, membresías por vencer,
+  pagos exitosos/fallidos y notificaciones enviadas del mes (período en hora
+  de Lima), con acceso a cada pantalla, destaque con texto de los pagos
+  fallidos, estados de carga/error con reintento y "Actualizar". Sin cambios
+  de API.
+
 - Métricas de reservas y ocupación del administrador (US-058, EP-07):
   `GET /dashboard/admin` calcula `periods`, `reservationsByResource`,
   `reservationsByDay`, `reservationsByHour` y `occupancy` (con

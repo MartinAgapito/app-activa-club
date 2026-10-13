@@ -5,18 +5,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { AdminReservationListItem, MemberSummary } from '@activa-club/shared-types';
+import type { AdminDashboard, AdminReservationListItem } from '@activa-club/shared-types';
 import { AdminDashboardPage } from './AdminDashboardPage';
 import { ApiRequestError } from '../../lib/api/http-client';
 
-const { fetchPendingMembersMock, listMock, fetchResourcesMock } = vi.hoisted(() => ({
-  fetchPendingMembersMock: vi.fn(),
+const { fetchDashboardMock, listMock, fetchResourcesMock } = vi.hoisted(() => ({
+  fetchDashboardMock: vi.fn(),
   listMock: vi.fn(),
   fetchResourcesMock: vi.fn(),
 }));
 
-vi.mock('../../admin/pending-members-client', () => ({
-  fetchPendingMembers: fetchPendingMembersMock,
+vi.mock('../../admin/dashboard/admin-dashboard-client', () => ({
+  fetchAdminDashboard: fetchDashboardMock,
 }));
 
 vi.mock('../../admin/reservations/admin-reservations-client', () => ({
@@ -34,15 +34,32 @@ vi.mock('../../resources/resources-client', () => ({
   fetchResourceAvailability: vi.fn(),
 }));
 
-const MEMBER: MemberSummary = {
-  memberId: 'member-a',
-  dni: '10203040',
-  firstName: 'Juan',
-  lastName: 'Pérez',
-  origin: 'NEW',
-  memberStatus: 'PENDING',
-  membershipStatus: 'NONE',
-  createdAt: '2026-07-01T00:00:00Z',
+const PERIOD = {
+  from: '2026-10-01T05:00:00.000Z',
+  to: '2026-11-01T05:00:00.000Z',
+  timeZone: 'America/Lima',
+} as const;
+
+const DASHBOARD: AdminDashboard = {
+  periods: { currentMonth: PERIOD, last30Days: { ...PERIOD } },
+  membersByStatus: { ACTIVE: 70, MIGRATED: 40, PENDING: 3, REJECTED: 1 },
+  membershipsExpiringSoon: 8,
+  reservationsByResource: {},
+  reservationsByDay: [],
+  reservationsByHour: [],
+  pendingApprovals: 4,
+  payments: { succeeded: 55, failed: 3 },
+  occupancy: [],
+  notificationsSent: 14,
+};
+
+const EMPTY_DASHBOARD: AdminDashboard = {
+  ...DASHBOARD,
+  membersByStatus: {},
+  membershipsExpiringSoon: 0,
+  pendingApprovals: 0,
+  payments: { succeeded: 0, failed: 0 },
+  notificationsSent: 0,
 };
 
 const RESERVATION: AdminReservationListItem = {
@@ -78,7 +95,7 @@ function renderPage() {
 
 describe('AdminDashboardPage', () => {
   it('muestra cantidades y la tabla de reservas por aprobar', async () => {
-    fetchPendingMembersMock.mockResolvedValue({ items: [MEMBER], nextCursor: null });
+    fetchDashboardMock.mockResolvedValue(DASHBOARD);
     listMock.mockResolvedValue({ items: [RESERVATION], nextCursor: null });
     fetchResourcesMock.mockResolvedValue([
       {
@@ -99,33 +116,73 @@ describe('AdminDashboardPage', () => {
       screen.getByRole('heading', { level: 1, name: 'Panel de administración' }),
     ).toBeInTheDocument();
     const attention = screen.getByRole('region', { name: 'Requiere tu atención' });
-    expect(await within(attention).findByText('1 solicitud')).toBeInTheDocument();
-    expect(await within(attention).findByText('1 reserva')).toBeInTheDocument();
+    expect(await within(attention).findByText('3 solicitudes')).toBeInTheDocument();
+    expect(await within(attention).findByText('4 reservas')).toBeInTheDocument();
     expect(await screen.findByText('Ana Torres')).toBeInTheDocument();
     expect(await screen.findByText('Parrilla 1')).toBeInTheDocument();
     expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'PENDING_APPROVAL' }));
   });
 
-  it('si fallan las solicitudes, el bloque de reservas se muestra igual', async () => {
-    fetchPendingMembersMock.mockRejectedValue(new ApiRequestError(500, 'INTERNAL_ERROR', 'Error'));
+  it('si falla el dashboard, la tabla de reservas por aprobar se muestra igual', async () => {
+    fetchDashboardMock.mockRejectedValue(new ApiRequestError(500, 'INTERNAL_ERROR', 'Error'));
     listMock.mockResolvedValue({ items: [RESERVATION], nextCursor: null });
     fetchResourcesMock.mockResolvedValue([]);
     renderPage();
 
     const attention = screen.getByRole('region', { name: 'Requiere tu atención' });
-    expect(await within(attention).findByText('No pudimos cargar esta información.')).toBeVisible();
-    expect(await within(attention).findByText('1 reserva')).toBeInTheDocument();
+    expect(await screen.findByText('No pudimos cargar el resumen del club.')).toBeVisible();
+    expect(
+      await within(attention).findAllByText('No pudimos cargar esta información.'),
+    ).toHaveLength(2);
     expect(await screen.findByText('Ana Torres')).toBeInTheDocument();
   });
 
   it('sin pendientes muestra "Todo al día" sin error', async () => {
-    fetchPendingMembersMock.mockResolvedValue({ items: [], nextCursor: null });
+    fetchDashboardMock.mockResolvedValue(EMPTY_DASHBOARD);
     listMock.mockResolvedValue({ items: [], nextCursor: null });
     fetchResourcesMock.mockResolvedValue([]);
     renderPage();
 
     expect(await screen.findByText(/no hay nada esperando tu decisión/i)).toBeInTheDocument();
+    const summary = screen.getByRole('region', { name: 'Resumen del club' });
+    expect(
+      await within(summary).findByText('Total de socios: 0. Cifras al momento de la consulta.'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('muestra el resumen del club con período en hora de Lima y accesos con su filtro', async () => {
+    fetchDashboardMock.mockResolvedValue(DASHBOARD);
+    listMock.mockResolvedValue({ items: [], nextCursor: null });
+    fetchResourcesMock.mockResolvedValue([]);
+    renderPage();
+
+    const summary = screen.getByRole('region', { name: 'Resumen del club' });
+    expect(
+      await within(summary).findByText('Total de socios: 114. Cifras al momento de la consulta.'),
+    ).toBeInTheDocument();
+    expect(
+      within(summary).getAllByText('Del 1 al 31 de octubre de 2026 (hora de Lima).'),
+    ).toHaveLength(2);
+    expect(within(summary).getByText('55')).toBeInTheDocument();
+    expect(within(summary).getByText('14')).toBeInTheDocument();
+    expect(within(summary).getByText('Requiere atención')).toBeInTheDocument();
+
+    const link = (name: string) => within(summary).getByRole('link', { name });
+    expect(link('Ver socios: Rechazados')).toHaveAttribute('href', '/admin/socios?tab=rechazados');
+    expect(link('Ver por vencer: Membresías por vencer')).toHaveAttribute(
+      'href',
+      '/admin/socios?tab=activos&membresia=EXPIRING_SOON',
+    );
+    expect(link('Ver pagos: Pagos fallidos')).toHaveAttribute(
+      'href',
+      '/admin/membresias?estado=FAILED',
+    );
+    expect(link('Ver historial: Notificaciones enviadas')).toHaveAttribute(
+      'href',
+      '/admin/notificaciones?tab=enviadas',
+    );
+    expect(link('Ir a Analítica')).toHaveAttribute('href', '/admin/analytics');
   });
 });
