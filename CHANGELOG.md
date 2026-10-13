@@ -10,6 +10,15 @@ backlog en `docs/scrum/`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Correos de aviso en el sandbox de SES: el permiso `ses:SendEmail` de las
+  Lambdas emisoras cubre además las identidades verificadas de la cuenta (SES
+  autoriza también contra la identidad de cada destinatario mientras la cuenta
+  está en sandbox), acotado por la condición `ses:FromAddress` al remitente
+  verificado. Antes el envío fallaba con `AccessDeniedException` y solo se
+  escribía la bandeja.
+
 ### Changed
 
 - Pulido de textos y sesión del administrador: se quitan los códigos internos

@@ -134,9 +134,27 @@ locals {
   # (modules/ses-identity): ninguna Lambda recibe `ses:*`, ni SendRawEmail ni
   # SendTemplatedEmail (esta última, de la API v1, se agregaría solo si
   # US-040 eligiera ese cliente).
+  #
+  # Sandbox de SES: mientras la cuenta no tenga acceso a producción, SES
+  # autoriza `ses:SendEmail` también contra la identidad de CADA destinatario
+  # (solo se puede enviar a identidades verificadas), así que el recurso no
+  # puede ser únicamente la identidad del remitente: daba AccessDenied y el
+  # correo fallaba aunque la bandeja interna se escribiera. Se acota por
+  # condición `ses:FromAddress`: sigue siendo imposible enviar desde otra
+  # dirección y solo se alcanzan identidades de esta cuenta y región.
   ses_send_email_statement = {
-    actions   = ["ses:SendEmail"]
-    resources = [module.ses.identity_arn]
+    actions = ["ses:SendEmail"]
+    resources = [
+      module.ses.identity_arn,
+      "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/*",
+    ]
+    conditions = [
+      {
+        test     = "StringEquals"
+        variable = "ses:FromAddress"
+        values   = [module.ses.sender_email]
+      },
+    ]
   }
 
   # Variable de entorno común de las Lambdas que envían correo: dirección del
