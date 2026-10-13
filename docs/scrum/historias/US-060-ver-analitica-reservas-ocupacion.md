@@ -64,3 +64,7 @@ Es la vista que respalda decisiones operativas (horarios, mantenimientos) y la e
 - Casos de prueba: DA-05, DA-06, DA-09, T-02.
 - Depende de: US-058.
 - Habilita: —
+
+## Historial de cambios
+
+- 2026-10-12: Implementada, pendiente verificación en `dev`. Pantalla `apps/web/src/analytics/` (`AnalyticsView`) sobre `GET /dashboard/admin`, periodo `last30Days` en hora de Lima. Decisiones: gráficos en CSS sin librería (criterio 7: no se incorpora ninguna; menor peso y control total de la accesibilidad); cada gráfico lleva resumen textual con el máximo y la misma cifra en tabla (`<details>`), las barras por instalación escriben el número y la ocupación escribe el porcentaje, de modo que ninguna cifra depende del color; nombres desde el catálogo `GET /resources` (si falla, se muestra el código); estado vacío cuando la suma de reservas del periodo es 0. La `queryKey` `['dashboard','admin']` es la misma que usará US-059.
