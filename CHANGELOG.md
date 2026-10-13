@@ -28,6 +28,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Analítica de reservas y ocupación del administrador (US-060, EP-07):
+  `/admin/analytics` deja de ser "en construcción" y muestra, con
+  `GET /dashboard/admin`, el periodo de 30 días en hora de Lima, las reservas
+  por instalación (nombre legible, de mayor a menor), la ocupación por
+  instalación en porcentaje con horas reservadas y operativas, y las reservas
+  por día y por horario. Gráficos en CSS sin librería, cada uno con
+  alternativa en lista o tabla con las mismas cifras; estados de carga, error,
+  vacío y éxito. Sin cambios de API.
 - Resumen operativo del administrador (US-059, EP-07): `/admin` consume
   `GET /dashboard/admin` con el hook compartido `useAdminDashboard` (clave
   `['dashboard','admin']`, reutilizable por la analítica de US-060). Las
