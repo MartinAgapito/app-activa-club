@@ -1,34 +1,48 @@
 // GET /dashboard/admin — métricas administrativas del MVP (docs/api/contratos-api.md
-// §9). Solo `admin`; sin parámetros.
+// §9, RN-ANL-01..08). Solo `admin`, sin parámetros, solo lectura.
 //
-// Handler compartido por US-057 (socios, membresías, pagos, notificaciones) y
-// US-058 (reservas y ocupación). Cada historia aporta su sección como una
-// función sin handler y este archivo solo las compone:
-//   - US-058: `getAdminReservationMetrics` (`../../dashboard/admin-reservation-metrics.ts`)
-//     devuelve `periods`, `reservationsByResource`, `reservationsByDay`,
-//     `reservationsByHour` y `occupancy`.
-//   - US-057: sus campos se agregan al objeto de la respuesta (los de US-058 no
-//     cambian).
+// El handler solo autoriza y compone secciones; cada sección vive en su propio
+// módulo de `src/dashboard/`:
+// - US-057: socios, membresías, reservas pendientes, pagos y notificaciones
+//   (`admin-people-metrics.ts`).
+// - US-058: reservas por recurso/día/hora y ocupación
+//   (`admin-reservation-metrics.ts`).
 
 import type { APIGatewayProxyResult, APIGatewayProxyWithCognitoAuthorizerEvent } from 'aws-lambda';
 
+import { computeAdminPeopleMetrics } from '../../dashboard/admin-people-metrics';
 import { getAdminReservationMetrics } from '../../dashboard/admin-reservation-metrics';
 import { jsonResponse } from '../../lib/http';
 import { extractIdentity, requireRole } from '../../middleware/auth';
 import { withHandler } from '../../middleware/with-handler';
 
-async function handleGetAdminDashboard(
+async function handleAdminDashboard(
   event: APIGatewayProxyWithCognitoAuthorizerEvent,
+  ctx: { requestId: string },
 ): Promise<APIGatewayProxyResult> {
   const identity = extractIdentity(event);
   requireRole(identity, ['admin']);
 
-  const reservationMetrics = await getAdminReservationMetrics();
+  const now = new Date();
 
-  return jsonResponse(200, { ...reservationMetrics });
+  // Cada sección es independiente: no comparten consultas ni estado.
+  const [people, reservations] = await Promise.all([
+    computeAdminPeopleMetrics({ now, requestId: ctx.requestId }),
+    getAdminReservationMetrics({ now }),
+  ]);
+
+  const body = {
+    ...people,
+    ...reservations,
+    // Cada sección calcula sus propios periodos: se unen (`currentMonth` y
+    // `last30Days`) para que el cuerpo declare el rango de cada cifra.
+    periods: { ...people.periods, ...reservations.periods },
+  };
+
+  return jsonResponse(200, body);
 }
 
 export const handler = withHandler<APIGatewayProxyWithCognitoAuthorizerEvent>(
-  'GET_ADMIN_DASHBOARD',
-  handleGetAdminDashboard,
+  'ADMIN_DASHBOARD',
+  handleAdminDashboard,
 );
