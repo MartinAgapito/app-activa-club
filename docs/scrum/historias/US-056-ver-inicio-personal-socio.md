@@ -71,3 +71,7 @@ Es la primera pantalla que ve el socio cada vez que entra y hoy dice "en constru
 - Casos de prueba: DA-01, DA-02 (por interfaz), T-01, T-03.
 - Depende de: US-055 (y US-050 para el acceso al historial de pagos).
 - Habilita: —
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en frontend, pendiente verificación en `dev`. `MemberDashboardPage` usa un único hook (`useMemberDashboardQuery`, `apps/web/src/dashboard/`) sobre `GET /dashboard/member`; conserva el diseño de US-070 (bloques, tokens, `AppShell`). `canReserve` y `alerts` vienen del servidor (criterio 11). Agrega avisos recientes (criterio 7), resumen de los últimos tres pagos con estado propio (criterios 8 y 9) y accesos por instalación hacia `/socio/reservas?tipo=` (criterio 6). Decisiones: el resumen de reservas del contrato no incluye nombre de la instalación ni hora de fin, así que se muestra el tipo de instalación y la hora de inicio (detalle en "Mis reservas"); "días restantes" usa `daysRemaining` del contrato y solo en membresías vigentes; sin primera membresía (`NONE`, alertas vacías, `canReserve=false`) se explica qué falta sin inventar códigos de alerta.

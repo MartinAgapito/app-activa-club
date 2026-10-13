@@ -28,6 +28,17 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Inicio personal del socio con una sola consulta (US-056, EP-07):
+  `/socio` consume `GET /dashboard/member` (saludo, estado de membresía con
+  vencimiento y días restantes del servidor, alertas, `canReserve`, próximas
+  reservas y avisos recientes) en lugar de perfil, reservas y avisos por
+  separado. Con `canReserve=false` la acción "Nueva reserva" y los accesos por
+  instalación quedan deshabilitados con el motivo y la ruta a pagar o renovar;
+  sin primera membresía (`NONE`) explica qué falta. Agrega avisos recientes con
+  los no leídos destacados, resumen de los últimos tres pagos
+  (`GET /payments?limit=3`, con su propio estado de error) y accesos a fútbol,
+  piscina, tenis, pádel, parrillas y salón social (`/socio/reservas?tipo=`).
+  Tolera `endsAt` como `YYYY-MM-DD` o ISO con hora. Sin cambios de API.
 - Analítica de reservas y ocupación del administrador (US-060, EP-07):
   `/admin/analytics` deja de ser "en construcción" y muestra, con
   `GET /dashboard/admin`, el periodo de 30 días en hora de Lima, las reservas

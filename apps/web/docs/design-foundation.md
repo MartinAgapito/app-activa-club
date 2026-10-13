@@ -502,30 +502,38 @@ para listas con detalle y acción confirmada:
 - Fechas y horas en `font-display` con `tabular-nums`; estado con `Badge` y
   texto.
 
-### 7.3 Inicio del socio (US-070)
+### 7.3 Inicio del socio (US-070, US-056)
 
-Bloques independientes en `apps/web/src/dashboard/`, compuestos por
-`MemberDashboardPage`; cada uno tiene su fuente de datos, su carga, su error
-con "Reintentar" y su estado vacío, así que un fallo no tumba el inicio.
+Bloques en `apps/web/src/dashboard/`, compuestos por `MemberDashboardPage`. Una
+única consulta, `useMemberDashboardQuery` (`GET /dashboard/member`), alimenta
+todos salvo los últimos pagos, que tienen su propio estado de carga y error con
+"Reintentar" (un fallo ahí no tumba el inicio). Si falla el dashboard completo,
+la página muestra un error con "Reintentar" y los accesos básicos.
 
 - `GreetingBlock`: "Hola, <nombre de pila>" (`type-page-title`) y fecha de hoy
   en hora de Lima.
-- `ReservationBlockNotice`: aviso rojo sobrio con enlace a pagar si el socio no
-  puede reservar (`getReservationBlock`) o ámbar informativo si vence en 7
-  días o menos.
+- `ReservationBlockNotice`: con `canReserve=false`, aviso rojo sobrio con los
+  mensajes de `alerts` (o el motivo derivado si no hay) y enlace a pagar o
+  renovar; con `canReserve=true` y alertas, aviso ámbar informativo. Nunca se
+  muestra el código de alerta.
 - `MembershipPassBlock`: el "pase", único bloque sobre `action` (azul de
-  marca): estado en `Badge` (texto, nunca solo color), plan, días restantes en
-  `type-figure`, vigencia, saldo pendiente y CTA contextual (Pagar / Renovar;
-  sin CTA si está al día). Línea "Pago en verificación" desde
-  `GET /payments?limit=1`, opcional.
-- `QuickActionsBlock`: cuatro accesos; "Reservar" se deshabilita con el motivo
-  visible, nunca se oculta.
-- `UpcomingReservationsBlock`: hasta 3 reservas activas con fecha grande
-  (día en `type-figure`), instalación, hora y `Badge` de estado.
-- Orden móvil: aviso, membresía, accesos, próximas reservas. Desde `lg`, los
-  accesos pasan a una columna lateral.
-- US-056 cambia solo la fuente de `MembershipPassBlock`
-  (`GET /dashboard/member`) y agrega bloques; el resto se conserva.
+  marca): estado en `Badge` (texto, nunca solo color), plan, `daysRemaining` en
+  `type-figure` (solo vigentes), fecha de vencimiento (tolera `YYYY-MM-DD` o
+  ISO), saldo pendiente y CTA contextual. Sin primera membresía explica qué
+  falta. Línea "Pago en verificación" desde el primer pago de
+  `GET /payments?limit=3`, opcional.
+- `QuickActionsBlock`: "Renovar o pagar membresía", "Nueva reserva" (se
+  deshabilita con el motivo visible, nunca se oculta), "Mis reservas", "Pagos".
+- `UpcomingReservationsBlock`: hasta 5 reservas con fecha grande, tipo de
+  instalación, hora de inicio en Lima y `Badge` de estado.
+- `RecentNotificationsBlock`: hasta 5 avisos; los no leídos con texto "Nueva" y
+  peso mayor, no solo color.
+- `RecentPaymentsBlock`: últimos tres pagos (concepto, fecha, monto, estado).
+- `FacilityShortcutsBlock`: seis instalaciones hacia `/socio/reservas?tipo=`;
+  deshabilitadas con `canReserve=false`.
+- Orden móvil: aviso, membresía, accesos, reservas, avisos, pagos,
+  instalaciones. Desde `lg`, accesos e instalaciones pasan a una columna
+  lateral (`lg:grid-flow-dense`).
 
 ## 8. Infraestructura de datos (base, sin flujos de negocio)
 
@@ -578,3 +586,4 @@ con "Reintentar" y su estado vacío, así que un fallo no tumba el inicio.
   `role="status"`, siempre con icono) y `PasswordRequirements` en
   `apps/web/src/components/auth/`.
 - 2026-10-11: US-070. Inicio del socio por bloques independientes (§7.3).
+- 2026-10-12: US-056. Inicio del socio sobre `GET /dashboard/member` (§7.3).

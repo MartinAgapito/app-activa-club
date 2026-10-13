@@ -12,6 +12,7 @@ import {
   type UseMutationResult,
 } from '@tanstack/react-query';
 import type { InboxNotification, Paginated } from '@activa-club/shared-types';
+import { MEMBER_DASHBOARD_QUERY_KEY } from '../dashboard/member-dashboard-query';
 import { listMyNotifications, markNotificationRead } from './notifications-client';
 
 export const NOTIFICATIONS_QUERY_KEY = ['notifications'] as const;
@@ -78,6 +79,7 @@ export function useMarkNotificationReadMutation(): UseMutationResult<
         queryKey: NOTIFICATIONS_QUERY_KEY,
         refetchType: 'none',
       });
+      void queryClient.invalidateQueries({ queryKey: MEMBER_DASHBOARD_QUERY_KEY });
     },
   });
 }

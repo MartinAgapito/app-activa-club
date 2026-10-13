@@ -59,6 +59,7 @@ import {
 import type { MembershipPlan, MembershipType } from '@activa-club/shared-types';
 import { useMembershipPlansQuery } from '../../members/plans-query';
 import { MEMBER_PROFILE_QUERY_KEY } from '../../members/profile-query';
+import { MEMBER_DASHBOARD_QUERY_KEY } from '../../dashboard/member-dashboard-query';
 import { ApiRequestError } from '../../lib/api/http-client';
 import { formatCentsAsCurrency } from '../../lib/format/currency';
 import { formatDate } from '../../lib/format/date';
@@ -178,6 +179,7 @@ export function CheckoutPage() {
         // sesión — se invalida el perfil cacheado (RequireActiveMember,
         // ProfilePage, PendingApprovalPage comparten esta misma queryKey).
         await queryClient.invalidateQueries({ queryKey: MEMBER_PROFILE_QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: MEMBER_DASHBOARD_QUERY_KEY });
       }
     } catch (error) {
       const nextOutcome = toErrorOutcome(error);

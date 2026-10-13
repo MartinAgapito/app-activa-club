@@ -13,6 +13,7 @@ import type { ReservationDetail, ReservationParticipant } from '@activa-club/sha
 import { ApiRequestError } from '../lib/api/http-client';
 import { formatDateInLima, formatTimeRangeInLima } from '../lib/format/lima-time';
 import { RESOURCE_TYPE_LABEL } from '../lib/format/resource';
+import { MEMBER_DASHBOARD_QUERY_KEY } from '../dashboard/member-dashboard-query';
 import { CANCEL_BLOCK_COPY, getCancelBlock } from './cancellation';
 import {
   toCancelErrorFeedback,
@@ -80,6 +81,7 @@ export function ReservationDetailPanel({
 
   function refreshAfterChange(resourceId: string) {
     void queryClient.invalidateQueries({ queryKey: MY_RESERVATIONS_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: MEMBER_DASHBOARD_QUERY_KEY });
     void queryClient.invalidateQueries({ queryKey: ['resources', resourceId, 'availability'] });
   }
 

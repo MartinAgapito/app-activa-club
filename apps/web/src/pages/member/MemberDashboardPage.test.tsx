@@ -1,82 +1,61 @@
-// Inicio del socio (US-070): saludo, aviso de bloqueo, pase de membresía,
-// accesos rápidos y próximas reservas, cada uno con sus estados
-// independientes.
+// Inicio del socio (US-056): una sola consulta `GET /dashboard/member` con
+// saludo, aviso, membresía, accesos, reservas, avisos e instalaciones; los
+// últimos pagos tienen su propio estado.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import type { Member, PaymentSummary, Reservation } from '@activa-club/shared-types';
+import type { MemberDashboard, PaymentSummary } from '@activa-club/shared-types';
 import { MemberDashboardPage } from './MemberDashboardPage';
 import { ApiRequestError } from '../../lib/api/http-client';
 
-const { profileMock, upcomingMock, paymentMock, resourcesMock } = vi.hoisted(() => ({
-  profileMock: vi.fn(),
-  upcomingMock: vi.fn(),
-  paymentMock: vi.fn(),
-  resourcesMock: vi.fn(),
+const { dashboardMock, paymentsMock } = vi.hoisted(() => ({
+  dashboardMock: vi.fn(),
+  paymentsMock: vi.fn(),
 }));
 
-vi.mock('../../members/profile-client', () => ({
-  fetchMemberProfile: profileMock,
-  updateMemberProfile: vi.fn(),
+vi.mock('../../dashboard/member-dashboard-client', () => ({
+  fetchMemberDashboard: dashboardMock,
 }));
-vi.mock('../../payments/payments-list-client', () => ({ fetchLatestPayment: paymentMock }));
-vi.mock('../../resources/resources-client', () => ({
-  fetchResources: resourcesMock,
-  fetchResourceAvailability: vi.fn(),
+vi.mock('../../payments/payments-list-client', () => ({
+  RECENT_PAYMENTS_LIMIT: 3,
+  fetchRecentPayments: paymentsMock,
+  listMyPayments: vi.fn(),
 }));
-// Solo `GET /reservations` pasa por `apiRequest` (el resto de los clientes están
-// mockeados arriba): se simula la página del contrato.
-vi.mock('../../lib/api/http-client', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../lib/api/http-client')>();
-  return { ...original, apiRequest: upcomingMock };
-});
 
 const NOW = new Date('2026-10-11T15:00:00Z');
 
-function member(overrides: Partial<Member> = {}): Member {
+function dashboard(overrides: Partial<MemberDashboard> = {}): MemberDashboard {
   return {
-    memberId: 'm-1',
-    legacyId: null,
-    dni: '12345678',
-    email: 'martin@example.com',
-    firstName: 'Martín Alonso',
-    lastName: 'Agapito',
-    phone: null,
-    origin: 'NEW',
-    memberStatus: 'ACTIVE',
-    cognitoSub: 'sub-1',
-    rejectionReason: null,
-    membershipType: 'MONTHLY',
-    membershipStatus: 'ACTIVE',
-    membershipStartedAt: '2026-09-01T05:00:00Z',
-    membershipEndsAt: '2026-11-20T05:00:00Z',
-    outstandingBalance: 0,
-    autoRenew: false,
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
+    member: { firstName: 'Martín Alonso', memberStatus: 'ACTIVE' },
+    membership: {
+      type: 'MONTHLY',
+      status: 'ACTIVE',
+      endsAt: '2026-11-20T05:00:00Z',
+      daysRemaining: 40,
+      outstandingBalance: 0,
+    },
+    canReserve: true,
+    alerts: [],
+    upcomingReservations: [],
+    recentNotifications: [],
     ...overrides,
   };
 }
 
-function reservation(overrides: Partial<Reservation> = {}): Reservation {
+function payment(overrides: Partial<PaymentSummary> = {}): PaymentSummary {
   return {
-    reservationId: 'res-1',
-    resourceId: 'futbol-1',
-    resourceType: 'FUTBOL',
-    holderMemberId: 'm-1',
-    startsAt: '2026-10-14T23:00:00Z',
-    endsAt: '2026-10-15T00:30:00Z',
-    reservationStatus: 'CONFIRMED',
-    participantCount: 2,
-    guestCount: 0,
-    requiresApproval: false,
-    rejectionReason: null,
-    cancelledAt: null,
-    createdAt: '2026-10-01T00:00:00Z',
-    updatedAt: '2026-10-01T00:00:00Z',
+    paymentId: 'pay-1',
+    memberId: 'm-1',
+    membershipType: 'MONTHLY',
+    amount: 12000,
+    currency: 'PEN',
+    paymentStatus: 'SUCCEEDED',
+    stripePaymentIntentId: null,
+    createdAt: '2026-10-01T15:00:00Z',
+    confirmedAt: '2026-10-01T15:00:05Z',
     ...overrides,
   };
 }
@@ -96,40 +75,98 @@ describe('MemberDashboardPage', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(NOW);
-    profileMock.mockReset().mockResolvedValue(member());
-    upcomingMock.mockReset().mockResolvedValue({ items: [], nextCursor: null });
-    paymentMock.mockReset().mockResolvedValue(null);
-    resourcesMock.mockReset().mockResolvedValue([]);
+    dashboardMock.mockReset().mockResolvedValue(dashboard());
+    paymentsMock.mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('saluda con el nombre de pila y la fecha en hora de Lima', async () => {
+  it('muestra un estado de carga y luego saluda con el nombre de pila y la fecha de Lima', async () => {
     renderPage();
+    expect(screen.getByText('Cargando tu inicio…')).toBeVisible();
     expect(await screen.findByRole('heading', { level: 1, name: 'Hola, Martín' })).toBeVisible();
     expect(screen.getByText(/domingo, 11 de octubre de 2026/i)).toBeVisible();
+    expect(dashboardMock).toHaveBeenCalledTimes(1);
   });
 
-  it('socio al día: pase con tipo, estado y días, sin CTA ni aviso', async () => {
+  it('socio al día: tipo, estado, vencimiento y días, sin aviso ni CTA en el pase', async () => {
     renderPage();
     const pass = await screen.findByRole('region', { name: 'Mi membresía' });
-    expect(await within(pass).findByText('Al día')).toBeVisible();
+    expect(within(pass).getByText('Al día')).toBeVisible();
     expect(within(pass).getByText(/Plan mensual/)).toBeVisible();
     expect(within(pass).getByText('Vence en 40 días')).toBeVisible();
+    expect(within(pass).getByText(/20 nov.? 2026/)).toBeVisible();
     expect(within(pass).queryByRole('link')).toBeNull();
     expect(screen.queryByText('No puedes reservar por ahora')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Reservar' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Nueva reserva' })).toHaveAttribute(
       'href',
       '/socio/reservas',
     );
+    expect(screen.getByRole('link', { name: 'Renovar o pagar membresía' })).toHaveAttribute(
+      'href',
+      '/socio/membresia',
+    );
   });
 
-  it('con deuda: aviso con enlace a pagar, saldo, CTA y Reservar deshabilitado con motivo', async () => {
-    profileMock.mockResolvedValue(member({ membershipStatus: 'DEBT', outstandingBalance: 12000 }));
+  it('tolera endsAt como YYYY-MM-DD sin correr el día', async () => {
+    dashboardMock.mockResolvedValue(
+      dashboard({
+        membership: {
+          type: 'ANNUAL',
+          status: 'ACTIVE',
+          endsAt: '2026-12-01',
+          daysRemaining: 51,
+          outstandingBalance: 0,
+        },
+      }),
+    );
+    renderPage();
+    const pass = await screen.findByRole('region', { name: 'Mi membresía' });
+    expect(within(pass).getByText(/1 dic.? 2026/)).toBeVisible();
+  });
+
+  it('por vencer: alerta del servidor informativa, Nueva reserva sigue disponible', async () => {
+    dashboardMock.mockResolvedValue(
+      dashboard({
+        membership: {
+          type: 'ANNUAL',
+          status: 'EXPIRING_SOON',
+          endsAt: '2026-10-14T05:00:00Z',
+          daysRemaining: 3,
+          outstandingBalance: 0,
+        },
+        alerts: [{ code: 'RENEWAL_DUE', message: 'Tu membresía vence pronto.' }],
+      }),
+    );
+    renderPage();
+    const notice = await screen.findByRole('region', { name: 'Tu membresía vence pronto' });
+    expect(within(notice).getByText('Tu membresía vence pronto.')).toBeVisible();
+    expect(within(notice).getByRole('link', { name: 'Renovar membresía' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Nueva reserva' })).toBeVisible();
+    expect(screen.getByText('Vence en 3 días')).toBeVisible();
+    // El código técnico nunca se muestra.
+    expect(screen.queryByText('RENEWAL_DUE')).toBeNull();
+  });
+
+  it('con deuda: alerta, acción de pago, saldo y Nueva reserva deshabilitada con motivo', async () => {
+    dashboardMock.mockResolvedValue(
+      dashboard({
+        canReserve: false,
+        membership: {
+          type: 'MONTHLY',
+          status: 'DEBT',
+          endsAt: '2026-10-01T05:00:00Z',
+          daysRemaining: null,
+          outstandingBalance: 12000,
+        },
+        alerts: [{ code: 'PAYMENT_DEBT', message: 'Tienes un pago pendiente.' }],
+      }),
+    );
     renderPage();
     const notice = await screen.findByRole('region', { name: 'No puedes reservar por ahora' });
+    expect(within(notice).getByText('Tienes un pago pendiente.')).toBeVisible();
     expect(within(notice).getByRole('link', { name: 'Pagar o renovar membresía' })).toHaveAttribute(
       'href',
       '/socio/membresia',
@@ -137,112 +174,196 @@ describe('MemberDashboardPage', () => {
     const pass = screen.getByRole('region', { name: 'Mi membresía' });
     expect(within(pass).getByText(/S\/\s?120\.00/)).toBeVisible();
     expect(within(pass).getByRole('link', { name: 'Pagar membresía' })).toBeVisible();
-    const reserve = screen.getByRole('button', { name: /Reservar/ });
+    const reserve = screen.getByRole('button', { name: /Nueva reserva/ });
     expect(reserve).toBeDisabled();
-    expect(screen.getByText(/regulariza tu membresía para reservar/i)).toBeVisible();
+    expect(reserve).toHaveAccessibleDescription(/saldo pendiente/i);
+    expect(screen.queryByRole('link', { name: 'Nueva reserva' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Fútbol' })).toBeDisabled();
   });
 
-  it('vencida: ofrece Renovar y bloquea la reserva', async () => {
-    profileMock.mockResolvedValue(
-      member({ membershipStatus: 'EXPIRED', membershipEndsAt: '2026-10-01T05:00:00Z' }),
+  it('vencida: ofrece renovar y bloquea la reserva', async () => {
+    dashboardMock.mockResolvedValue(
+      dashboard({
+        canReserve: false,
+        membership: {
+          type: 'MONTHLY',
+          status: 'EXPIRED',
+          endsAt: '2026-10-01T05:00:00Z',
+          daysRemaining: null,
+          outstandingBalance: 0,
+        },
+        alerts: [{ code: 'MEMBERSHIP_EXPIRED', message: 'Tu membresía venció.' }],
+      }),
     );
     renderPage();
     const pass = await screen.findByRole('region', { name: 'Mi membresía' });
-    expect(await within(pass).findByRole('link', { name: 'Renovar membresía' })).toBeVisible();
     expect(within(pass).getByText('Vencida')).toBeVisible();
-    expect(screen.getByRole('button', { name: /Reservar/ })).toBeDisabled();
+    expect(within(pass).getByText(/Venció el/)).toBeVisible();
+    expect(within(pass).getByRole('link', { name: 'Renovar membresía' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /Nueva reserva/ })).toBeDisabled();
   });
 
-  it('vence en 7 días o menos: aviso informativo sin bloquear Reservar', async () => {
-    profileMock.mockResolvedValue(
-      member({ membershipStatus: 'EXPIRING_SOON', membershipEndsAt: '2026-10-14T05:00:00Z' }),
+  it('aprobado sin primera membresía: sin alertas ni canReserve, explica qué falta', async () => {
+    dashboardMock.mockResolvedValue(
+      dashboard({
+        member: { firstName: 'Lucía', memberStatus: 'APPROVED' },
+        canReserve: false,
+        membership: {
+          type: null,
+          status: 'NONE',
+          endsAt: null,
+          daysRemaining: null,
+          outstandingBalance: 0,
+        },
+        alerts: [],
+      }),
     );
     renderPage();
-    const notice = await screen.findByRole('region', { name: 'Tu membresía vence pronto' });
-    expect(within(notice).getByRole('link', { name: 'Renovar membresía' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Reservar' })).toBeVisible();
+    const notice = await screen.findByRole('region', { name: 'No puedes reservar por ahora' });
+    expect(within(notice).getByText(/Paga tu primera membresía/)).toBeVisible();
+    const pass = screen.getByRole('region', { name: 'Mi membresía' });
+    expect(within(pass).getByText('Sin membresía activa')).toBeVisible();
+    expect(within(pass).getByText(/solicitud fue aprobada/)).toBeVisible();
+    expect(within(pass).getByRole('link', { name: 'Pagar membresía' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /Nueva reserva/ })).toBeDisabled();
+    expect(screen.queryByText(/Vence en/)).toBeNull();
   });
 
-  it('sin fecha de vencimiento no inventa una', async () => {
-    profileMock.mockResolvedValue(member({ membershipEndsAt: null }));
-    renderPage();
-    expect(await screen.findByText(/Aún no tienes una vigencia registrada/)).toBeVisible();
-  });
-
-  it('indica un último pago en verificación', async () => {
-    paymentMock.mockResolvedValue({
-      paymentStatus: 'PENDING_CONFIRMATION',
-    } as PaymentSummary);
-    renderPage();
-    expect(await screen.findByText('Pago en verificación.')).toBeVisible();
-  });
-
-  it('si falla el último pago, el pase se muestra igual', async () => {
-    paymentMock.mockRejectedValue(new Error('boom'));
-    renderPage();
-    const pass = await screen.findByRole('region', { name: 'Mi membresía' });
-    expect(await within(pass).findByText('Al día')).toBeVisible();
-    expect(screen.queryByText('Pago en verificación.')).toBeNull();
-  });
-
-  it('lista las próximas reservas con nombre, hora, estado y enlace a Mis reservas', async () => {
-    resourcesMock.mockResolvedValue([
-      { resourceId: 'futbol-1', type: 'FUTBOL', name: 'Cancha de fútbol 1' },
-    ]);
-    upcomingMock.mockResolvedValue({
-      items: [
-        reservation(),
-        reservation({
-          reservationId: 'res-2',
-          reservationStatus: 'PENDING_APPROVAL',
-          resourceId: 'x',
-          resourceType: 'PARRILLA',
-        }),
-      ],
-      nextCursor: null,
-    });
+  it('lista las próximas reservas con tipo, día, hora de Lima y estado', async () => {
+    dashboardMock.mockResolvedValue(
+      dashboard({
+        upcomingReservations: [
+          {
+            reservationId: 'r-1',
+            resourceType: 'FUTBOL',
+            startsAt: '2026-10-14T23:00:00Z',
+            reservationStatus: 'CONFIRMED',
+          },
+          {
+            reservationId: 'r-2',
+            resourceType: 'PARRILLA',
+            startsAt: '2026-10-16T17:00:00Z',
+            reservationStatus: 'PENDING_APPROVAL',
+          },
+        ],
+      }),
+    );
     renderPage();
     const block = await screen.findByRole('region', { name: 'Próximas reservas' });
-    expect(await within(block).findByText('Cancha de fútbol 1')).toBeVisible();
-    expect(within(block).getAllByText('18:00 – 19:30')).toHaveLength(2);
+    expect(within(block).getByText('Fútbol')).toBeVisible();
+    expect(within(block).getByText('18:00')).toBeVisible();
     expect(within(block).getByText('Confirmada')).toBeVisible();
     expect(within(block).getByText('Parrillas')).toBeVisible();
+    expect(within(block).getByText('12:00')).toBeVisible();
     expect(within(block).getByText('Pendiente de aprobación')).toBeVisible();
-    const links = within(block).getAllByRole('link', { name: /Cancha de fútbol 1/ });
-    expect(links[0]).toHaveAttribute('href', '/socio/reservas/mias');
+    expect(within(block).getByRole('link', { name: 'Ver todas mis reservas' })).toHaveAttribute(
+      'href',
+      '/socio/reservas/mias',
+    );
   });
 
-  it('sin reservas próximas invita a reservar', async () => {
+  it('sin reservas próximas invita a reservar si puede', async () => {
     renderPage();
     const block = await screen.findByRole('region', { name: 'Próximas reservas' });
-    expect(await within(block).findByText(/No tienes reservas próximas/)).toBeVisible();
+    expect(within(block).getByText(/No tienes reservas próximas/)).toBeVisible();
     expect(within(block).getByRole('link', { name: 'Reservar una instalación' })).toHaveAttribute(
       'href',
       '/socio/reservas',
     );
   });
 
-  it('si fallan las reservas, el resto del inicio sigue y se puede reintentar', async () => {
-    upcomingMock.mockRejectedValueOnce(new ApiRequestError(500, 'INTERNAL_ERROR', 'x'));
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  it('sin reservas y sin poder reservar no ofrece reservar', async () => {
+    dashboardMock.mockResolvedValue(dashboard({ canReserve: false }));
     renderPage();
     const block = await screen.findByRole('region', { name: 'Próximas reservas' });
-    expect(await within(block).findByText('No pudimos cargar tus próximas reservas')).toBeVisible();
-    expect(await screen.findByText('Al día')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Pagos' })).toBeVisible();
-
-    await user.click(within(block).getByRole('button', { name: 'Reintentar' }));
-    expect(await within(block).findByText(/No tienes reservas próximas/)).toBeVisible();
+    expect(within(block).queryByRole('link', { name: 'Reservar una instalación' })).toBeNull();
   });
 
-  it('si falla el perfil, el bloque de membresía ofrece reintentar y las reservas siguen', async () => {
-    profileMock.mockRejectedValue(new Error('boom'));
-    upcomingMock.mockResolvedValue({ items: [reservation()], nextCursor: null });
+  it('accesos directos a las seis instalaciones preseleccionan el tipo', async () => {
     renderPage();
-    const pass = await screen.findByRole('region', { name: 'Mi membresía' });
-    expect(await within(pass).findByText('No pudimos consultar tu membresía')).toBeVisible();
-    expect(within(pass).getByRole('button', { name: 'Reintentar' })).toBeVisible();
-    expect(await screen.findByText('Confirmada')).toBeVisible();
+    const block = await screen.findByRole('region', { name: 'Reservar una instalación' });
+    const links = within(block).getAllByRole('link');
+    expect(links).toHaveLength(6);
+    expect(within(block).getByRole('link', { name: 'Fútbol' })).toHaveAttribute(
+      'href',
+      '/socio/reservas?tipo=FUTBOL',
+    );
+    expect(within(block).getByRole('link', { name: 'Salón social' })).toHaveAttribute(
+      'href',
+      '/socio/reservas?tipo=SALON_SOCIAL',
+    );
+  });
+
+  it('avisos recientes: destaca los no leídos y enlaza a la bandeja', async () => {
+    dashboardMock.mockResolvedValue(
+      dashboard({
+        recentNotifications: [
+          { notificationId: 'n-1', title: 'Reserva confirmada', readStatus: 'UNREAD' },
+          { notificationId: 'n-2', title: 'Bienvenido al club', readStatus: 'READ' },
+        ],
+      }),
+    );
+    renderPage();
+    const block = await screen.findByRole('region', { name: 'Avisos recientes' });
+    expect(within(block).getByText('Reserva confirmada')).toBeVisible();
+    expect(within(block).getAllByText('Nueva')).toHaveLength(1);
+    expect(within(block).getByRole('link', { name: 'Ir a mis avisos' })).toHaveAttribute(
+      'href',
+      '/socio/notificaciones',
+    );
+  });
+
+  it('sin avisos ni pagos: estados vacíos amables', async () => {
+    renderPage();
+    expect(await screen.findByText('No tienes avisos recientes.')).toBeVisible();
+    expect(await screen.findByText('Aún no tienes pagos registrados.')).toBeVisible();
+  });
+
+  it('resumen de pagos con fecha, monto y estado, y acceso al historial', async () => {
+    paymentsMock.mockResolvedValue([
+      payment(),
+      payment({ paymentId: 'pay-2', paymentStatus: 'FAILED', amount: 5000 }),
+    ]);
+    renderPage();
+    const block = await screen.findByRole('region', { name: 'Últimos pagos' });
+    expect(await within(block).findByText('Pagado')).toBeVisible();
+    expect(within(block).getByText(/S\/\s?120\.00/)).toBeVisible();
+    expect(within(block).getByText('Rechazado')).toBeVisible();
+    expect(within(block).getByRole('link', { name: 'Ver historial de pagos' })).toHaveAttribute(
+      'href',
+      '/socio/pagos',
+    );
+  });
+
+  it('indica un último pago en verificación', async () => {
+    paymentsMock.mockResolvedValue([payment({ paymentStatus: 'PENDING_CONFIRMATION' })]);
+    renderPage();
+    expect(await screen.findByText('Pago en verificación.')).toBeVisible();
+  });
+
+  it('si fallan los pagos, el resto del inicio se muestra y se puede reintentar', async () => {
+    paymentsMock.mockRejectedValueOnce(new ApiRequestError(500, 'INTERNAL_ERROR', 'x'));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderPage();
+    const block = await screen.findByRole('region', { name: 'Últimos pagos' });
+    expect(await within(block).findByText('No pudimos cargar tus últimos pagos')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Mi membresía' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Nueva reserva' })).toBeVisible();
+
+    await user.click(within(block).getByRole('button', { name: 'Reintentar' }));
+    expect(await within(block).findByText('Aún no tienes pagos registrados.')).toBeVisible();
+  });
+
+  it('si falla el dashboard: error con reintento y accesos básicos', async () => {
+    dashboardMock.mockRejectedValueOnce(new ApiRequestError(500, 'INTERNAL_ERROR', 'x'));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderPage();
+    expect(await screen.findByText('No pudimos cargar tu inicio')).toBeVisible();
     expect(screen.getByRole('heading', { level: 1, name: 'Hola' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Pagos' })).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Hola, Martín' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Mi membresía' })).toBeVisible();
   });
 });

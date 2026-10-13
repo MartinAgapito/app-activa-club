@@ -43,6 +43,7 @@ import {
   type ReservationErrorTarget,
 } from './reservation-errors';
 import { MY_RESERVATIONS_QUERY_KEY } from './my-reservations-query';
+import { MEMBER_DASHBOARD_QUERY_KEY } from '../dashboard/member-dashboard-query';
 import { useCreateReservationMutation } from './reservations-query';
 import { ReservationErrorAlert, ReservationSummary } from './ReservationSummary';
 
@@ -211,6 +212,7 @@ export function ReservationWizard({
       });
       refreshAvailability(resource.resourceId);
       void queryClient.invalidateQueries({ queryKey: MY_RESERVATIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: MEMBER_DASHBOARD_QUERY_KEY });
       onCompleted({ resource, response });
     } catch (error) {
       const feedback = toReservationErrorFeedback(error);

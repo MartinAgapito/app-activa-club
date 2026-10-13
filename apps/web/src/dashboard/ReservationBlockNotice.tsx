@@ -1,23 +1,21 @@
 import { Link } from 'react-router-dom';
-import { TriangleAlert } from 'lucide-react';
+import { Info, TriangleAlert } from 'lucide-react';
 import { buttonVariants } from '@activa-club/ui';
-import { RESERVATION_BLOCK_COPY, getReservationBlock } from '../reservations/eligibility';
-import { useMemberProfileQuery } from '../members/profile-query';
-import { daysLabel, summarizeMembership } from './membership-summary';
-import { useNow } from './useNow';
+import type { MemberDashboard } from '@activa-club/shared-types';
+import { ALERT_CODE, reservationBlockedReason } from './member-dashboard-view';
 
-/** Aviso destacado cuando el socio no puede reservar (deuda o membresía no
- * vigente, RN-PAG-06 / RN-RES-12), o informativo cuando vence pronto. No
- * renderiza nada si no hay nada que avisar o si el perfil no cargó (el bloque
- * de membresía ya muestra ese error). */
-export function ReservationBlockNotice() {
-  const { data: member } = useMemberProfileQuery();
-  const now = useNow();
-  if (!member) return null;
+/** Aviso destacado del inicio. Con `canReserve=false` explica el motivo y
+ * ofrece pagar o renovar (RN-PAG-06 / RN-RES-12); con `canReserve=true` y
+ * alertas (p. ej. membresía por vencer) es informativo. Muestra el `message`
+ * del servidor, nunca el código. Sin nada que avisar no renderiza. */
+export function ReservationBlockNotice({ dashboard }: { dashboard: MemberDashboard }) {
+  const { canReserve, alerts } = dashboard;
 
-  const block = getReservationBlock(member);
-  if (block) {
-    const copy = RESERVATION_BLOCK_COPY[block];
+  if (!canReserve) {
+    const messages =
+      alerts.length > 0
+        ? alerts.map((alert) => alert.message)
+        : [reservationBlockedReason(dashboard)];
     return (
       <section
         aria-labelledby="aviso-bloqueo-titulo"
@@ -27,38 +25,56 @@ export function ReservationBlockNotice() {
           <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-status-problem" aria-hidden />
           <div>
             <h2 id="aviso-bloqueo-titulo" className="type-card-title text-status-problem">
-              {copy.title}
+              No puedes reservar por ahora
             </h2>
-            <p className="type-body text-ink">{copy.message}</p>
+            <ul className="flex flex-col gap-1">
+              {messages.map((message) => (
+                <li key={message} className="type-body text-ink">
+                  {message}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
-        <Link to="/socio/membresia" className={buttonVariants({ variant: 'danger' })}>
+        <Link
+          to="/socio/membresia"
+          className={buttonVariants({ variant: 'danger', className: 'shrink-0' })}
+        >
           Pagar o renovar membresía
         </Link>
       </section>
     );
   }
 
-  const { action, daysLeft } = summarizeMembership(member, now);
-  if (action === 'RENEW' && daysLeft !== null && daysLeft >= 0) {
-    return (
-      <section
-        aria-labelledby="aviso-vencimiento-titulo"
-        className="flex flex-col gap-3 rounded-card border border-warning-200 bg-status-pending-soft p-4 sm:flex-row sm:items-center sm:justify-between"
-      >
+  if (alerts.length === 0) return null;
+
+  const renewal = alerts.some((alert) => alert.code === ALERT_CODE.RENEWAL_DUE);
+  return (
+    <section
+      aria-labelledby="aviso-vencimiento-titulo"
+      className="flex flex-col gap-3 rounded-card border border-warning-200 bg-status-pending-soft p-4 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex gap-3">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-status-pending" aria-hidden />
         <div>
           <h2 id="aviso-vencimiento-titulo" className="type-card-title text-status-pending">
-            Tu membresía vence pronto
+            {renewal ? 'Tu membresía vence pronto' : 'Aviso sobre tu membresía'}
           </h2>
-          <p className="type-body text-ink">
-            {daysLabel(daysLeft)}. Renuévala para seguir reservando sin interrupciones.
-          </p>
+          <ul className="flex flex-col gap-1">
+            {alerts.map((alert) => (
+              <li key={alert.code} className="type-body text-ink">
+                {alert.message}
+              </li>
+            ))}
+          </ul>
         </div>
-        <Link to="/socio/membresia" className={buttonVariants({ variant: 'secondary' })}>
-          Renovar membresía
-        </Link>
-      </section>
-    );
-  }
-  return null;
+      </div>
+      <Link
+        to="/socio/membresia"
+        className={buttonVariants({ variant: 'secondary', className: 'shrink-0' })}
+      >
+        Renovar membresía
+      </Link>
+    </section>
+  );
 }
