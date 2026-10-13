@@ -4,6 +4,8 @@ Guía de entornos, CI/CD y despliegues del proyecto Activa Club: entornos
 (`dev`, `prd`), pipelines de GitHub Actions, aprobaciones manuales para
 despliegues sensibles y procedimientos de rollback.
 
+> Resumen operativo de todo lo de esta carpeta en orden: [`../GUIA-PASO-A-PASO.md`](../GUIA-PASO-A-PASO.md).
+
 ## Infraestructura y pipelines documentados
 
 - [`terraform-infraestructura.md`](./terraform-infraestructura.md) — Base de
