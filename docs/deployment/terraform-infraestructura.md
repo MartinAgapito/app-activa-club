@@ -290,6 +290,8 @@ identidad remitente del entorno; nunca `ses:*`, ni `SendRawEmail`). Más la
 variable de entorno `SES_SENDER_EMAIL` (no secreta). Lo reciben las 11 Lambdas
 emisoras y `notifications-create`:
 
+> **Sandbox de SES.** Mientras la cuenta esté en el sandbox, SES evalúa `ses:SendEmail` también contra la identidad de cada destinatario; por eso el recurso incluye `identity/*` de la cuenta y región, acotado con la condición `ses:FromAddress` al remitente verificado. Al salir del sandbox basta con volver a la sola identidad del remitente.
+
 | Lambda                                                  | Permiso nuevo                                        |
 | ------------------------------------------------------- | ---------------------------------------------------- |
 | `activation-complete`                                   | `ses:SendEmail`                                      |
