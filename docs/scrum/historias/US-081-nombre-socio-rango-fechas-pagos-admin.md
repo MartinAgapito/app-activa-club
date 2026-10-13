@@ -74,3 +74,7 @@ La pantalla de pagos del administrador (US-053) ya existe, pero muestra cada fil
 - Casos de prueba: AD-03, T-04.
 - Depende de: US-025.
 - Habilita: nombre y rango de fechas en US-053.
+
+## Historial de cambios
+
+- 2026-10-12: Criterio 8 (Terraform) aplicado en `infrastructure/terraform/environments/dev/main.tf`: `payments-list` recibe `dynamodb:GetItem` solo sobre el ARN de la tabla (sin índices, `Scan` ni escrituras). Pendiente la lógica de servidor, los tipos compartidos y la validación (criterios 1 a 7 y 9).
