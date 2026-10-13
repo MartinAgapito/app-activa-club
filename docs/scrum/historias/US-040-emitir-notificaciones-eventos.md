@@ -74,4 +74,5 @@ Siete eventos de los Sprints 1 a 3 quedaron con "el rastro previsto" pero sin av
 
 ## Historial de cambios
 
+- 2026-10-12: Plantillas HTML de marca (`email-layout.ts`) para los 13 eventos y las publicaciones de US-048: tablas, estilos en línea, modo oscuro, preheader, tarjeta de datos clave y pie. Remitente con nombre visible `Activa Club <dirección>`. Asunto y texto plano sin cambios (con `APP_BASE_URL` opcional se añade un enlace). Sin cambios de contrato ni de Terraform.
 - 2026-10-12: Implementada (motor reutilizable `apps/api/src/notifications/`, con pruebas), pendiente consumo por US-042..US-047. Desvío: correo armado en código con SES v2 `SendEmail`, sin plantillas SES en Terraform (ver Entregable).

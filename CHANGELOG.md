@@ -27,6 +27,18 @@ backlog en `docs/scrum/`.
 
 ### Changed
 
+- Correos transaccionales con plantilla de marca (EP-05, US-040/US-048): HTML
+  de tablas con estilos en línea (600 px, sin fuentes web ni imágenes
+  externas, compatible con modo oscuro), cabecera "Activa Club", título,
+  tarjeta de datos clave (instalación, fecha y hora; monto y vencimiento),
+  preheader y pie de mensaje automático, para los 13 eventos y las
+  publicaciones del administrador. Paleta de los tokens v2.0 del frontend. El
+  remitente sale con nombre visible (`Activa Club <dirección>`); la condición
+  IAM `ses:FromAddress` compara solo la dirección, sin cambios de Terraform.
+  Asuntos y texto plano no cambian. El botón de llamada a la acción solo
+  aparece si la Lambda tiene la variable opcional `APP_BASE_URL`; activarla en
+  `dev`/`prd` requiere un cambio de infraestructura aparte (variable de
+  entorno en las Lambdas emisoras), no incluido aquí.
 - Pulido de textos y sesión del administrador: se quitan los códigos internos
   de reglas de negocio (RN-XXX) de los textos visibles; la sesión
   (`useAuth()`) expone `email` y `displayName` leídos del ID token, y el menú
