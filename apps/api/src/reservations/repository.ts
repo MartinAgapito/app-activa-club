@@ -397,6 +397,62 @@ export async function listReservationsByHolder(
   };
 }
 
+/** Tope de `Query` consecutivas al buscar próximas reservas (acota el costo de lectura). */
+const MAX_UPCOMING_QUERIES = 5;
+
+/**
+ * Próximas reservas activas de un socio titular (consulta 12, GSI1; US-055
+ * criterio 5): `Query` GSI1PK=`MEMBER#<id>` con `GSI1SK` entre
+ * `RES#<desde>` y `RES#~` (acota por `startsAt` y por prefijo, sin leer el
+ * pasado), orden ascendente, y solo estados activos (`CONFIRMED`,
+ * `PENDING_APPROVAL`, `APPROVED`) por `FilterExpression`. Como el filtro se
+ * aplica después de leer `Limit` ítems, se encadenan `Query` (hasta
+ * `MAX_UPCOMING_QUERIES`) hasta reunir `limit` reservas o agotar el rango.
+ * Solo reservas donde el socio es **titular** (RN-RES-06). Inicio estrictamente
+ * posterior a `now`.
+ */
+export async function listUpcomingReservationsByHolder(
+  client: DynamoDBDocumentClient,
+  holderMemberId: string,
+  now: string,
+  limit: number,
+): Promise<Reservation[]> {
+  const gsi1Key = keys.reservationsByHolder(holderMemberId);
+  const statuses = [...ACTIVE_RESERVATION_STATUSES];
+  const statusPlaceholders = statuses.map((_, index) => `:st${index}`);
+  const collected: Reservation[] = [];
+  let startKey: Record<string, unknown> | undefined;
+
+  for (let i = 0; i < MAX_UPCOMING_QUERIES && collected.length < limit; i += 1) {
+    const result = await client.send(
+      new QueryCommand({
+        TableName: tableName(),
+        IndexName: 'GSI1',
+        KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK BETWEEN :from AND :to',
+        FilterExpression: `reservationStatus IN (${statusPlaceholders.join(', ')})`,
+        ExpressionAttributeValues: {
+          ':pk': gsi1Key.GSI1PK,
+          ':from': `RES#${now}`,
+          ':to': 'RES#~',
+          ...Object.fromEntries(statuses.map((status, index) => [`:st${index}`, status])),
+        },
+        ScanIndexForward: true,
+        Limit: Math.max(limit * 2, 10),
+        ExclusiveStartKey: startKey,
+      }),
+    );
+    for (const item of result.Items ?? []) {
+      const reservation = toReservation(item);
+      // El borde "empieza ahora mismo" ya no es una reserva próxima.
+      if (reservation.startsAt > now) collected.push(reservation);
+    }
+    startKey = result.LastEvaluatedKey;
+    if (!startKey) break;
+  }
+
+  return collected.slice(0, limit);
+}
+
 /**
  * Reservas por estado (consulta 17, GSI2), sin restricción de titular: `Query`
  * GSI2PK=`RESERVATION#STATUS#<status>`. Uso administrativo (`scope=all`,

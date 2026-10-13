@@ -1194,7 +1194,31 @@ Response 200:
 }
 ```
 
-`canReserve` refleja RN-PAG-06/RN-RES-12 (activo y sin deuda).
+`canReserve` refleja RN-PAG-06/RN-RES-12 (activo y sin deuda). Lo calcula la
+misma función que valida `POST /reservations` (incluida la verificación por
+fecha de US-038): nunca contradice a la reserva.
+
+Reglas de la respuesta (US-055):
+
+- `membership.status` es el estado **efectivo** a hoy (Lima): un
+  `ACTIVE`/`EXPIRING_SOON` ya vencido figura `EXPIRED` aunque el proceso diario
+  no haya corrido. `daysRemaining` son días calendario de Lima (`0` el día del
+  vencimiento) y `null` sin vigencia o ya vencida.
+- `upcomingReservations`: hasta 5, solo como titular, estados `CONFIRMED`,
+  `PENDING_APPROVAL` o `APPROVED`, inicio posterior a la consulta, de la más
+  cercana a la más lejana. `recentNotifications`: hasta 5, más reciente primero.
+- Listas vacías (no error) si no hay datos. Un socio no `ACTIVE` recibe su
+  resumen con `canReserve=false`.
+
+Códigos de `alerts` (estables; una alerta por situación, pueden coincidir):
+
+| Código               | Cuándo                                                 |
+| -------------------- | ------------------------------------------------------ |
+| `RENEWAL_DUE`        | Membresía por vencer (faltan 7 días o menos, vigente). |
+| `MEMBERSHIP_EXPIRED` | Membresía vencida (por estado o por fecha).            |
+| `PAYMENT_DEBT`       | Deuda pendiente (`DEBT` o `outstandingBalance > 0`).   |
+
+Errores: 401 sin token; 403 con rol `admin`.
 
 ### GET /dashboard/admin
 
