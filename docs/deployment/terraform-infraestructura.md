@@ -405,3 +405,45 @@ desde US-038.
 **Rollback**: revertir el PR y desplegar; la regla, la Lambda, la alarma y el
 rol se destruyen. No hay datos que borrar (los avisos ya emitidos quedan en la
 bandeja de los socios).
+
+## 13. Dashboards (EP-07, US-054)
+
+Todo vive en `infrastructure/terraform/environments/dev/main.tf`; no hay
+módulos nuevos (se reutiliza `modules/endpoint`).
+
+**Endpoints** (módulo `endpoint`, sin lógica de negocio: placeholder 501 de
+`handlers/not-implemented.ts` hasta US-055, US-057 y US-058):
+
+| Módulo                      | Método y ruta               | Grupo  | IAM de DynamoDB (solo lectura)                            |
+| --------------------------- | --------------------------- | ------ | --------------------------------------------------------- |
+| `endpoint_dashboard_member` | `GET /api/dashboard/member` | member | `GetItem`, `Query` sobre tabla + `GSI1` + `GSI2`          |
+| `endpoint_dashboard_admin`  | `GET /api/dashboard/admin`  | admin  | `GetItem`, `Query` sobre tabla + `GSI1` + `GSI2` + `GSI3` |
+
+Cada índice es un ARN explícito (`${table_arn}/index/GSIx`), no el comodín
+`index/*`. Sin `Scan`, sin escritura y sin `ses:SendEmail` (no envían correo).
+Árbol de rutas: nodos nuevos `dashboard` (nivel 1) y `dashboard/member` y
+`dashboard/admin` (nivel 2, hojas literales sin parámetros).
+
+**Tiempo máximo y memoria de `GET /dashboard/admin`**: 29 s (límite de
+integración de API Gateway REST; un valor mayor no serviría) y 512 MB. La
+Lambda recorre el catálogo de diez recursos y los conteos por estado: unas
+decenas de `Query` de 10 a 30 ms, del orden de 1 a 3 s con el volumen mock; el
+resto es holgura para arranque en frío y paginación. Se factura por duración
+real, así que un máximo alto no cuesta más. `dashboard-member` queda con los
+valores por defecto del módulo (pocas lecturas por clave).
+
+**Alarmas** (ADR-0008): ambos endpoints con `enable_error_alarm = false` para
+no sumar alarmas sobre el límite de 10 de la capa gratuita de CloudWatch (ver
+secciones 11 y 12). Sí tienen log group con retención.
+
+**Rol de despliegue de CI**: no necesita permisos nuevos (mismos recursos
+`activa-club-dev-*` ya cubiertos por `github_actions_deploy_dev`).
+
+**Verificación tras el despliegue**: sin token 401; token `admin` en
+`/dashboard/member` y token `member` en `/dashboard/admin` 403; con el rol
+correcto 501 hasta que se implementen las historias de backend. El despliegue
+redespliega el stage (los IDs de método entran al trigger) y CloudFront sigue
+sirviendo `/api/*`.
+
+**Rollback**: revertir el PR y desplegar; las rutas, Lambdas y log groups se
+eliminan. No hay datos que borrar (no se crean tablas ni ítems).

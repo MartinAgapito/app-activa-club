@@ -156,7 +156,8 @@ locals {
   # "resources", "reservations" y "guests": EP-04/US-027
   # (docs/api/contratos-api.md §6 y §7).
   # "notifications": EP-05/US-039 (docs/api/contratos-api.md §8).
-  api_resource_level1 = ["activation", "registration", "members", "admin", "memberships", "payments", "resources", "reservations", "guests", "notifications"]
+  # "dashboard": EP-07/US-054 (docs/api/contratos-api.md §9).
+  api_resource_level1 = ["activation", "registration", "members", "admin", "memberships", "payments", "resources", "reservations", "guests", "notifications", "dashboard"]
 
   api_resource_level2 = {
     "activation/verify"   = { parent = "activation", part = "verify" }
@@ -187,9 +188,13 @@ locals {
     # (que solo expone POST .../read).
     "notifications/sent"             = { parent = "notifications", part = "sent" }
     "notifications/{notificationId}" = { parent = "notifications", part = "{notificationId}" }
-    "memberships/plans"              = { parent = "memberships", part = "plans" }
-    "payments/webhook"               = { parent = "payments", part = "webhook" }
-    "payments/{paymentId}"           = { parent = "payments", part = "{paymentId}" }
+    # EP-07, US-054 (docs/api/contratos-api.md §9): dos hojas literales,
+    # sin parámetros de ruta ni hermanos.
+    "dashboard/member"     = { parent = "dashboard", part = "member" }
+    "dashboard/admin"      = { parent = "dashboard", part = "admin" }
+    "memberships/plans"    = { parent = "memberships", part = "plans" }
+    "payments/webhook"     = { parent = "payments", part = "webhook" }
+    "payments/{paymentId}" = { parent = "payments", part = "{paymentId}" }
   }
 
   api_resource_level3 = {
@@ -292,6 +297,12 @@ locals {
       "notifications-read",
       "notifications-create",
       "notifications-sent",
+      # EP-07, US-054 (docs/api/contratos-api.md §9): sin lógica de negocio en
+      # esta historia (criterio 8), las 2 apuntan al placeholder compartido de
+      # scripts/package-lambdas.mjs hasta que US-055 (socio) y US-057/US-058
+      # (administrador) las reemplacen.
+      "dashboard-member",
+      "dashboard-admin",
       ] : function_name => (
       var.lambda_artifacts_dir == null ? null : "${var.lambda_artifacts_dir}/${function_name}.zip"
     )
@@ -386,6 +397,11 @@ locals {
     module.endpoint_notifications_create.integration_id,
     module.endpoint_notifications_sent.method_id,
     module.endpoint_notifications_sent.integration_id,
+    # EP-07, US-054 (docs/api/contratos-api.md §9).
+    module.endpoint_dashboard_member.method_id,
+    module.endpoint_dashboard_member.integration_id,
+    module.endpoint_dashboard_admin.method_id,
+    module.endpoint_dashboard_admin.integration_id,
   ]
 }
 
@@ -1957,6 +1973,123 @@ module "endpoint_notifications_sent" {
       # Sin acceso a la tabla base ni a otros índices.
       actions   = ["dynamodb:Query"]
       resources = ["${local.dynamodb_table_arn}/index/GSI2"]
+    },
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# EP-07 (US-054): dos endpoints de dashboards (docs/api/contratos-api.md §9).
+# Sin lógica de negocio (criterio 8): ambas Lambdas apuntan al placeholder
+# compartido de scripts/package-lambdas.mjs hasta que US-055 (socio) y
+# US-057/US-058 (administrador) las reemplacen.
+#
+# Permisos IAM (criterio 3): SOLO LECTURA (GetItem y Query). Cada índice se
+# declara como ARN explícito (no local.dynamodb_index_arn, que es "index/*"),
+# sin Scan, sin escritura y sin SES (no envían correo).
+#
+# Alarmas (ADR-0008): ambas con enable_error_alarm = false para no consumir
+# más de la capa gratuita de CloudWatch (10 alarmas). Siguen con log group y
+# retención.
+# ---------------------------------------------------------------------------
+
+module "endpoint_dashboard_member" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "dashboard-member"
+  source_zip_path = local.lambda_zip_path["dashboard-member"]
+  http_method     = "GET"
+  resource_path   = "api/dashboard/member"
+  requires_auth   = true
+  allowed_groups  = ["member"]
+
+  # Sin alarma de errores: endpoint de lectura, fuera del conjunto crítico
+  # monitoreado (gestión de la capa gratuita de alarmas de CloudWatch).
+  enable_error_alarm = false
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["dashboard/member"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Solo lectura. Tabla base (perfil del socio por memberId, patrón 1, y
+      # los ítems de su partición) + GSI1 (resolver al socio por cognitoSub,
+      # patrón 11, y sus reservas) + GSI2 (notificaciones no leídas). Sin
+      # GSI3, sin Scan y sin escritura.
+      actions = ["dynamodb:GetItem", "dynamodb:Query"]
+      resources = [
+        local.dynamodb_table_arn,
+        "${local.dynamodb_table_arn}/index/GSI1",
+        "${local.dynamodb_table_arn}/index/GSI2",
+      ]
+    },
+  ]
+}
+
+module "endpoint_dashboard_admin" {
+  source = "../../modules/endpoint"
+
+  project     = var.project
+  environment = var.environment
+
+  function_name   = "dashboard-admin"
+  source_zip_path = local.lambda_zip_path["dashboard-admin"]
+  http_method     = "GET"
+  resource_path   = "api/dashboard/admin"
+  requires_auth   = true
+  allowed_groups  = ["admin"]
+
+  # Sin alarma de errores: endpoint de lectura administrativo, fuera del
+  # conjunto crítico monitoreado (gestión de la capa gratuita de alarmas de
+  # CloudWatch).
+  enable_error_alarm = false
+
+  # Tiempo máximo de ejecución (criterio 4): 29 s = el límite de integración
+  # de API Gateway REST (un valor mayor no serviría: el cliente recibiría 504
+  # igual). La Lambda recorre el catálogo de 10 recursos (GetItem, Query de
+  # reservas por recurso y rango en GSI3, bloqueos de mantenimiento) y los
+  # conteos por estado en GSI2: unas decenas de Query de ~10-30 ms, del orden
+  # de 1-3 s con el volumen mock; el resto es holgura para arranque en frío y
+  # paginación. No cuesta más (se factura por duración real) y evita que un
+  # pico de datos de prueba convierta el dashboard en un 504.
+  timeout = 29
+
+  # Memoria por encima del valor por defecto del módulo: la Lambda agrega
+  # muchos resultados en memoria y la CPU escala con la memoria (menor
+  # duración; costo equivalente dentro de la capa gratuita).
+  memory_size = 512
+
+  rest_api_id            = aws_api_gateway_rest_api.this.id
+  rest_api_execution_arn = aws_api_gateway_rest_api.this.execution_arn
+  parent_resource_id     = local.api_resource_id["dashboard/admin"]
+  cognito_authorizer_id  = aws_api_gateway_authorizer.cognito.id
+
+  environment_variables = {
+    DYNAMODB_TABLE_NAME = local.dynamodb_table_name
+  }
+
+  iam_policy_statements = [
+    {
+      # Solo lectura. Tabla base (catálogo por resourceId y bloqueos de
+      # mantenimiento, patrón 30, contratos §12.2) + GSI1 (resolver al
+      # administrador por cognitoSub y reservas por socio) + GSI2 (conteos
+      # por estado) + GSI3 (reservas por recurso y fecha, ocupación). Sin
+      # Scan ni escritura.
+      actions = ["dynamodb:GetItem", "dynamodb:Query"]
+      resources = [
+        local.dynamodb_table_arn,
+        "${local.dynamodb_table_arn}/index/GSI1",
+        "${local.dynamodb_table_arn}/index/GSI2",
+        "${local.dynamodb_table_arn}/index/GSI3",
+      ]
     },
   ]
 }

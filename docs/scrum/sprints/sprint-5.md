@@ -118,4 +118,5 @@ La pregunta abierta 4 de EP-06 y las preguntas 1, 2 y 5 de EP-07 (en lo que toca
 ## Historial de cambios
 
 - 2026-10-11: Creación del Sprint 5 con las historias de EP-06 (US-051..US-053), EP-07 (US-054..US-060) y la deuda técnica US-050 de EP-03.
+- 2026-10-12: US-054 con infraestructura desplegada, pendiente lógica: `GET /dashboard/member` y `GET /dashboard/admin` en 501 hasta US-055, US-057 y US-058 (Ola 1). Desbloquea US-055, US-057 y US-058.
 - 2026-10-12: Adenda de contrato del Arquitecto (contratos §12, ADR-0014): US-052 y US-058 pasan a Ready; se agregan US-080 (2 puntos) y US-081 (3 puntos); US-052 deja de depender de US-048.

@@ -3,7 +3,7 @@
 Backend serverless de Activa Club — Node.js + TypeScript sobre AWS Lambda,
 expuesto por Amazon API Gateway (REST), **una función Lambda por endpoint**
 ([ADR-0004](../../docs/architecture/adr/ADR-0004-api-gateway-rest-lambda-por-endpoint.md)).
-Hoy son **33 endpoints HTTP** más **3 Lambdas no-HTTP**: `memberships-expire`
+Hoy son **35 endpoints HTTP** más **3 Lambdas no-HTTP**: `memberships-expire`
 y `memberships-notify` (EventBridge, diarias) y `migration-run` (invocación directa, carga inicial de
 (EventBridge, diaria), `reservations-remind` (EventBridge, diaria, recordatorio
 de reservas, US-046) y `migration-run` (invocación directa, carga inicial de
