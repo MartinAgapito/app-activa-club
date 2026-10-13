@@ -5,11 +5,13 @@
 // módulo de `src/dashboard/`:
 // - US-057: socios, membresías, reservas pendientes, pagos y notificaciones
 //   (`admin-people-metrics.ts`).
-// - US-058: reservas por recurso/día/hora y ocupación (por añadir).
+// - US-058: reservas por recurso/día/hora y ocupación
+//   (`admin-reservation-metrics.ts`).
 
 import type { APIGatewayProxyResult, APIGatewayProxyWithCognitoAuthorizerEvent } from 'aws-lambda';
 
 import { computeAdminPeopleMetrics } from '../../dashboard/admin-people-metrics';
+import { getAdminReservationMetrics } from '../../dashboard/admin-reservation-metrics';
 import { jsonResponse } from '../../lib/http';
 import { extractIdentity, requireRole } from '../../middleware/auth';
 import { withHandler } from '../../middleware/with-handler';
@@ -23,23 +25,18 @@ async function handleAdminDashboard(
 
   const now = new Date();
 
-  // PUNTO DE EXTENSIÓN (US-058): añadir aquí la sección de reservas y
-  // ocupación como una llamada más del Promise.all (por ejemplo
-  // `computeAdminReservationMetrics({ now, requestId })`), y propagar su
-  // resultado en el cuerpo de abajo. Cada sección es independiente: no
-  // comparten consultas ni estado.
-  const [people] = await Promise.all([
+  // Cada sección es independiente: no comparten consultas ni estado.
+  const [people, reservations] = await Promise.all([
     computeAdminPeopleMetrics({ now, requestId: ctx.requestId }),
+    getAdminReservationMetrics({ now }),
   ]);
 
   const body = {
-    // Valores vacíos hasta US-058: "van vacíos, no ausentes" (US-057, contrato).
-    // US-058 los reemplaza con sus cifras reales (y añade `reservationsByHour`
-    // y `periods.last30Days`).
-    reservationsByResource: {},
-    reservationsByDay: [],
-    occupancy: [],
     ...people,
+    ...reservations,
+    // Cada sección calcula sus propios periodos: se unen (`currentMonth` y
+    // `last30Days`) para que el cuerpo declare el rango de cada cifra.
+    periods: { ...people.periods, ...reservations.periods },
   };
 
   return jsonResponse(200, body);

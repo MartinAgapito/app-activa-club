@@ -107,7 +107,7 @@ const HANDLERS = {
   'notifications-sent': 'handlers/notifications/sent.ts', // US-048 (implementado)
   // EP-07 (US-054 infra ya desplegada; logica de negocio por historia).
   'dashboard-member': 'handlers/dashboard/member.ts', // US-055 (implementado)
-  'dashboard-admin': 'handlers/dashboard/admin.ts', // US-057 (implementado); US-058 añade reservas
+  'dashboard-admin': 'handlers/dashboard/admin.ts', // US-057 y US-058 (implementados)
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');

@@ -28,6 +28,12 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Métricas de reservas y ocupación del administrador (US-058, EP-07):
+  `GET /dashboard/admin` calcula `periods`, `reservationsByResource`,
+  `reservationsByDay`, `reservationsByHour` y `occupancy` (con
+  `reservedHours` y `operatingHours`) sobre los últimos 30 días de America/Lima,
+  con `Query` por recurso en GSI3 y bloqueos de mantenimiento, sin `Scan`.
+  Tipos de `shared-types` extendidos de forma aditiva.
 - Resumen personal del socio (US-055, EP-07): `GET /dashboard/member` (solo
   `member`) devuelve en una consulta nombre de pila y estado, membresía (tipo,
   estado efectivo, vencimiento, saldo y `daysRemaining` en días de Lima),

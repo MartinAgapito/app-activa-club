@@ -4,6 +4,10 @@ const computeMock = vi.fn();
 vi.mock('../../dashboard/admin-people-metrics', () => ({
   computeAdminPeopleMetrics: computeMock,
 }));
+const reservationsMock = vi.fn();
+vi.mock('../../dashboard/admin-reservation-metrics', () => ({
+  getAdminReservationMetrics: reservationsMock,
+}));
 
 const { buildCognitoProxyEvent } = await import('../../testing/fixtures');
 const { handler } = await import('./admin');
@@ -32,20 +36,38 @@ const people = {
   notificationsSent: 4,
 };
 
+const reservations = {
+  periods: {
+    currentMonth: people.periods.currentMonth,
+    last30Days: {
+      from: '2026-09-13T05:00:00.000Z',
+      to: '2026-10-13T05:00:00.000Z',
+      timeZone: 'America/Lima',
+    },
+  },
+  reservationsByResource: { 'futbol-1': 2 },
+  reservationsByDay: [{ date: '2026-10-01', count: 2 }],
+  reservationsByHour: [{ hour: '06:00', count: 2 }],
+  occupancy: [
+    { resourceId: 'futbol-1', occupancyRate: 0.0063, reservedHours: 3, operatingHours: 480 },
+  ],
+};
+
 describe('GET /dashboard/admin', () => {
   beforeEach(() => {
     computeMock.mockReset();
     computeMock.mockResolvedValue(people);
+    reservationsMock.mockReset();
+    reservationsMock.mockResolvedValue(reservations);
   });
 
-  it('200 con las secciones de US-057 y las de reservas vacías, no ausentes', async () => {
+  it('200 con las secciones de US-057 y US-058 y los dos periodos', async () => {
     const result = await handler(buildEvent());
     expect(result.statusCode).toBe(200);
     expect(JSON.parse(result.body)).toEqual({
-      reservationsByResource: {},
-      reservationsByDay: [],
-      occupancy: [],
       ...people,
+      ...reservations,
+      periods: reservations.periods,
     });
   });
 
