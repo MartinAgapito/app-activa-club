@@ -40,13 +40,29 @@ export function getSenderEmail(): string | undefined {
   return value === undefined || value === '' ? undefined : value;
 }
 
+/** Nombre visible del remitente en las bandejas de correo. */
+export const SENDER_DISPLAY_NAME = 'Activa Club';
+
+/**
+ * Cabecera From con nombre visible (RFC 5322): `Activa Club <dir>`. El nombre
+ * se entrecomilla si contiene caracteres especiales. La condición IAM
+ * `ses:FromAddress` compara solo la dirección, no el nombre. Si el valor
+ * configurado ya trae `<...>` se respeta tal cual.
+ */
+export function formatFromAddress(address: string, displayName = SENDER_DISPLAY_NAME): string {
+  if (address.includes('<')) return address;
+  const needsQuotes = /[^A-Za-z0-9 !#$%&'*+/=?^_`{|}~-]/.test(displayName);
+  const name = needsQuotes ? `"${displayName.replace(/(["\\])/g, '\\$1')}"` : displayName;
+  return `${name} <${address}>`;
+}
+
 /** Implementación real sobre SES. Lanza ante cualquier error del servicio. */
 export function createSesEmailSender(sender: string): EmailSender {
   return {
     async send(message: EmailMessage): Promise<void> {
       await getSesClient().send(
         new SendEmailCommand({
-          FromEmailAddress: sender,
+          FromEmailAddress: formatFromAddress(sender),
           Destination: { ToAddresses: [message.to] },
           Content: {
             Simple: {

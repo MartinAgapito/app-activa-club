@@ -73,7 +73,7 @@ describe.each(NOTIFICATION_EVENTS)('texto de %s', (event) => {
     expect(rendered.emailSubject).toBe(`Activa Club: ${rendered.title}`);
     expect(rendered.emailText).toContain('Hola Ana,');
     expect(rendered.emailText).toContain(rendered.body);
-    expect(rendered.emailHtml).toContain('<html lang="es">');
+    expect(rendered.emailHtml).toContain('<html lang="es"');
   });
 
   it('no incluye datos sensibles ni identificadores internos', () => {

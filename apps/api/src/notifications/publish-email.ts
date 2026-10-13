@@ -14,7 +14,8 @@
 // correo del destinatario ni el contenido del aviso.
 
 import { logger as defaultLogger } from '../lib/logger';
-import { escapeHtml } from './format';
+import { optionalEnv } from '../lib/env';
+import { renderEmailLayout, safeAppUrl } from './email-layout';
 import { createSesEmailSender, getSenderEmail, type EmailSender } from './mailer';
 import { NOTIFICATION_METRICS } from './emit';
 import type { SegmentRecipient } from './segments';
@@ -44,16 +45,18 @@ export function renderPublishedEmail(
   firstName: string,
 ): PublishedEmailContent {
   const hello = firstName ? `Hola ${firstName},` : 'Hola,';
+  const appUrl = safeAppUrl(optionalEnv('APP_BASE_URL'));
+  const link = appUrl ? `Ingresa a Activa Club: ${appUrl}\n\n` : '';
   return {
     subject: `Activa Club: ${title}`,
-    text: `${hello}\n\n${title}\n\n${body}\n\n${SIGNATURE}\n`,
-    html:
-      `<!doctype html><html lang="es"><body>` +
-      `<p>${escapeHtml(hello)}</p>` +
-      `<p><strong>${escapeHtml(title)}</strong></p>` +
-      `<p style="white-space:pre-line">${escapeHtml(body)}</p>` +
-      `<p><small>${escapeHtml(SIGNATURE)}</small></p>` +
-      `</body></html>`,
+    text: `${hello}\n\n${title}\n\n${body}\n\n${link}${SIGNATURE}\n`,
+    html: renderEmailLayout({
+      preheader: body,
+      heading: title,
+      paragraphs: [hello, body],
+      closing: SIGNATURE,
+      appUrl,
+    }),
   };
 }
 

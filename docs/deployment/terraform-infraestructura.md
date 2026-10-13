@@ -292,6 +292,8 @@ emisoras y `notifications-create`:
 
 > **Sandbox de SES.** Mientras la cuenta esté en el sandbox, SES evalúa `ses:SendEmail` también contra la identidad de cada destinatario; por eso el recurso incluye `identity/*` de la cuenta y región, acotado con la condición `ses:FromAddress` al remitente verificado. Al salir del sandbox basta con volver a la sola identidad del remitente.
 
+> **Nombre visible del remitente.** El código envía `FromEmailAddress` como `Activa Club <SES_SENDER_EMAIL>`. La condición `StringEquals ses:FromAddress` evalúa solo la dirección de correo (la parte entre `<>`), no el nombre, por lo que el permiso sigue cumpliéndose sin cambios de Terraform. Las Lambdas no reciben aún `APP_BASE_URL` (opcional, habilita el botón de los correos); agregarla es un cambio de infraestructura aparte.
+
 | Lambda                                                  | Permiso nuevo                                        |
 | ------------------------------------------------------- | ---------------------------------------------------- |
 | `activation-complete`                                   | `ses:SendEmail`                                      |

@@ -12,7 +12,9 @@
 
 import type { MembershipType, NotificationEvent } from '@activa-club/shared-types';
 
-import { cleanFreeText, escapeHtml, formatLimaDate, formatLimaRange, formatSoles } from './format';
+import { optionalEnv } from '../lib/env';
+import { renderEmailLayout, safeAppUrl, type EmailFact } from './email-layout';
+import { cleanFreeText, formatLimaDate, formatLimaRange, formatSoles } from './format';
 
 /** Los 13 eventos del catálogo (docs/data/diccionario-de-datos.md). */
 export const NOTIFICATION_EVENTS = [
@@ -89,6 +91,8 @@ export class UnknownNotificationEventError extends Error {
 interface Content {
   title: string;
   body: string;
+  /** Datos clave de la tarjeta del correo (solo datos que el evento ya consume). */
+  facts?: EmailFact[];
 }
 
 const PLAN_LABEL: Record<MembershipType, string> = {
@@ -104,6 +108,17 @@ function planLabel(type: MembershipType): string {
 
 function reasonOrFallback(reason: string): string {
   return cleanFreeText(reason) || 'No se indicó un motivo.';
+}
+
+function slotFacts(data: ReservationSlotData): EmailFact[] {
+  return [
+    { label: 'Instalación', value: data.resourceName },
+    { label: 'Fecha y hora', value: formatLimaRange(data.startsAt, data.endsAt) },
+  ];
+}
+
+function reasonFact(reason: string): EmailFact {
+  return { label: 'Motivo', value: reasonOrFallback(reason) };
 }
 
 function participants(count: number): string {
@@ -122,34 +137,46 @@ const BUILDERS: { [E in NotificationEvent]: (data: NotificationDataByEvent[E]) =
   MEMBER_REJECTED: (data) => ({
     title: 'Tu solicitud no fue aprobada',
     body: `No pudimos aprobar tu solicitud de socio. Motivo: ${reasonOrFallback(data.reason)}`,
+    facts: [reasonFact(data.reason)],
   }),
   PAYMENT_SUCCEEDED: (data) => ({
     title: 'Recibimos tu pago',
     body: `Tu pago de ${formatSoles(data.amount)} por la membresía ${planLabel(data.membershipType)} fue exitoso. Tu membresía está vigente hasta el ${formatLimaDate(data.membershipEndsAt)}.`,
+    facts: [
+      { label: 'Monto', value: formatSoles(data.amount) },
+      { label: 'Membresía', value: planLabel(data.membershipType) },
+      { label: 'Vigente hasta', value: formatLimaDate(data.membershipEndsAt) },
+    ],
   }),
   PAYMENT_FAILED: (data) => ({
     title: 'No pudimos procesar tu pago',
     body: `Tu pago no se completó. Motivo: ${reasonOrFallback(data.reason)} Puedes reintentarlo desde la sección Membresía.`,
+    facts: [reasonFact(data.reason)],
   }),
   RENEWAL_DUE: (data) => ({
     title: 'Tu membresía está por vencer',
     body: `Tu membresía vence el ${formatLimaDate(data.membershipEndsAt)}. Renuévala desde la sección Membresía para seguir reservando sin interrupciones.`,
+    facts: [{ label: 'Vencimiento', value: formatLimaDate(data.membershipEndsAt) }],
   }),
   RENEWAL_OVERDUE: (data) => ({
     title: 'Tu membresía venció',
     body: `Tu membresía venció el ${formatLimaDate(data.membershipEndsAt)}. Mientras no la renueves no podrás hacer reservas; puedes pagarla desde la sección Membresía.`,
+    facts: [{ label: 'Venció el', value: formatLimaDate(data.membershipEndsAt) }],
   }),
   RESERVATION_CONFIRMED: (data) => ({
     title: 'Reserva confirmada',
     body: `Tu reserva en ${data.resourceName} quedó confirmada para el ${formatLimaRange(data.startsAt, data.endsAt)}.`,
+    facts: slotFacts(data),
   }),
   RESERVATION_APPROVED: (data) => ({
     title: 'Reserva aprobada',
     body: `Aprobaron tu reserva en ${data.resourceName} para el ${formatLimaRange(data.startsAt, data.endsAt)}.`,
+    facts: slotFacts(data),
   }),
   RESERVATION_REJECTED: (data) => ({
     title: 'Reserva rechazada',
     body: `Tu reserva en ${data.resourceName} para el ${formatLimaRange(data.startsAt, data.endsAt)} no fue aprobada. Motivo: ${reasonOrFallback(data.reason)}`,
+    facts: [...slotFacts(data), reasonFact(data.reason)],
   }),
   RESERVATION_CANCELLED: (data) => ({
     title: 'Reserva cancelada',
@@ -157,14 +184,17 @@ const BUILDERS: { [E in NotificationEvent]: (data: NotificationDataByEvent[E]) =
       data.cancelledBy === 'ADMIN'
         ? `El club canceló tu reserva en ${data.resourceName} del ${formatLimaRange(data.startsAt, data.endsAt)}.`
         : `Cancelaste tu reserva en ${data.resourceName} del ${formatLimaRange(data.startsAt, data.endsAt)}. Este aviso es tu constancia.`,
+    facts: slotFacts(data),
   }),
   RESOURCE_MAINTENANCE: (data) => ({
     title: 'Mantenimiento en una instalación que reservaste',
     body: `${data.resourceName} estará en mantenimiento el ${formatLimaRange(data.startsAt, data.endsAt)}, en un horario que coincide con tu reserva. Tu reserva no fue cancelada automáticamente; comunícate con el club para coordinar.`,
+    facts: slotFacts(data),
   }),
   RESERVATION_REMINDER: (data) => ({
     title: 'Recordatorio de tu reserva',
     body: `Te recordamos tu reserva en ${data.resourceName} el ${formatLimaRange(data.startsAt, data.endsAt)}, con ${participants(data.participantCount)}.`,
+    facts: [...slotFacts(data), { label: 'Participantes', value: String(data.participantCount) }],
   }),
 };
 
@@ -189,17 +219,20 @@ export function renderNotification<E extends NotificationEvent>(
     throw new UnknownNotificationEventError(event);
   }
   const build = BUILDERS[event] as (d: NotificationData<E>) => Content;
-  const { title, body } = build(data);
+  const { title, body, facts } = build(data);
   const hello = greeting(firstName);
+  const appUrl = safeAppUrl(optionalEnv('APP_BASE_URL'));
 
-  const emailText = `${hello}\n\n${body}\n\n${SIGNATURE}\n`;
-  const emailHtml =
-    `<!doctype html><html lang="es"><body>` +
-    `<p>${escapeHtml(hello)}</p>` +
-    `<p><strong>${escapeHtml(title)}</strong></p>` +
-    `<p>${escapeHtml(body)}</p>` +
-    `<p><small>${escapeHtml(SIGNATURE)}</small></p>` +
-    `</body></html>`;
+  const link = appUrl ? `Ingresa a Activa Club: ${appUrl}\n\n` : '';
+  const emailText = `${hello}\n\n${body}\n\n${link}${SIGNATURE}\n`;
+  const emailHtml = renderEmailLayout({
+    preheader: body,
+    heading: title,
+    paragraphs: [hello, body],
+    ...(facts ? { facts } : {}),
+    closing: SIGNATURE,
+    appUrl,
+  });
 
   return { title, body, emailSubject: `Activa Club: ${title}`, emailText, emailHtml };
 }

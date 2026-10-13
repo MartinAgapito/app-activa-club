@@ -11,7 +11,24 @@ vi.mock('@aws-sdk/client-sesv2', () => ({
   },
 }));
 
-const { createSesEmailSender, getSenderEmail } = await import('./mailer');
+const { createSesEmailSender, formatFromAddress, getSenderEmail } = await import('./mailer');
+
+describe('formatFromAddress', () => {
+  it('antepone el nombre visible y conserva la dirección exacta (ses:FromAddress)', () => {
+    const from = formatFromAddress('no-reply@club.test');
+    expect(from).toBe('Activa Club <no-reply@club.test>');
+    // La condición IAM compara la dirección entre <>, no el nombre.
+    expect(/<([^>]+)>$/.exec(from)?.[1]).toBe('no-reply@club.test');
+  });
+
+  it('entrecomilla el nombre si contiene caracteres especiales', () => {
+    expect(formatFromAddress('a@b.c', 'Club, "Activa"')).toBe('"Club, \\"Activa\\"" <a@b.c>');
+  });
+
+  it('respeta un remitente que ya trae nombre', () => {
+    expect(formatFromAddress('Otro <a@b.c>')).toBe('Otro <a@b.c>');
+  });
+});
 
 describe('createSesEmailSender', () => {
   beforeEach(() => {
@@ -29,7 +46,7 @@ describe('createSesEmailSender', () => {
     });
     const command = sendMock.mock.calls[0]?.[0] as { input: Record<string, unknown> };
     expect(command.input).toEqual({
-      FromEmailAddress: 'no-reply@club.test',
+      FromEmailAddress: 'Activa Club <no-reply@club.test>',
       Destination: { ToAddresses: ['ana@example.com'] },
       Content: {
         Simple: {
