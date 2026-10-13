@@ -406,6 +406,8 @@ migración (ADR-0005) y la fuente de prueba versionada es el fixture ficticio de
 
 </details>
 
+> **¿Empiezas aquí?** La [guía paso a paso](docs/GUIA-PASO-A-PASO.md) reúne en un solo documento cómo preparar, desplegar, cargar datos, probar y reiniciar el entorno.
+
 ## Requisitos previos
 
 - Node.js >= 20

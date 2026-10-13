@@ -10,6 +10,12 @@ backlog en `docs/scrum/`.
 
 ## [Unreleased]
 
+### Added
+
+- Guía paso a paso (`docs/GUIA-PASO-A-PASO.md`): un solo documento con la
+  preparación del equipo, el despliegue, la migración, el recorrido E2E, el
+  reinicio del entorno, la operación diaria y los problemas frecuentes.
+
 ### Fixed
 
 - Correos de aviso en el sandbox de SES: el permiso `ses:SendEmail` de las
