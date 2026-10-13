@@ -69,3 +69,7 @@ Es la portada del socio. Concentra en una sola respuesta lo que hoy está repart
 - Casos de prueba: DA-01, DA-02, P-10.
 - Depende de: US-038, US-041, US-054.
 - Habilita: US-056.
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en backend: `GET /dashboard/member`, `canReserve` compartido con `POST /reservations` (`reservations/eligibility.ts`), próximas reservas por GSI1 (patrón #12) y bandeja (patrón #5). Códigos de alerta documentados en el contrato §9.

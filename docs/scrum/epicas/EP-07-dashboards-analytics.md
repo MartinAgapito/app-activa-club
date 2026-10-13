@@ -92,3 +92,4 @@ No está en el contrato ni en el Contexto Maestro y no se implementa sin aprobac
 - 2026-10-11: Se agrega la sección "Relación con EP-08": si se aprueba EP-08, US-056 y US-059 enriquecen los inicios de US-070 y US-071 en lugar de construirlos desde cero. No cambia ningún criterio de EP-07.
 - 2026-10-12: Adenda de contrato del Arquitecto: resuelta la pregunta 5 y definidos en el contrato los períodos y la fórmula de ocupación (preguntas 1 y 2, a confirmar por el Product Owner). US-058 pasa a Ready.
 - 2026-10-12: US-054 con infraestructura desplegada, pendiente lógica (endpoints en 501 hasta US-055, US-057 y US-058; IAM de solo lectura).
+- 2026-10-12: US-055 implementada (`GET /dashboard/member`); códigos de alerta de la pregunta 4 documentados en el contrato §9 con la propuesta del Arquitecto.

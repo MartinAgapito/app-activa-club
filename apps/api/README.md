@@ -45,8 +45,9 @@ src/
     notifications/read.ts     # POST /notifications/{notificationId}/read (member) — marca leída, idempotente (US-041).
     notifications/create.ts   # POST /notifications (admin) — publica un aviso segmentado (US-048).
     notifications/sent.ts     # GET /notifications/sent (admin) — historial enviado, manual y automático (US-048).
+    dashboard/member.ts       # GET /dashboard/member (member) — resumen personal del socio (US-055).
     (Sprint 1+: members/, payments/, resources/, reservations/,
-     notifications/, dashboard/ — un archivo por endpoint de
+     notifications/, dashboard/ (admin) — un archivo por endpoint de
      docs/api/contratos-api.md.)
   middleware/
     auth.ts            # Extrae identidad (`sub`, `roles`) del Cognito Authorizer; requireRole().
@@ -74,6 +75,7 @@ src/
     verify.ts             # Orquestador de POST /activation/verify.
     complete.ts           # Orquestador de POST /activation/complete.
   notifications/       # Motor de notificaciones (US-040): bandeja interna + correo best-effort.
+  dashboard/           # Resumen personal del socio (US-055): composición de solo lectura.
     index.ts           # API pública: emitNotification(), renderNotification(), eventos del catálogo.
     emit.ts            # Emisión idempotente: TransactWrite Notification + MemberNotification, luego SES.
     templates.ts       # Textos en español de los 13 NotificationEvent (puro, con escape HTML).

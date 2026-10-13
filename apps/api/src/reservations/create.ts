@@ -27,8 +27,8 @@ import { recordAuditLog } from '../lib/audit';
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
 import { findMemberByCognitoSub, getMemberById } from '../members/repository';
-import { hasMembershipEnded, limaDateOnly } from '../memberships/vigency';
 import { getResourceById } from '../resources/repository';
+import { getReservationBlocker } from './eligibility';
 import { guestMonthlyCounterMonth } from './guest-month';
 import { resolveReservationEndsAt } from './reservation-window';
 import type { GuestProfileUpsertInput } from './repository';
@@ -56,25 +56,6 @@ export interface CreateReservationInput {
   holderParticipantId?: string;
 }
 
-const NON_RESERVABLE_MEMBERSHIP_STATUSES: ReadonlySet<Member['membershipStatus']> = new Set([
-  'DEBT',
-  'EXPIRED',
-]);
-
-/**
- * Defensa en profundidad (US-038, criterio 8): un socio que figura vigente
- * (`ACTIVE`/`EXPIRING_SOON`) pero cuyo `membershipEndsAt` ya pasó (fecha de
- * Lima) no puede reservar aunque el proceso diario de vencimiento todavía no
- * haya corrido (entre la medianoche y su ejecución, o si una ejecución falló).
- */
-function hasLapsedWhileMarkedCurrent(member: Member, now: Date): boolean {
-  if (member.membershipStatus !== 'ACTIVE' && member.membershipStatus !== 'EXPIRING_SOON') {
-    return false;
-  }
-  if (!member.membershipEndsAt) return false;
-  return hasMembershipEnded(member.membershipEndsAt, limaDateOnly(now));
-}
-
 /**
  * RN-RES-12/RN-PAG-06 (criterios 10/11 de US-030; cierra A-11, A-15, P-10):
  * solo un socio `ACTIVE`, sin deuda (`membershipStatus` fuera de
@@ -87,14 +68,12 @@ function hasLapsedWhileMarkedCurrent(member: Member, now: Date): boolean {
  * documentado en la historia).
  */
 export function assertMemberCanReserve(member: Member, now: Date = new Date()): void {
-  if (member.memberStatus !== 'ACTIVE') {
+  // La regla vive en `./eligibility.ts`: la comparte `GET /dashboard/member`.
+  const blocker = getReservationBlocker(member, now);
+  if (blocker === 'MEMBERSHIP_REQUIRED') {
     throw new AppError('MEMBERSHIP_REQUIRED', 'El socio debe estar activo para reservar.');
   }
-  if (
-    NON_RESERVABLE_MEMBERSHIP_STATUSES.has(member.membershipStatus) ||
-    member.outstandingBalance > 0 ||
-    hasLapsedWhileMarkedCurrent(member, now)
-  ) {
+  if (blocker === 'MEMBER_HAS_DEBT') {
     throw new AppError(
       'MEMBER_HAS_DEBT',
       'El socio tiene deuda o una membresía vencida; debe regularizarla antes de reservar.',
