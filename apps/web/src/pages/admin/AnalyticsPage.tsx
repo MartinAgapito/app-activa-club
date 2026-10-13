@@ -1,11 +1,8 @@
-import { UnderConstructionPage } from '../../components/UnderConstructionPage';
+// Analítica de reservas y ocupación (US-060). La lógica vive en
+// `analytics/AnalyticsView`.
+
+import { AnalyticsView } from '../../analytics/AnalyticsView';
 
 export function AnalyticsPage() {
-  return (
-    <UnderConstructionPage
-      title="Analytics"
-      description="Vista extendida de métricas y tendencias operativas."
-      endpoints={['GET /dashboard/admin']}
-    />
-  );
+  return <AnalyticsView />;
 }

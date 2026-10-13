@@ -122,7 +122,7 @@ Layout compartido: `AdminLayout` (misma estructura; en el menú "Pagos" apunta a
 | `/admin/reservas`       | Reservas y aprobaciones  | `GET /reservations?scope=all`, `GET /reservations/{id}`, `POST /reservations/{id}/approve`, `POST /reservations/{id}/reject`, `POST /reservations/{id}/cancel` | RN-RES-02, RN-RES-10, RN-ADM-05. Implementada (US-034 y US-036, interfaz): pestañas "Pendientes de aprobación" (por defecto) y "Todas las reservas" (filtros por estado, instalación y fechas; cancelación administrativa).                                  |
 | `/admin/recursos`       | Recursos y mantenimiento | `GET /resources`, `PATCH /resources/{id}`, `POST/GET /resources/{id}/maintenance`, `DELETE /resources/{id}/maintenance/{blockId}`                              | RN-RES-11, RN-ADM-04. Implementada (US-035 y US-036, interfaz): gestión de aforo/horario/estado y bloqueos por mantenimiento.                                                                                                                                |
 | `/admin/notificaciones` | Notificaciones           | `POST /notifications`, `GET /notifications/sent`                                                                                                               | RN-NOT-03/04, RN-ADM-06. Implementada (US-049): pestañas "Publicar" (formulario, destinatarios por segmento, confirmación y resumen; usa `GET /members/lookup` y `GET /resources`) y "Enviadas" (historial con "Cargar más" y panel de detalle), en `?tab=`. |
-| `/admin/analytics`      | Analytics                | `GET /dashboard/admin`                                                                                                                                         | RN-ANL-01..08 (vista extendida).                                                                                                                                                                                                                             |
+| `/admin/analytics`      | Analítica                | `GET /dashboard/admin`                                                                                                                                         | RN-ADM-08, RN-ANL-03/04/07. Implementada (US-060): periodo de 30 días en hora de Lima, reservas por instalación, ocupación (porcentaje y horas), reservas por día y por horario, con tabla alternativa.                                                      |
 
 La historia de usuario también menciona "Gestión de socios" y "Solicitudes
 pendientes" como áreas separadas; ambas consumen la misma familia de
@@ -178,7 +178,7 @@ vía `canReserve` en `GET /dashboard/member`.
 /admin/reservas                admin     Reservas y aprobaciones
 /admin/recursos                admin     Recursos y mantenimiento
 /admin/notificaciones          admin     Notificaciones
-/admin/analytics               admin     Analytics
+/admin/analytics               admin     Analítica
 
 /403                           —         Sin permisos
 *                               —         No encontrado

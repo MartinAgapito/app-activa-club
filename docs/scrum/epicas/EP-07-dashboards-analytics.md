@@ -96,4 +96,5 @@ No está en el contrato ni en el Contexto Maestro y no se implementa sin aprobac
 - 2026-10-12: US-055 implementada (`GET /dashboard/member`); códigos de alerta de la pregunta 4 documentados en el contrato §9 con la propuesta del Arquitecto.
 - 2026-10-12: US-057 implementada: `GET /dashboard/admin` devuelve las cifras de socios, membresías, pendientes, pagos y notificaciones (`src/dashboard/admin-people-metrics.ts`); reservas y ocupación siguen vacías hasta US-058. Pregunta 6 aplicada con la propuesta (todos los registros `Notification` del mes).
 - 2026-10-12: US-056 implementada (inicio del socio sobre `GET /dashboard/member`, con avisos recientes, resumen de pagos y accesos por instalación); pendiente verificación en `dev`.
+- 2026-10-12: US-060 implementada (Frontend): `/admin/analytics` con reservas por instalación, ocupación, reservas por día y por horario; pendiente verificación en `dev`.
 - 2026-10-12: US-059 implementada (Frontend). El hook `useAdminDashboard` (`apps/web/src/admin/dashboard/`) queda como fuente única de `GET /dashboard/admin` para US-060.
