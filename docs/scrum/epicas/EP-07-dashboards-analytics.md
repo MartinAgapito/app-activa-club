@@ -93,3 +93,4 @@ No está en el contrato ni en el Contexto Maestro y no se implementa sin aprobac
 - 2026-10-12: Adenda de contrato del Arquitecto: resuelta la pregunta 5 y definidos en el contrato los períodos y la fórmula de ocupación (preguntas 1 y 2, a confirmar por el Product Owner). US-058 pasa a Ready.
 - 2026-10-12: US-054 con infraestructura desplegada, pendiente lógica (endpoints en 501 hasta US-055, US-057 y US-058; IAM de solo lectura).
 - 2026-10-12: US-055 implementada (`GET /dashboard/member`); códigos de alerta de la pregunta 4 documentados en el contrato §9 con la propuesta del Arquitecto.
+- 2026-10-12: US-057 implementada: `GET /dashboard/admin` devuelve las cifras de socios, membresías, pendientes, pagos y notificaciones (`src/dashboard/admin-people-metrics.ts`); reservas y ocupación siguen vacías hasta US-058. Pregunta 6 aplicada con la propuesta (todos los registros `Notification` del mes).

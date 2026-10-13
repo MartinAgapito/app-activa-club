@@ -107,11 +107,7 @@ const HANDLERS = {
   'notifications-sent': 'handlers/notifications/sent.ts', // US-048 (implementado)
   // EP-07 (US-054 infra ya desplegada; logica de negocio por historia).
   'dashboard-member': 'handlers/dashboard/member.ts', // US-055 (implementado)
-  // TEMPORAL: 'dashboard-admin' apunta al placeholder compartido
-  // (handlers/not-implemented.ts, responde 501) hasta que la historia
-  // indicada la reemplace por su handler real.
-  // PLACEHOLDER(US-057)
-  'dashboard-admin': 'handlers/not-implemented.ts', // GET /dashboard/admin; lo reemplazan US-057 y US-058
+  'dashboard-admin': 'handlers/dashboard/admin.ts', // US-057 (implementado); US-058 añade reservas
 };
 
 const artifactsDir = process.env.LAMBDA_ARTIFACTS_DIR ?? join(REPO_ROOT, '.lambda-artifacts');

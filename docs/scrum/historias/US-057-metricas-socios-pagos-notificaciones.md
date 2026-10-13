@@ -69,3 +69,7 @@ Son los indicadores de atención inmediata del administrador: solicitudes que es
 - Casos de prueba: DA-03, DA-04, DA-07, DA-08, N-12.
 - Depende de: US-038, US-054.
 - Habilita: US-059.
+
+## Historial de cambios
+
+- 2026-10-12: Implementada en `apps/api/src/dashboard/admin-people-metrics.ts` y `handlers/dashboard/admin.ts`. Cada cifra es un `Query` con `Select: COUNT` sobre GSI2 (patrones #14, #28, #17, #16/#29 y #18), con tope de 10 páginas de 1 MB por cifra (WARN `DASHBOARD_COUNT_TRUNCATED` si se agota). Pagos del período por `createdAt`; `notificationsSent` cuenta manuales y automáticas. `periods.currentMonth` = mes calendario de Lima.

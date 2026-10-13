@@ -44,6 +44,7 @@ src/
     notifications/list.ts     # GET /notifications (member) — bandeja paginada, filtro unread (US-041).
     notifications/read.ts     # POST /notifications/{notificationId}/read (member) — marca leída, idempotente (US-041).
     notifications/create.ts   # POST /notifications (admin) — publica un aviso segmentado (US-048).
+    dashboard/admin.ts        # GET /dashboard/admin (admin) — compone secciones de src/dashboard/ (US-057; US-058 añade reservas).
     notifications/sent.ts     # GET /notifications/sent (admin) — historial enviado, manual y automático (US-048).
     dashboard/member.ts       # GET /dashboard/member (member) — resumen personal del socio (US-055).
     (Sprint 1+: members/, payments/, resources/, reservations/,
