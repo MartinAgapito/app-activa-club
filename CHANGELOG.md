@@ -27,6 +27,11 @@ backlog en `docs/scrum/`.
 
 ### Changed
 
+- IAM de `payments-list` (US-081, criterio 8): la Lambda recibe
+  `dynamodb:GetItem` solo sobre la tabla (sin índices, sin `Scan` ni escrituras)
+  para resolver el nombre del socio en los pagos del administrador. Ningún otro
+  permiso cambia.
+
 - Correos transaccionales con plantilla de marca (EP-05, US-040/US-048): HTML
   de tablas con estilos en línea (600 px, sin fuentes web ni imágenes
   externas, compatible con modo oscuro), cabecera "Activa Club", título,

@@ -1028,6 +1028,14 @@ module "endpoint_payments_list" {
       actions   = ["dynamodb:Query"]
       resources = [local.dynamodb_table_arn, local.dynamodb_index_arn]
     },
+    {
+      # US-081, criterio 8: el nombre del socio en cada pago del administrador
+      # se resuelve con un GetItem por memberId distinto de la página
+      # (patrón #31, ADR-0014). Solo el ARN de la tabla: GetItem no opera
+      # sobre índices, y no se concede Scan ni ninguna escritura.
+      actions   = ["dynamodb:GetItem"]
+      resources = [local.dynamodb_table_arn]
+    },
   ]
 }
 
