@@ -35,6 +35,18 @@ export interface Member {
   updatedAt: ISODateString;
 }
 
+/**
+ * Identificación mínima de un socio resuelta en lectura (ADR-0014, patrón #31):
+ * nombre y apellido, nunca DNI, correo, teléfono ni estado de membresía.
+ * Usada como `holder` en reservas (US-036) y `member` en pagos del
+ * administrador (US-081).
+ */
+export interface MemberNameSummary {
+  memberId: string;
+  firstName: string;
+  lastName: string;
+}
+
 /** Vista resumida de socio para listados administrativos. */
 export interface MemberSummary {
   memberId: string;

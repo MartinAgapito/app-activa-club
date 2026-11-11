@@ -2,6 +2,7 @@
 // Corresponden a docs/api/contratos-api.md §5. Nunca validan ni aceptan datos de tarjeta.
 
 import { z } from 'zod';
+import { isoDateSchema } from './common';
 import { membershipTypeSchema } from './member';
 
 /**
@@ -30,9 +31,24 @@ export const createPaymentSchema = z
 
 export const paymentStatusSchema = z.enum(['PENDING_CONFIRMATION', 'SUCCEEDED', 'FAILED']);
 
-export const listPaymentsQuerySchema = z.object({
-  memberId: z.string().optional(),
-  status: paymentStatusSchema.optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-});
+/**
+ * Query de `GET /payments` (US-025, US-081). `from` (inclusivo) y `to`
+ * (exclusivo) filtran por `createdAt`; admiten offset y se comparan por
+ * instante (no por texto). El backend los normaliza a UTC antes de consultar.
+ */
+export const listPaymentsQuerySchema = z
+  .object({
+    memberId: z.string().optional(),
+    status: paymentStatusSchema.optional(),
+    from: isoDateSchema.optional(),
+    to: isoDateSchema.optional(),
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+  .refine(
+    (data) =>
+      data.from === undefined ||
+      data.to === undefined ||
+      new Date(data.from).getTime() < new Date(data.to).getTime(),
+    { message: 'from debe ser anterior a to.', path: ['to'] },
+  );

@@ -2,6 +2,7 @@
 // Alineado con docs/data/diccionario-de-datos.md y docs/api/contratos-api.md §6-7.
 
 import type { ISODateString } from './common';
+import type { MemberNameSummary } from './member';
 
 export type ResourceType = 'FUTBOL' | 'TENIS' | 'PADEL' | 'PISCINA' | 'PARRILLA' | 'SALON_SOCIAL';
 
@@ -147,11 +148,7 @@ export interface ReservationDetail extends Reservation {
  * `GET /reservations?scope=all` (US-036, criterio 8). Solo identificación
  * mínima: nunca correo, teléfono ni DNI.
  */
-export interface ReservationHolderSummary {
-  memberId: string;
-  firstName: string;
-  lastName: string;
-}
+export type ReservationHolderSummary = MemberNameSummary;
 
 /**
  * Ítem del listado administrativo de reservas (`scope=all`): la cabecera más el
