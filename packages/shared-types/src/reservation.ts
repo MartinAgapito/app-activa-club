@@ -2,6 +2,7 @@
 // Alineado con docs/data/diccionario-de-datos.md y docs/api/contratos-api.md §6-7.
 
 import type { ISODateString } from './common';
+import type { MemberNameSummary } from './member';
 
 export type ResourceType = 'FUTBOL' | 'TENIS' | 'PADEL' | 'PISCINA' | 'PARRILLA' | 'SALON_SOCIAL';
 
@@ -150,16 +151,6 @@ export interface ReservationDetail extends Reservation {
  */
 export interface ReservationDetailParticipant extends ReservationParticipant {
   member?: MemberNameSummary | null;
-}
-
-/**
- * Identificación mínima de un socio en lecturas de otros recursos (US-036,
- * US-080, US-081, ADR-0014): nunca correo, teléfono ni DNI.
- */
-export interface MemberNameSummary {
-  memberId: string;
-  firstName: string;
-  lastName: string;
 }
 
 /**
