@@ -93,3 +93,4 @@ No está definido en el Contexto Maestro ni en los contratos y no se implementa 
 
 - 2026-10-11: Creación de la épica EP-06 y asociación de las historias US-051..US-053 (Sprint 5).
 - 2026-10-12: Resuelta la pregunta abierta 4 (adenda de contrato, ADR-0014); se agrega US-081 y US-052 deja de depender de US-048.
+- 2026-10-13: US-080 implementada (Backend, EP-04): el detalle de reserva devuelve `participants[].member`; `MemberNameSummary` es ahora el tipo compartido con `holder` y con el socio de US-081.

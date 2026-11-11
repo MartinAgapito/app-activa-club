@@ -12,7 +12,7 @@ interface CommandLike {
   constructor: { name: string };
   input: {
     IndexName?: string;
-    Key?: Record<string, unknown>;
+    Key?: { PK?: string; SK?: string };
     ExpressionAttributeValues?: Record<string, unknown>;
   };
 }
@@ -64,10 +64,17 @@ function buildClient(options: {
   reservation?: Record<string, unknown>;
   member?: Record<string, unknown>;
   participants?: Record<string, unknown>[];
+  /** Socios existentes por memberId (lecturas `MEMBER#<id>` / `PROFILE`). */
+  members?: Record<string, Record<string, unknown>>;
 }) {
   return fakeClient(async (command) => {
     const cmd = command as CommandLike;
     if (cmd.constructor.name === 'GetCommand') {
+      const pk = cmd.input.Key?.PK ?? '';
+      if (pk.startsWith('MEMBER#')) {
+        const found = options.members?.[pk.slice('MEMBER#'.length)];
+        return found ? { Item: found } : {};
+      }
       return options.reservation ? { Item: options.reservation } : {};
     }
     if (cmd.constructor.name === 'QueryCommand' && cmd.input.IndexName === 'GSI1') {
@@ -141,5 +148,149 @@ describe('getReservationDetail (US-033, criterios 3/4)', () => {
     });
 
     expect(result.reservationId).toBe('res-1');
+  });
+});
+
+describe('nombres de los participantes (US-080)', () => {
+  const profile = (memberId: string, firstName: string, lastName: string) => ({
+    entityType: 'Member',
+    memberId,
+    firstName,
+    lastName,
+    dni: '12345678',
+    email: `${memberId}@club.pe`,
+    phone: '999999999',
+  });
+  const participant = (
+    participantId: string,
+    participantType: string,
+    memberId: string | null,
+    extra: Record<string, unknown> = {},
+  ) => ({ ...holderParticipantRaw, participantId, participantType, memberId, ...extra });
+  const asAdmin = (client: ReturnType<typeof buildClient>) =>
+    getReservationDetail({
+      cognitoSub: 'admin-sub',
+      roles: ['admin'],
+      reservationId: 'res-1',
+      client,
+    });
+  const memberGets = (client: ReturnType<typeof buildClient>) =>
+    (client.send.mock.calls as [CommandLike][]).filter(
+      ([c]) => c.constructor.name === 'GetCommand' && c.input.Key?.PK?.startsWith('MEMBER#'),
+    );
+
+  it('resuelve HOLDER y MEMBER con nombre, GUEST con null y conserva guestName/guestDni', async () => {
+    const client = buildClient({
+      reservation: reservationRaw,
+      member,
+      participants: [
+        participant('p1', 'HOLDER', 'member-1'),
+        participant('p2', 'MEMBER', 'member-2'),
+        participant('p3', 'GUEST', null, { guestName: 'Ana Perez', guestDni: '87654321' }),
+      ],
+      members: {
+        'member-1': profile('member-1', 'Luis', 'Rojas'),
+        'member-2': profile('member-2', 'Marta', 'Diaz'),
+      },
+    });
+
+    const result = await getReservationDetail({
+      cognitoSub: 'sub-1',
+      roles: ['member'],
+      reservationId: 'res-1',
+      client,
+    });
+
+    expect(result.participants.map((p) => p.member)).toEqual([
+      { memberId: 'member-1', firstName: 'Luis', lastName: 'Rojas' },
+      { memberId: 'member-2', firstName: 'Marta', lastName: 'Diaz' },
+      null,
+    ]);
+    expect(result.participants[2]).toMatchObject({ guestName: 'Ana Perez', guestDni: '87654321' });
+  });
+
+  it('un socio no resoluble devuelve member null y la respuesta sigue siendo válida', async () => {
+    const client = buildClient({
+      reservation: reservationRaw,
+      participants: [participant('p1', 'HOLDER', 'member-1'), participant('p2', 'MEMBER', 'gone')],
+      members: { 'member-1': profile('member-1', 'Luis', 'Rojas') },
+    });
+
+    const result = await asAdmin(client);
+
+    expect(result.participants[0]?.member?.firstName).toBe('Luis');
+    expect(result.participants[1]?.member).toBeNull();
+  });
+
+  it('nunca expone DNI, correo ni teléfono en member', async () => {
+    const client = buildClient({
+      reservation: reservationRaw,
+      participants: [participant('p1', 'HOLDER', 'member-1')],
+      members: { 'member-1': profile('member-1', 'Luis', 'Rojas') },
+    });
+
+    const result = await asAdmin(client);
+
+    expect(Object.keys(result.participants[0]?.member ?? {}).sort()).toEqual([
+      'firstName',
+      'lastName',
+      'memberId',
+    ]);
+  });
+
+  it('resuelve una sola vez los memberId repetidos', async () => {
+    const client = buildClient({
+      reservation: reservationRaw,
+      participants: [
+        participant('p1', 'HOLDER', 'member-1'),
+        participant('p2', 'MEMBER', 'member-2'),
+        participant('p3', 'MEMBER', 'member-2'),
+      ],
+      members: {
+        'member-1': profile('member-1', 'Luis', 'Rojas'),
+        'member-2': profile('member-2', 'Marta', 'Diaz'),
+      },
+    });
+
+    await asAdmin(client);
+
+    expect(memberGets(client)).toHaveLength(2);
+  });
+
+  it('límite de 31 participantes distintos: 31 lecturas por clave y ningún Scan', async () => {
+    const ids = Array.from({ length: 31 }, (_, i) => `m-${i}`);
+    const members = Object.fromEntries(ids.map((id) => [id, profile(id, `N${id}`, `A${id}`)]));
+    const client = buildClient({
+      reservation: reservationRaw,
+      participants: ids.map((id, i) => participant(`p${i}`, i === 0 ? 'HOLDER' : 'MEMBER', id)),
+      members,
+    });
+
+    const result = await asAdmin(client);
+
+    const names = (client.send.mock.calls as [CommandLike][]).map(([c]) => c.constructor.name);
+    expect(result.participants).toHaveLength(31);
+    expect(result.participants.every((p) => p.member !== null)).toBe(true);
+    expect(memberGets(client)).toHaveLength(31);
+    expect(names).not.toContain('ScanCommand');
+  });
+
+  it('sin acompañantes: solo el HOLDER con su nombre', async () => {
+    const client = buildClient({
+      reservation: reservationRaw,
+      member,
+      participants: [participant('p1', 'HOLDER', 'member-1')],
+      members: { 'member-1': profile('member-1', 'Luis', 'Rojas') },
+    });
+
+    const result = await getReservationDetail({
+      cognitoSub: 'sub-1',
+      roles: ['member'],
+      reservationId: 'res-1',
+      client,
+    });
+
+    expect(result.participants).toHaveLength(1);
+    expect(result.participants[0]?.member?.lastName).toBe('Rojas');
   });
 });
