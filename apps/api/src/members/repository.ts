@@ -15,6 +15,7 @@ import {
 import type {
   Member,
   MemberStatus,
+  MembershipStatus,
   MemberSummary,
   Paginated,
   UpdateMemberRequest,
@@ -134,13 +135,107 @@ function toMemberSummary(item: unknown): MemberSummary {
     origin: member.origin,
     memberStatus: member.memberStatus,
     membershipStatus: member.membershipStatus,
+    // Socios anteriores a US-052 pueden no traer estos atributos: se normalizan
+    // a los valores neutros del contrato (nunca `undefined` en la respuesta).
+    membershipEndsAt: member.membershipEndsAt ?? null,
+    outstandingBalance: member.outstandingBalance ?? 0,
     createdAt: member.createdAt,
   };
 }
 
+/** Lecturas internas máximas por petición con filtro secundario (contratos §12.1). */
+export const MAX_FILTERED_READS = 5;
+/** Ítems evaluados por lectura interna con filtro secundario (contratos §12.1). */
+const FILTERED_READ_SIZE = 100;
+
 export interface ListMembersByStatusOptions {
   cursor?: string;
   limit?: number;
+  /**
+   * Filtro adicional sobre la partición del estado (US-052, patrón #28,
+   * ADR-0014). `DEBT` incluye `membershipStatus = DEBT` o
+   * `outstandingBalance > 0`.
+   */
+  membershipStatus?: MembershipStatus;
+}
+
+function membershipFilter(membershipStatus: MembershipStatus): {
+  FilterExpression: string;
+  ExpressionAttributeNames: Record<string, string>;
+  ExpressionAttributeValues: Record<string, unknown>;
+} {
+  if (membershipStatus === 'DEBT') {
+    return {
+      FilterExpression: '#ms = :ms OR #ob > :zero',
+      ExpressionAttributeNames: { '#ms': 'membershipStatus', '#ob': 'outstandingBalance' },
+      ExpressionAttributeValues: { ':ms': 'DEBT', ':zero': 0 },
+    };
+  }
+  return {
+    FilterExpression: '#ms = :ms',
+    ExpressionAttributeNames: { '#ms': 'membershipStatus' },
+    ExpressionAttributeValues: { ':ms': membershipStatus },
+  };
+}
+
+/** Clave de continuación de GSI2 (PK/SK de tabla + GSI2PK/GSI2SK) de un ítem. */
+function gsi2KeyOf(item: Record<string, unknown>): Record<string, unknown> {
+  return { PK: item['PK'], SK: item['SK'], GSI2PK: item['GSI2PK'], GSI2SK: item['GSI2SK'] };
+}
+
+/**
+ * Variante con filtro secundario (contratos §12.1): `Limit` de DynamoDB se
+ * aplica antes del filtro, así que se encadenan hasta `MAX_FILTERED_READS`
+ * lecturas de la partición. El cursor apunta al último elemento devuelto (no a
+ * la última clave leída) para no saltar coincidencias; si se agota el
+ * presupuesto sin llenar la página, se devuelve lo reunido con el cursor de la
+ * última lectura (solo `nextCursor: null` indica el final).
+ */
+async function listMembersFiltered(
+  client: DynamoDBDocumentClient,
+  status: MemberStatus,
+  membershipStatus: MembershipStatus,
+  options: ListMembersByStatusOptions,
+): Promise<Paginated<MemberSummary>> {
+  const gsi2Key = keys.membersByStatus(status);
+  const filter = membershipFilter(membershipStatus);
+  const pageSize = options.limit ?? DEFAULT_PAGE_SIZE;
+  const matches: Record<string, unknown>[] = [];
+  let startKey = decodeCursor(options.cursor);
+
+  for (let read = 0; read < MAX_FILTERED_READS; read += 1) {
+    const result = await client.send(
+      new QueryCommand({
+        TableName: tableName(),
+        IndexName: 'GSI2',
+        KeyConditionExpression: 'GSI2PK = :pk',
+        FilterExpression: filter.FilterExpression,
+        ExpressionAttributeNames: filter.ExpressionAttributeNames,
+        ExpressionAttributeValues: { ':pk': gsi2Key.GSI2PK, ...filter.ExpressionAttributeValues },
+        Limit: FILTERED_READ_SIZE,
+        ExclusiveStartKey: startKey,
+      }),
+    );
+    matches.push(...((result.Items ?? []) as Record<string, unknown>[]));
+    const lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
+
+    if (matches.length > pageSize) {
+      const page = matches.slice(0, pageSize);
+      const lastReturned = page[pageSize - 1] as Record<string, unknown>;
+      return {
+        items: page.map(toMemberSummary),
+        nextCursor: encodeCursor(gsi2KeyOf(lastReturned)),
+      };
+    }
+    // Página llena (o partición agotada) o presupuesto de lecturas consumido.
+    if (matches.length === pageSize || lastKey === undefined || read === MAX_FILTERED_READS - 1) {
+      return { items: matches.map(toMemberSummary), nextCursor: encodeCursor(lastKey) };
+    }
+    startKey = lastKey;
+  }
+
+  // Inalcanzable: la última iteración siempre retorna; satisface al compilador.
+  return { items: matches.map(toMemberSummary), nextCursor: null };
 }
 
 /**
@@ -149,12 +244,17 @@ export interface ListMembersByStatusOptions {
  * implementa el patrón de acceso por estado: no existe un índice para listar
  * *todos* los socios sin filtro (evita un `Scan` completo de la tabla), así
  * que `status` es obligatorio para este listado (impuesto por el llamante).
+ * Con `membershipStatus` aplica el patrón #28 (US-052): `Query` de la misma
+ * partición con `FilterExpression`, sin `Scan` ni índice nuevo.
  */
 export async function listMembersByStatus(
   client: DynamoDBDocumentClient,
   status: MemberStatus,
   options: ListMembersByStatusOptions = {},
 ): Promise<Paginated<MemberSummary>> {
+  if (options.membershipStatus !== undefined) {
+    return listMembersFiltered(client, status, options.membershipStatus, options);
+  }
   const gsi2Key = keys.membersByStatus(status);
   const result = await client.send(
     new QueryCommand({

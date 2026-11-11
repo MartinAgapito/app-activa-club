@@ -31,6 +31,8 @@ const MEMBER_A_SUMMARY: MemberSummary = {
   origin: 'NEW',
   memberStatus: 'PENDING',
   membershipStatus: 'NONE',
+  membershipEndsAt: null,
+  outstandingBalance: 0,
   createdAt: '2026-07-01T00:00:00Z',
 };
 
@@ -42,6 +44,8 @@ const MEMBER_B_SUMMARY: MemberSummary = {
   origin: 'NEW',
   memberStatus: 'PENDING',
   membershipStatus: 'NONE',
+  membershipEndsAt: null,
+  outstandingBalance: 0,
   createdAt: '2026-07-02T00:00:00Z',
 };
 

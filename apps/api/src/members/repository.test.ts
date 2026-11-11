@@ -206,8 +206,13 @@ describe('listMembersByStatus', () => {
       origin: pendingMember.origin,
       memberStatus: 'PENDING',
       membershipStatus: pendingMember.membershipStatus,
+      membershipEndsAt: pendingMember.membershipEndsAt,
+      outstandingBalance: pendingMember.outstandingBalance,
       createdAt: pendingMember.createdAt,
     });
+    // Sin filtro: una sola lectura sin FilterExpression (comportamiento de US-051).
+    const sent = client.send.mock.calls[0]?.[0] as { input: { FilterExpression?: string } };
+    expect(sent.input.FilterExpression).toBeUndefined();
     expect(result.nextCursor).not.toBeNull();
   });
 
@@ -230,6 +235,247 @@ describe('listMembersByStatus', () => {
     });
 
     await listMembersByStatus(client, 'PENDING', { cursor, limit: 5 });
+  });
+});
+
+function memberItem(n: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const id = `01J${String(n).padStart(3, '0')}`;
+  return {
+    ...sampleMember,
+    memberId: id,
+    PK: `MEMBER#${id}`,
+    SK: 'PROFILE',
+    GSI2PK: 'MEMBER#STATUS#ACTIVE',
+    GSI2SK: `2026-01-01T00:00:00Z#${id}`,
+    ...overrides,
+  };
+}
+
+function cursorOf(value: unknown): unknown {
+  return JSON.parse(Buffer.from(value as string, 'base64url').toString('utf-8'));
+}
+
+describe('listMembersByStatus con membershipStatus (US-052, patrón #28)', () => {
+  type QueryInput = {
+    IndexName?: string;
+    KeyConditionExpression?: string;
+    FilterExpression?: string;
+    ExpressionAttributeNames?: Record<string, string>;
+    ExpressionAttributeValues: Record<string, unknown>;
+    Limit?: number;
+    ExclusiveStartKey?: unknown;
+  };
+  const inputOf = (client: { send: ReturnType<typeof vi.fn> }, call: number): QueryInput =>
+    (client.send.mock.calls[call]?.[0] as { input: QueryInput }).input;
+
+  it.each(['EXPIRED', 'EXPIRING_SOON', 'ACTIVE', 'NONE'] as const)(
+    '%s: Query de GSI2 con FilterExpression de igualdad y sin Scan',
+    async (membershipStatus) => {
+      const client = fakeClient(async () => ({
+        Items: [memberItem(1, { membershipStatus })],
+      }));
+
+      const result = await listMembersByStatus(client, 'ACTIVE', { membershipStatus });
+
+      const input = inputOf(client, 0);
+      expect(input.IndexName).toBe('GSI2');
+      expect(input.KeyConditionExpression).toBe('GSI2PK = :pk');
+      expect(input.FilterExpression).toBe('#ms = :ms');
+      expect(input.ExpressionAttributeNames).toEqual({ '#ms': 'membershipStatus' });
+      expect(input.ExpressionAttributeValues).toEqual({
+        ':pk': 'MEMBER#STATUS#ACTIVE',
+        ':ms': membershipStatus,
+      });
+      expect(input.Limit).toBe(100);
+      expect(result.items).toHaveLength(1);
+      expect(result.nextCursor).toBeNull();
+    },
+  );
+
+  it('DEBT: incluye membershipStatus = DEBT o outstandingBalance > 0', async () => {
+    const client = fakeClient(async () => ({ Items: [] }));
+
+    await listMembersByStatus(client, 'MIGRATED', { membershipStatus: 'DEBT' });
+
+    const input = inputOf(client, 0);
+    expect(input.FilterExpression).toBe('#ms = :ms OR #ob > :zero');
+    expect(input.ExpressionAttributeNames).toEqual({
+      '#ms': 'membershipStatus',
+      '#ob': 'outstandingBalance',
+    });
+    expect(input.ExpressionAttributeValues).toEqual({
+      ':pk': 'MEMBER#STATUS#MIGRATED',
+      ':ms': 'DEBT',
+      ':zero': 0,
+    });
+  });
+
+  it('usa la partición del status pedido (combinación status + membershipStatus)', async () => {
+    const client = fakeClient(async () => ({ Items: [] }));
+    await listMembersByStatus(client, 'APPROVED', { membershipStatus: 'NONE' });
+    expect(inputOf(client, 0).ExpressionAttributeValues[':pk']).toBe('MEMBER#STATUS#APPROVED');
+  });
+
+  it('enriquece con membershipEndsAt y outstandingBalance y no expone datos sensibles', async () => {
+    const client = fakeClient(async () => ({
+      Items: [
+        memberItem(1, {
+          membershipStatus: 'DEBT',
+          membershipEndsAt: '2026-09-30T05:00:00.000Z',
+          outstandingBalance: 12000,
+        }),
+      ],
+    }));
+
+    const result = await listMembersByStatus(client, 'ACTIVE', { membershipStatus: 'DEBT' });
+
+    expect(result.items[0]).toEqual({
+      memberId: '01J001',
+      dni: sampleMember.dni,
+      firstName: sampleMember.firstName,
+      lastName: sampleMember.lastName,
+      origin: sampleMember.origin,
+      memberStatus: 'ACTIVE',
+      membershipStatus: 'DEBT',
+      membershipEndsAt: '2026-09-30T05:00:00.000Z',
+      outstandingBalance: 12000,
+      createdAt: sampleMember.createdAt,
+    });
+    const keysReturned = Object.keys(result.items[0] ?? {});
+    for (const forbidden of ['email', 'phone', 'cognitoSub', 'rejectionReason', 'legacyId']) {
+      expect(keysReturned).not.toContain(forbidden);
+    }
+  });
+
+  it('socio que nunca pagó: membershipEndsAt null y outstandingBalance 0 (aunque falten atributos)', async () => {
+    const raw = memberItem(1, { membershipStatus: 'NONE' });
+    delete raw['membershipEndsAt'];
+    delete raw['outstandingBalance'];
+    const client = fakeClient(async () => ({ Items: [raw] }));
+
+    const result = await listMembersByStatus(client, 'ACTIVE', { membershipStatus: 'NONE' });
+
+    expect(result.items[0]?.membershipEndsAt).toBeNull();
+    expect(result.items[0]?.outstandingBalance).toBe(0);
+  });
+
+  it('encadena lecturas hasta reunir limit sin pasar del presupuesto', async () => {
+    let call = 0;
+    const client = fakeClient(async () => {
+      call += 1;
+      return {
+        Items: call === 3 ? [memberItem(30), memberItem(31)] : [],
+        LastEvaluatedKey: { PK: `MEMBER#r${call}`, SK: 'PROFILE', GSI2PK: 'p', GSI2SK: `r${call}` },
+      };
+    });
+
+    const result = await listMembersByStatus(client, 'ACTIVE', {
+      membershipStatus: 'DEBT',
+      limit: 2,
+    });
+
+    expect(client.send).toHaveBeenCalledTimes(3);
+    expect(inputOf(client, 1).ExclusiveStartKey).toEqual({
+      PK: 'MEMBER#r1',
+      SK: 'PROFILE',
+      GSI2PK: 'p',
+      GSI2SK: 'r1',
+    });
+    expect(result.items.map((i) => i.memberId)).toEqual(['01J030', '01J031']);
+  });
+
+  it('con más coincidencias que limit devuelve limit y el cursor del último devuelto', async () => {
+    const client = fakeClient(async () => ({
+      Items: [memberItem(1), memberItem(2), memberItem(3)],
+      LastEvaluatedKey: { PK: 'MEMBER#x', SK: 'PROFILE', GSI2PK: 'p', GSI2SK: 'x' },
+    }));
+
+    const result = await listMembersByStatus(client, 'ACTIVE', {
+      membershipStatus: 'ACTIVE',
+      limit: 2,
+    });
+
+    expect(client.send).toHaveBeenCalledTimes(1);
+    expect(result.items.map((i) => i.memberId)).toEqual(['01J001', '01J002']);
+    expect(cursorOf(result.nextCursor)).toEqual({
+      PK: 'MEMBER#01J002',
+      SK: 'PROFILE',
+      GSI2PK: 'MEMBER#STATUS#ACTIVE',
+      GSI2SK: '2026-01-01T00:00:00Z#01J002',
+    });
+  });
+
+  it('exactamente limit coincidencias con partición agotada: nextCursor null', async () => {
+    const client = fakeClient(async () => ({ Items: [memberItem(1), memberItem(2)] }));
+
+    const result = await listMembersByStatus(client, 'ACTIVE', {
+      membershipStatus: 'ACTIVE',
+      limit: 2,
+    });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('agota las 5 lecturas sin coincidencias: página vacía con nextCursor no nulo', async () => {
+    const client = fakeClient(async () => ({
+      Items: [],
+      LastEvaluatedKey: { PK: 'MEMBER#z', SK: 'PROFILE', GSI2PK: 'p', GSI2SK: 'z' },
+    }));
+
+    const result = await listMembersByStatus(client, 'ACTIVE', { membershipStatus: 'EXPIRED' });
+
+    expect(client.send).toHaveBeenCalledTimes(5);
+    expect(result.items).toEqual([]);
+    expect(result.nextCursor).not.toBeNull();
+  });
+
+  it('partición agotada antes del presupuesto: nextCursor null (fin real)', async () => {
+    let call = 0;
+    const client = fakeClient(async () => {
+      call += 1;
+      return call === 1
+        ? { Items: [], LastEvaluatedKey: { PK: 'a', SK: 'b', GSI2PK: 'p', GSI2SK: 'a' } }
+        : { Items: [memberItem(1)] };
+    });
+
+    const result = await listMembersByStatus(client, 'ACTIVE', {
+      membershipStatus: 'EXPIRED',
+      limit: 5,
+    });
+
+    expect(client.send).toHaveBeenCalledTimes(2);
+    expect(result.items).toHaveLength(1);
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('paginación sin saltar ni repetir: cada página arranca tras el último devuelto', async () => {
+    const all = [memberItem(1), memberItem(2), memberItem(3), memberItem(4), memberItem(5)];
+    const client = fakeClient(async (command) => {
+      const start = (command as { input: { ExclusiveStartKey?: { PK: string } } }).input
+        .ExclusiveStartKey;
+      const from = start ? all.findIndex((m) => m['PK'] === start['PK']) + 1 : 0;
+      return { Items: all.slice(from) };
+    });
+
+    const first = await listMembersByStatus(client, 'ACTIVE', {
+      membershipStatus: 'DEBT',
+      limit: 2,
+    });
+    const second = await listMembersByStatus(client, 'ACTIVE', {
+      membershipStatus: 'DEBT',
+      limit: 2,
+      cursor: first.nextCursor as string,
+    });
+    const third = await listMembersByStatus(client, 'ACTIVE', {
+      membershipStatus: 'DEBT',
+      limit: 2,
+      cursor: second.nextCursor as string,
+    });
+
+    const ids = [...first.items, ...second.items, ...third.items].map((i) => i.memberId);
+    expect(ids).toEqual(['01J001', '01J002', '01J003', '01J004', '01J005']);
+    expect(third.nextCursor).toBeNull();
   });
 });
 
