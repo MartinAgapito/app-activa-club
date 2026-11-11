@@ -34,6 +34,8 @@ const ACTIVE_SUMMARY: MemberSummary = {
   origin: 'NEW',
   memberStatus: 'ACTIVE',
   membershipStatus: 'DEBT',
+  membershipEndsAt: '2026-06-30T05:00:00.000Z',
+  outstandingBalance: 12000,
   createdAt: '2026-07-01T00:00:00Z',
 };
 
@@ -45,6 +47,8 @@ const MIGRATED_SUMMARY: MemberSummary = {
   origin: 'MIGRATED',
   memberStatus: 'MIGRATED',
   membershipStatus: 'EXPIRING_SOON',
+  membershipEndsAt: '2026-08-01T05:00:00.000Z',
+  outstandingBalance: 0,
   createdAt: '2026-06-01T00:00:00Z',
 };
 

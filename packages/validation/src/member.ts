@@ -67,8 +67,19 @@ export const memberLookupQuerySchema = z.object({
   dni: dniSchema,
 });
 
-export const listMembersQuerySchema = z.object({
-  status: memberStatusSchema.optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-});
+/**
+ * Query de `GET /members` (US-017, US-051, US-052). `membershipStatus` es un
+ * filtro adicional que solo se admite junto a `status` (contratos §4): sin
+ * `status` se rechaza con VALIDATION_ERROR.
+ */
+export const listMembersQuerySchema = z
+  .object({
+    status: memberStatusSchema.optional(),
+    membershipStatus: membershipStatusSchema.optional(),
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+  .refine((query) => query.membershipStatus === undefined || query.status !== undefined, {
+    message: 'membershipStatus requiere el parámetro status.',
+    path: ['membershipStatus'],
+  });

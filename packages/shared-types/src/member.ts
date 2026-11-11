@@ -44,6 +44,10 @@ export interface MemberSummary {
   origin: MemberOrigin;
   memberStatus: MemberStatus;
   membershipStatus: MembershipStatus;
+  /** Fin de la vigencia de la membresía; `null` si nunca tuvo una (US-052). */
+  membershipEndsAt: ISODateString | null;
+  /** Saldo pendiente en céntimos (0 si no debe) (US-052). */
+  outstandingBalance: number;
   createdAt: ISODateString;
 }
 
