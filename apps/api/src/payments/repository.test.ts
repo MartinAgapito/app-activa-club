@@ -341,6 +341,102 @@ describe('listPaymentsByMember', () => {
   });
 });
 
+describe('rango de fechas como condición de clave (US-081, patrón #29)', () => {
+  type QueryInput = {
+    KeyConditionExpression: string;
+    FilterExpression?: string;
+    ExpressionAttributeValues: Record<string, unknown>;
+  };
+
+  async function captureMemberQuery(options: Parameters<typeof listPaymentsByMember>[2]) {
+    let captured: QueryInput | undefined;
+    const client = fakeClient(async (command) => {
+      captured = (command as { input: QueryInput }).input;
+      return { Items: [] };
+    });
+    await listPaymentsByMember(client, 'member-1', options);
+    return captured as QueryInput;
+  }
+
+  async function captureStatusQuery(options: Parameters<typeof listPaymentsByStatus>[2]) {
+    let captured: QueryInput | undefined;
+    const client = fakeClient(async (command) => {
+      captured = (command as { input: QueryInput }).input;
+      return { Items: [] };
+    });
+    await listPaymentsByStatus(client, 'SUCCEEDED', options);
+    return captured as QueryInput;
+  }
+
+  it('por socio: from y to van en la KeyConditionExpression, sin FilterExpression', async () => {
+    const input = await captureMemberQuery({
+      from: '2026-10-01T05:00:00.000Z',
+      to: '2026-10-02T05:00:00.000Z',
+    });
+
+    expect(input.KeyConditionExpression).toBe('PK = :pk AND SK BETWEEN :skFrom AND :skTo');
+    expect(input.FilterExpression).toBeUndefined();
+    expect(input.ExpressionAttributeValues).toMatchObject({
+      ':pk': 'MEMBER#member-1',
+      ':skFrom': 'PAYMENT#2026-10-01T05:00:00.000Z',
+      ':skTo': 'PAYMENT#2026-10-02T05:00:00.000Z',
+    });
+  });
+
+  it('por socio: solo from deja el extremo superior abierto dentro del prefijo PAYMENT#', async () => {
+    const input = await captureMemberQuery({ from: '2026-10-01T05:00:00.000Z' });
+
+    expect(input.ExpressionAttributeValues[':skTo']).toBe('PAYMENT#~');
+  });
+
+  it('por socio: solo to deja el extremo inferior en el prefijo PAYMENT#', async () => {
+    const input = await captureMemberQuery({ to: '2026-10-02T05:00:00.000Z' });
+
+    expect(input.ExpressionAttributeValues[':skFrom']).toBe('PAYMENT#');
+  });
+
+  it('por socio: se combina con status (filtro sobre el atributo, rango sobre la clave)', async () => {
+    const input = await captureMemberQuery({
+      status: 'FAILED',
+      from: '2026-10-01T05:00:00.000Z',
+    });
+
+    expect(input.KeyConditionExpression).toContain('BETWEEN');
+    expect(input.FilterExpression).toBe('paymentStatus = :status');
+  });
+
+  it('por estado: from y to acotan GSI2SK', async () => {
+    const input = await captureStatusQuery({
+      from: '2026-10-01T05:00:00.000Z',
+      to: '2026-10-02T05:00:00.000Z',
+    });
+
+    expect(input.KeyConditionExpression).toBe('GSI2PK = :pk AND GSI2SK BETWEEN :skFrom AND :skTo');
+    expect(input.FilterExpression).toBeUndefined();
+    expect(input.ExpressionAttributeValues).toMatchObject({
+      ':pk': 'PAYMENT#STATUS#SUCCEEDED',
+      ':skFrom': '2026-10-01T05:00:00.000Z',
+      ':skTo': '2026-10-02T05:00:00.000Z',
+    });
+  });
+
+  it('por estado: extremos abiertos usan 0 y ~', async () => {
+    const onlyFrom = await captureStatusQuery({ from: '2026-10-01T05:00:00.000Z' });
+    const onlyTo = await captureStatusQuery({ to: '2026-10-02T05:00:00.000Z' });
+
+    expect(onlyFrom.ExpressionAttributeValues[':skTo']).toBe('~');
+    expect(onlyTo.ExpressionAttributeValues[':skFrom']).toBe('0');
+  });
+
+  it('sin rango conserva las consultas originales', async () => {
+    const member = await captureMemberQuery({});
+    const status = await captureStatusQuery({});
+
+    expect(member.KeyConditionExpression).toBe('PK = :pk AND begins_with(SK, :prefix)');
+    expect(status.KeyConditionExpression).toBe('GSI2PK = :pk');
+  });
+});
+
 describe('listPaymentsByStatus', () => {
   it('consulta GSI2PK=PAYMENT#STATUS#<status>, más reciente primero (criterio 3, admin sin memberId)', async () => {
     const client = fakeClient(async (command) => {

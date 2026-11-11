@@ -2,7 +2,7 @@
 // Alineado con docs/api/contratos-api.md §5. Nunca incluye datos de tarjeta.
 
 import type { Currency, ISODateString } from './common';
-import type { MembershipType } from './member';
+import type { MemberNameSummary, MembershipType } from './member';
 
 export type PaymentStatus = 'PENDING_CONFIRMATION' | 'SUCCEEDED' | 'FAILED';
 
@@ -41,6 +41,11 @@ export interface PaymentSummary {
   stripePaymentIntentId: string | null;
   createdAt: ISODateString;
   confirmedAt: ISODateString | null;
+  /**
+   * Socio del pago, solo en las respuestas para `admin` (US-081, ADR-0014):
+   * `null` si el socio no se puede resolver. El rol `member` nunca lo recibe.
+   */
+  member?: MemberNameSummary | null;
 }
 
 /** Plan de membresía ofrecido (valores mock parametrizables). */
