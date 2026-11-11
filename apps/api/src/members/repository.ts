@@ -180,7 +180,7 @@ function membershipFilter(membershipStatus: MembershipStatus): {
 
 /** Clave de continuación de GSI2 (PK/SK de tabla + GSI2PK/GSI2SK) de un ítem. */
 function gsi2KeyOf(item: Record<string, unknown>): Record<string, unknown> {
-  return { PK: item.PK, SK: item.SK, GSI2PK: item.GSI2PK, GSI2SK: item.GSI2SK };
+  return { PK: item['PK'], SK: item['SK'], GSI2PK: item['GSI2PK'], GSI2SK: item['GSI2SK'] };
 }
 
 /**

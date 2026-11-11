@@ -349,8 +349,8 @@ describe('listMembersByStatus con membershipStatus (US-052, patrón #28)', () =>
 
   it('socio que nunca pagó: membershipEndsAt null y outstandingBalance 0 (aunque falten atributos)', async () => {
     const raw = memberItem(1, { membershipStatus: 'NONE' });
-    delete raw.membershipEndsAt;
-    delete raw.outstandingBalance;
+    delete raw['membershipEndsAt'];
+    delete raw['outstandingBalance'];
     const client = fakeClient(async () => ({ Items: [raw] }));
 
     const result = await listMembersByStatus(client, 'ACTIVE', { membershipStatus: 'NONE' });
@@ -454,7 +454,7 @@ describe('listMembersByStatus con membershipStatus (US-052, patrón #28)', () =>
     const client = fakeClient(async (command) => {
       const start = (command as { input: { ExclusiveStartKey?: { PK: string } } }).input
         .ExclusiveStartKey;
-      const from = start ? all.findIndex((m) => m.PK === start.PK) + 1 : 0;
+      const from = start ? all.findIndex((m) => m['PK'] === start['PK']) + 1 : 0;
       return { Items: all.slice(from) };
     });
 
