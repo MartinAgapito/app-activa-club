@@ -451,3 +451,11 @@ sirviendo `/api/*`.
 
 **Rollback**: revertir el PR y desplegar; las rutas, Lambdas y log groups se
 eliminan. No hay datos que borrar (no se crean tablas ni ítems).
+
+### Permiso adicional de `payments-list` (US-081)
+
+| Lambda          | Permiso nuevo                                    | Motivo                                                       |
+| --------------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| `payments-list` | `dynamodb:GetItem` solo sobre el ARN de la tabla | nombre del socio en cada pago del administrador (patrón #31) |
+
+Mantiene su `Query` sobre tabla e índices. No recibe `Scan`, escrituras ni `GetItem` sobre índices. Impacto: solo la política IAM en sitio de esa Lambda; rollback: revertir el PR y aplicar.
