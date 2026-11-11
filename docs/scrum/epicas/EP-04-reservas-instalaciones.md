@@ -109,3 +109,4 @@ Decisión adicional derivada de la primera, del mismo ADR-0009: el **invitado ex
 - 2026-08-09: Cierre de las tres decisiones funcionales pendientes (ADR-0009 y ADR-0010); alta de la entidad `GuestProfile`, de los endpoints de resolución por DNI y del estado por franja en la disponibilidad.
 - 2026-10-11: US-027 a US-036 implementadas (backend y pantallas). La épica queda en progreso solo por la verificación extremo a extremo (Ola 6).
 - 2026-10-12: Se agrega US-080 (Sprint 5, adenda de contrato y ADR-0014): el detalle de reserva devuelve el nombre de los socios participantes.
+- 2026-10-13: US-080 implementada (Backend): `participants[].member` en `GET /reservations/{reservationId}`. Pendiente verificación en `dev` y el ajuste de pantallas (frontend).

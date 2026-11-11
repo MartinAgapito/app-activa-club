@@ -10,12 +10,37 @@
 // socio (mínima superficie de información filtrada).
 
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import type { ReservationDetail, Role } from '@activa-club/shared-types';
+import type { MemberNameSummary, ReservationDetail, Role } from '@activa-club/shared-types';
 
 import { getDocumentClient } from '../lib/dynamo';
 import { AppError } from '../lib/errors';
-import { findMemberByCognitoSub } from '../members/repository';
+import { findMemberByCognitoSub, getMemberById } from '../members/repository';
 import { getReservationById, getReservationParticipants } from './repository';
+
+/**
+ * Nombres de los socios participantes (US-080, ADR-0014, patrón #31). Los
+ * `memberId` se deduplican y se leen por clave en paralelo (≤ 31, sin Scan);
+ * solo se proyecta `memberId`, nombre y apellido. Un socio no resoluble da
+ * `null` (la respuesta sigue siendo 200).
+ */
+async function resolveMemberNames(
+  client: DynamoDBDocumentClient,
+  memberIds: string[],
+): Promise<Map<string, MemberNameSummary | null>> {
+  const distinct = [...new Set(memberIds)];
+  const resolved = await Promise.all(
+    distinct.map(async (memberId): Promise<[string, MemberNameSummary | null]> => {
+      const member = await getMemberById(client, memberId);
+      return [
+        memberId,
+        member
+          ? { memberId: member.memberId, firstName: member.firstName, lastName: member.lastName }
+          : null,
+      ];
+    }),
+  );
+  return new Map(resolved);
+}
 
 export interface GetReservationDetailInput {
   cognitoSub: string;
@@ -43,5 +68,19 @@ export async function getReservationDetail(
   }
 
   const participants = await getReservationParticipants(client, reservation.reservationId);
-  return { ...reservation, participants };
+  const memberIds = participants
+    .filter((participant) => participant.participantType !== 'GUEST')
+    .flatMap((participant) => (participant.memberId ? [participant.memberId] : []));
+  const names = await resolveMemberNames(client, memberIds);
+
+  return {
+    ...reservation,
+    participants: participants.map((participant) => ({
+      ...participant,
+      member:
+        participant.participantType !== 'GUEST' && participant.memberId
+          ? (names.get(participant.memberId) ?? null)
+          : null,
+    })),
+  };
 }

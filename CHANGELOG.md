@@ -12,6 +12,14 @@ backlog en `docs/scrum/`.
 
 ### Added
 
+- Nombre de los socios participantes en el detalle de reserva (US-080, EP-04):
+  `GET /reservations/{reservationId}` agrega a cada elemento de `participants`
+  el campo `member: { memberId, firstName, lastName } | null`
+  (`MemberNameSummary`); `null` para invitados y para un socio que ya no se
+  puede resolver. Los `memberId` repetidos se leen una sola vez, con `GetItem`
+  en paralelo (≤ 31, sin `Scan`); nunca DNI, correo ni teléfono. La visibilidad
+  del detalle no cambia. `ReservationHolderSummary` queda como alias de
+  `MemberNameSummary`. Sin cambios de infraestructura.
 - Guía paso a paso (`docs/GUIA-PASO-A-PASO.md`): un solo documento con la
   preparación del equipo, el despliegue, la migración, el recorrido E2E, el
   reinicio del entorno, la operación diaria y los problemas frecuentes.

@@ -8,7 +8,7 @@
 | Responsable         | Backend                                            |
 | Fase                | MVP                                                |
 | Sprint              | Sprint 5                                           |
-| Estado              | Ready                                              |
+| Estado              | Implementada (backend)                             |
 | Prioridad           | Media                                              |
 | Estimación relativa | 2                                                  |
 | Dependencias        | US-033 (detalle de reserva implementado)           |
@@ -67,3 +67,7 @@ El panel de detalle de reservas del socio (US-074) y del administrador (US-077) 
 - Contrato: `docs/api/contratos-api.md` §7 y §12; modelo de datos patrón #31; ADR-0009, ADR-0014.
 - Depende de: US-033.
 - Habilita: el nombre de los participantes en US-074 y US-077.
+
+## Historial de cambios
+
+- 2026-10-13: Implementada (solo backend): `participants[].member` con `GetItem` en paralelo por `memberId` distinto (`apps/api/src/reservations/get-by-id.ts`), tipos aditivos en `packages/shared-types` y pruebas Vitest. Pendiente verificación en `dev`; el ajuste de US-074/US-077 es una tarea de frontend aparte.

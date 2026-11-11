@@ -139,19 +139,35 @@ export interface CancelReservationResponse {
  * necesita una vista propia porque agrega datos que no viven en la cabecera.
  */
 export interface ReservationDetail extends Reservation {
-  participants: ReservationParticipant[];
+  participants: ReservationDetailParticipant[];
 }
 
 /**
- * Socio titular de una reserva, tal como lo ve el administrador en el listado
- * `GET /reservations?scope=all` (US-036, criterio 8). Solo identificación
- * mínima: nunca correo, teléfono ni DNI.
+ * Participante tal como lo devuelve el detalle (US-080): agrega `member` con
+ * el nombre del socio (`HOLDER`/`MEMBER`), o `null` para un invitado o un socio
+ * que ya no se puede resolver. Opcional en el tipo para no romper a quien
+ * construya participantes sin el campo; el servidor siempre lo envía.
  */
-export interface ReservationHolderSummary {
+export interface ReservationDetailParticipant extends ReservationParticipant {
+  member?: MemberNameSummary | null;
+}
+
+/**
+ * Identificación mínima de un socio en lecturas de otros recursos (US-036,
+ * US-080, US-081, ADR-0014): nunca correo, teléfono ni DNI.
+ */
+export interface MemberNameSummary {
   memberId: string;
   firstName: string;
   lastName: string;
 }
+
+/**
+ * Socio titular de una reserva, tal como lo ve el administrador en el listado
+ * `GET /reservations?scope=all` (US-036, criterio 8). Alias de
+ * `MemberNameSummary`.
+ */
+export type ReservationHolderSummary = MemberNameSummary;
 
 /**
  * Ítem del listado administrativo de reservas (`scope=all`): la cabecera más el
