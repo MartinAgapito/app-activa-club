@@ -21,6 +21,7 @@ import { jsonResponse } from '../../lib/http';
 import { findMemberByCognitoSub } from '../../members/repository';
 import { extractIdentity, requireRole } from '../../middleware/auth';
 import { withHandler } from '../../middleware/with-handler';
+import { resolveMemberNames } from '../../payments/member-names';
 import {
   findPaymentById,
   getPaymentByMemberAndId,
@@ -54,7 +55,13 @@ async function handleGetPaymentById(
   if (!payment) {
     throw new AppError('NOT_FOUND', 'No se encontró el pago indicado.');
   }
-  return jsonResponse(200, toPaymentSummary(payment));
+  // `admin`: agrega el nombre del socio (US-081, patrón #31); un socio no
+  // resoluble da `member: null`, nunca un error.
+  const summary = toPaymentSummary(payment);
+  const names = await resolveMemberNames(getDocumentClient(), [summary.memberId], {
+    requestId: event.requestContext.requestId,
+  });
+  return jsonResponse(200, { ...summary, member: names.get(summary.memberId) ?? null });
 }
 
 export const handler = withHandler<APIGatewayProxyWithCognitoAuthorizerEvent>(

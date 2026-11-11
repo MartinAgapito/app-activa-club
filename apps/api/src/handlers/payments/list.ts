@@ -1,7 +1,11 @@
-// GET /payments?memberId=&status=&cursor=&limit= — historial de pagos:
-// propio (member) o filtrado (admin) (docs/api/contratos-api.md §5,
-// docs/scrum/historias/US-025-historial-pagos.md). RN-PAG-04, RN-PAG-08,
-// RN-ADM-03.
+// GET /payments?memberId=&status=&from=&to=&cursor=&limit= — historial de
+// pagos: propio (member) o filtrado (admin) (docs/api/contratos-api.md §5,
+// docs/scrum/historias/US-025-historial-pagos.md y US-081). RN-PAG-04,
+// RN-PAG-08, RN-ADM-03.
+//
+// US-081: `from`/`to` (ventana `[from, to)` sobre `createdAt`, condición de
+// clave, patrón #29) valen para ambos roles; solo `admin` recibe `member`
+// (nombre del socio, patrón #31, ADR-0014).
 //
 // Visibilidad propio/ajeno (criterio 4, crítico): un `member` ve **solo**
 // sus propios pagos. El `memberId` siempre se resuelve desde la identidad
@@ -29,6 +33,7 @@ import { jsonResponse, parseQuery } from '../../lib/http';
 import { findMemberByCognitoSub } from '../../members/repository';
 import { extractIdentity, requireRole } from '../../middleware/auth';
 import { withHandler } from '../../middleware/with-handler';
+import { withMemberNames } from '../../payments/member-names';
 import { listPaymentsByMember, listPaymentsByStatus } from '../../payments/repository';
 
 async function handleListPayments(
@@ -38,7 +43,12 @@ async function handleListPayments(
   requireRole(identity, ['member', 'admin']);
 
   const query = parseQuery(event.queryStringParameters, listPaymentsQuerySchema);
+  // `from`/`to` admiten offset (`-05:00`); se normalizan a UTC con el formato
+  // con que se escribe `createdAt` (`toISOString()`) para que la comparación
+  // lexicográfica de la clave sea correcta (US-081, criterio 7, patrón #29).
   const pageOptions = {
+    ...(query.from !== undefined ? { from: new Date(query.from).toISOString() } : {}),
+    ...(query.to !== undefined ? { to: new Date(query.to).toISOString() } : {}),
     ...(query.cursor !== undefined ? { cursor: query.cursor } : {}),
     ...(query.limit !== undefined ? { limit: query.limit } : {}),
   };
@@ -59,18 +69,29 @@ async function handleListPayments(
     return jsonResponse(200, result);
   }
 
-  // `admin`
+  // `admin`: cada pago lleva el nombre del socio (US-081, patrón #31). El
+  // rango `from`/`to` no habilita listar todos los pagos: sigue exigiéndose
+  // `memberId` o `status` (criterio 6).
+  const client = getDocumentClient();
+  const nameOptions = { requestId: event.requestContext.requestId };
+
   if (query.memberId) {
-    const result = await listPaymentsByMember(getDocumentClient(), query.memberId, {
+    const result = await listPaymentsByMember(client, query.memberId, {
       ...(query.status !== undefined ? { status: query.status } : {}),
       ...pageOptions,
     });
-    return jsonResponse(200, result);
+    return jsonResponse(200, {
+      ...result,
+      items: await withMemberNames(client, result.items, nameOptions),
+    });
   }
 
   if (query.status) {
-    const result = await listPaymentsByStatus(getDocumentClient(), query.status, pageOptions);
-    return jsonResponse(200, result);
+    const result = await listPaymentsByStatus(client, query.status, pageOptions);
+    return jsonResponse(200, {
+      ...result,
+      items: await withMemberNames(client, result.items, nameOptions),
+    });
   }
 
   throw new AppError('VALIDATION_ERROR', 'Debe indicar memberId o status para listar pagos.');

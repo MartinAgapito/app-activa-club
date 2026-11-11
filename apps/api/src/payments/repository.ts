@@ -254,6 +254,10 @@ export function toPaymentSummary(item: Payment | Record<string, unknown>): Payme
 export interface ListPaymentsByMemberOptions {
   /** Filtro adicional por estado (criterio 3/4); se aplica dentro de la misma partición del socio. */
   status?: PaymentStatus;
+  /** Inicio inclusivo sobre `createdAt`, ya normalizado a UTC (`toISOString()`; US-081, patrón #29). */
+  from?: string;
+  /** Fin exclusivo sobre `createdAt`, ya normalizado a UTC (`toISOString()`; US-081, patrón #29). */
+  to?: string;
   cursor?: string;
   limit?: number;
 }
@@ -272,14 +276,25 @@ export async function listPaymentsByMember(
   options: ListPaymentsByMemberOptions = {},
 ): Promise<Paginated<PaymentSummary>> {
   const memberKey = keys.member(memberId);
+  const hasRange = options.from !== undefined || options.to !== undefined;
   const result = await client.send(
     new QueryCommand({
       TableName: tableName(),
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      // Con rango (patrón #29) `createdAt` es condición de clave: `BETWEEN` es
+      // inclusivo, pero la SK real es `PAYMENT#<createdAt>#<paymentId>`, así
+      // que un pago con `createdAt = to` queda fuera ([from, to)).
+      KeyConditionExpression: hasRange
+        ? 'PK = :pk AND SK BETWEEN :skFrom AND :skTo'
+        : 'PK = :pk AND begins_with(SK, :prefix)',
       ...(options.status ? { FilterExpression: 'paymentStatus = :status' } : {}),
       ExpressionAttributeValues: {
         ':pk': memberKey.PK,
-        ':prefix': 'PAYMENT#',
+        ...(hasRange
+          ? {
+              ':skFrom': `PAYMENT#${options.from ?? ''}`,
+              ':skTo': `PAYMENT#${options.to ?? '~'}`,
+            }
+          : { ':prefix': 'PAYMENT#' }),
         ...(options.status ? { ':status': options.status } : {}),
       },
       ScanIndexForward: false,
@@ -295,6 +310,10 @@ export async function listPaymentsByMember(
 }
 
 export interface ListPaymentsByStatusOptions {
+  /** Inicio inclusivo sobre `createdAt`, ya normalizado a UTC (US-081, patrón #29). */
+  from?: string;
+  /** Fin exclusivo sobre `createdAt`, ya normalizado a UTC (US-081, patrón #29). */
+  to?: string;
   cursor?: string;
   limit?: number;
 }
@@ -311,12 +330,21 @@ export async function listPaymentsByStatus(
   options: ListPaymentsByStatusOptions = {},
 ): Promise<Paginated<PaymentSummary>> {
   const gsi2Key = keys.paymentsByStatus(status);
+  const hasRange = options.from !== undefined || options.to !== undefined;
   const result = await client.send(
     new QueryCommand({
       TableName: tableName(),
       IndexName: 'GSI2',
-      KeyConditionExpression: 'GSI2PK = :pk',
-      ExpressionAttributeValues: { ':pk': gsi2Key.GSI2PK },
+      // Rango como condición de clave (patrón #29): `GSI2SK` es
+      // `<createdAt>#<paymentId>`, así que `to` queda excluido ([from, to)).
+      // Extremos abiertos: `0` < cualquier año; `~` > cualquier dígito.
+      KeyConditionExpression: hasRange
+        ? 'GSI2PK = :pk AND GSI2SK BETWEEN :skFrom AND :skTo'
+        : 'GSI2PK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': gsi2Key.GSI2PK,
+        ...(hasRange ? { ':skFrom': options.from ?? '0', ':skTo': options.to ?? '~' } : {}),
+      },
       ScanIndexForward: false,
       Limit: options.limit ?? DEFAULT_PAGE_SIZE,
       ExclusiveStartKey: decodeCursor(options.cursor),
