@@ -277,4 +277,69 @@ describe('MembershipsAdminPage (US-053)', () => {
     renderPage('/admin/membresias?pago=pay-x');
     expect(await screen.findByText('No encontramos este pago')).toBeInTheDocument();
   });
+  it('muestra el nombre del socio en la lista y el detalle, con fallback si es null', async () => {
+    plansMock.mockResolvedValue(PLANS);
+    listByStatus({
+      FAILED: [
+        payment({
+          member: {
+            memberId: '01JMEMBER000000000000ABCDEF',
+            firstName: 'Lucía',
+            lastName: 'Rojas',
+          },
+        }),
+        payment({
+          paymentId: 'pay-2',
+          memberId: '01JOTHER0000000000000ZZZZZ',
+          member: null,
+          createdAt: '2026-07-08T05:00:00Z',
+        }),
+      ],
+    });
+    detailMock.mockResolvedValue(
+      payment({
+        member: { memberId: '01JMEMBER000000000000ABCDEF', firstName: 'Lucía', lastName: 'Rojas' },
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByText('Lucía Rojas')).toBeInTheDocument();
+    expect(screen.getByText('Socio no disponible')).toBeInTheDocument();
+    await user.click(screen.getByText('Lucía Rojas'));
+    const panel = await screen.findByRole('dialog', { name: 'Detalle del pago' });
+    expect(within(panel).getByText('Lucía Rojas')).toBeInTheDocument();
+  });
+
+  it('envía el rango de fechas de Lima como ISO con hasta exclusivo (día siguiente)', async () => {
+    plansMock.mockResolvedValue(PLANS);
+    listByStatus({ FAILED: [payment()] });
+    renderPage('/admin/membresias?desde=2026-07-01&hasta=2026-07-31');
+    await waitFor(() =>
+      expect(listMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: '2026-07-01T05:00:00Z',
+          to: '2026-08-01T05:00:00Z',
+        }),
+      ),
+    );
+  });
+
+  it('avisa y no consulta cuando Hasta es anterior a Desde', async () => {
+    plansMock.mockResolvedValue(PLANS);
+    listByStatus({ FAILED: [payment()] });
+    renderPage('/admin/membresias?desde=2026-07-31&hasta=2026-07-01');
+    expect(await screen.findByText(/no puede ser anterior/)).toBeInTheDocument();
+    expect(listMock).not.toHaveBeenCalled();
+  });
+
+  it('actualiza la URL al elegir fechas y las limpia al restablecer filtros', async () => {
+    plansMock.mockResolvedValue(PLANS);
+    listByStatus({});
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByLabelText('Desde (hora de Lima)'), '2026-07-01');
+    expect(screen.getByTestId('location')).toHaveTextContent('desde=2026-07-01');
+    await user.click(screen.getByRole('button', { name: 'Restablecer filtros' }));
+    expect(screen.getByTestId('location')).not.toHaveTextContent('desde=');
+  });
 });
