@@ -15,6 +15,7 @@
 //   node scripts/qa-set-email.mjs --list                          -> socios con DNI, correo y estado
 //   node scripts/qa-set-email.mjs --dni 10000001 --email qa@x.com -> simulacro (no cambia nada)
 //   node scripts/qa-set-email.mjs --dni 10000001 --email qa@x.com --apply
+//   (--skip-ses: no pide verificar el correo nuevo; útil para correos ficticios o ya verificados)
 //
 // Requiere AWS CLI con el perfil `activa-club-dev`. Nunca toca al administrador.
 // Procedimiento para QA: docs/qa/pruebas-con-usuarios-reales.md.
@@ -191,6 +192,11 @@ if (cognitoSub) {
     'Name=email_verified,Value=true',
   );
   console.log('OK Cognito: correo de acceso actualizado (la contraseña no cambia).');
+}
+
+if (flag('--skip-ses')) {
+  console.log('SES: omitido (--skip-ses).');
+  process.exit(0);
 }
 
 aws('ses', 'verify-email-identity', '--email-address', newEmail);
