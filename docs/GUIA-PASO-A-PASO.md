@@ -195,7 +195,10 @@ Detalle: [`docs/deployment/migracion-inicial-dev.md`](./deployment/migracion-ini
 
 - Quien prepara el entorno (acceso a AWS): reinicio, migración y disparo de
   procesos programados.
-- Quien prueba (QA): solo necesita el navegador.
+- Quien prueba (QA): solo necesita el navegador. Para recibir los correos en
+  su propio buzón, quien prepara el entorno cambia el correo de los socios de
+  prueba con `scripts/qa-set-email.mjs`
+  ([guía](./testing/pruebas-con-usuarios-reales.md)).
 
 **Cuentas**
 
@@ -352,6 +355,7 @@ Detalle: [`docs/deployment/despliegue-prd.md`](./deployment/despliegue-prd.md).
 | CI de Pull Request                       | [`docs/deployment/ci-pull-request.md`](./deployment/ci-pull-request.md)                                                                     |
 | Despliegue a dev y secretos de Stripe    | [`docs/deployment/despliegue-dev.md`](./deployment/despliegue-dev.md)                                                                       |
 | Migración y reinicio                     | [`docs/deployment/migracion-inicial-dev.md`](./deployment/migracion-inicial-dev.md)                                                         |
+| Probar con correos reales (QA)           | [`docs/testing/pruebas-con-usuarios-reales.md`](./testing/pruebas-con-usuarios-reales.md)                                                   |
 | Estrategia y casos de prueba             | [`docs/testing/estrategia-de-pruebas.md`](./testing/estrategia-de-pruebas.md), [`matriz-trazabilidad.md`](./testing/matriz-trazabilidad.md) |
 | Backlog, épicas, historias y sprints     | [`docs/scrum/`](./scrum/)                                                                                                                   |
 | Mapas de rutas y diseño del frontend     | `apps/web/docs/mapa-de-rutas.md`, `apps/web/docs/design-foundation.md`                                                                      |
