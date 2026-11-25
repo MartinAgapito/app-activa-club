@@ -11,7 +11,7 @@ import { ToastProvider } from '@activa-club/ui';
 import type {
   Reservation,
   ReservationDetail,
-  ReservationParticipant,
+  ReservationDetailParticipant,
   Resource,
 } from '@activa-club/shared-types';
 import { MyReservationsPage } from './MyReservationsPage';
@@ -76,8 +76,9 @@ function reservation(overrides: Partial<Reservation> = {}): Reservation {
 }
 
 function participant(
-  overrides: Partial<ReservationParticipant> & Pick<ReservationParticipant, 'participantId'>,
-): ReservationParticipant {
+  overrides: Partial<ReservationDetailParticipant> &
+    Pick<ReservationDetailParticipant, 'participantId'>,
+): ReservationDetailParticipant {
   return {
     reservationId: 'res-1',
     participantType: 'HOLDER',
@@ -90,9 +91,20 @@ function participant(
   };
 }
 
-const PARTICIPANTS: ReservationParticipant[] = [
+const PARTICIPANTS: ReservationDetailParticipant[] = [
   participant({ participantId: 'p1' }),
-  participant({ participantId: 'p2', participantType: 'MEMBER', memberId: 'm-2' }),
+  participant({
+    participantId: 'p2',
+    participantType: 'MEMBER',
+    memberId: 'm-2',
+    member: { memberId: 'm-2', firstName: 'Carla', lastName: 'Vega' },
+  }),
+  participant({
+    participantId: 'p4',
+    participantType: 'MEMBER',
+    memberId: 'm-4',
+    member: null,
+  }),
   participant({
     participantId: 'p3',
     participantType: 'GUEST',
@@ -315,7 +327,8 @@ describe('MyReservationsPage', () => {
       const panel = await openFirstRow(user);
 
       expect(await within(panel).findByText('Lucía Prado')).toBeInTheDocument();
-      expect(within(panel).getByText('Socio del club')).toBeInTheDocument();
+      expect(within(panel).getByText('Carla Vega')).toBeInTheDocument();
+      expect(within(panel).getByText('Socio no disponible')).toBeInTheDocument();
       expect(within(panel).getByText('Tú')).toBeInTheDocument();
       expect(screen.queryByText(/12345678/)).not.toBeInTheDocument();
       expect(detailMock).toHaveBeenCalledWith('res-1');

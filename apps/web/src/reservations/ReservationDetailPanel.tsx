@@ -9,11 +9,12 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, ConfirmDialog, Drawer, Spinner, useToast } from '@activa-club/ui';
-import type { ReservationDetail, ReservationParticipant } from '@activa-club/shared-types';
+import type { ReservationDetail, ReservationDetailParticipant } from '@activa-club/shared-types';
 import { ApiRequestError } from '../lib/api/http-client';
 import { formatDateInLima, formatTimeRangeInLima } from '../lib/format/lima-time';
 import { RESOURCE_TYPE_LABEL } from '../lib/format/resource';
 import { MEMBER_DASHBOARD_QUERY_KEY } from '../dashboard/member-dashboard-query';
+import { participantDisplayName } from './participant-display';
 import { CANCEL_BLOCK_COPY, getCancelBlock } from './cancellation';
 import {
   toCancelErrorFeedback,
@@ -38,16 +39,17 @@ export interface ReservationDetailPanelProps {
   onSessionExpired: () => void;
 }
 
-function participantLabel(participant: ReservationParticipant): { name: string; role: string } {
+function participantLabel(participant: ReservationDetailParticipant): {
+  name: string;
+  role: string;
+} {
   switch (participant.participantType) {
     case 'HOLDER':
       return { name: 'Tú', role: 'Titular' };
     case 'MEMBER':
-      // El contrato solo expone `memberId` (sin nombre): no se inventa uno.
-      return { name: 'Socio del club', role: 'Socio' };
+      return { name: participantDisplayName(participant), role: 'Socio' };
     case 'GUEST':
-      // Nunca se muestra el DNI del invitado.
-      return { name: participant.guestName ?? 'Invitado', role: 'Invitado externo' };
+      return { name: participantDisplayName(participant), role: 'Invitado externo' };
   }
 }
 
