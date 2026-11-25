@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import type { Member, MemberSummary, Paginated } from '@activa-club/shared-types';
 import { MembersManagementPage } from './MembersManagementPage';
 import { ApiRequestError } from '../../lib/api/http-client';
+import { formatDate } from '../../lib/format/date';
 
 const { fetchMembersByStatusMock, fetchMemberDetailMock, lookupMemberByDniMock } = vi.hoisted(
   () => ({
@@ -120,8 +121,16 @@ describe('MembersManagementPage', () => {
     renderPage();
 
     expect(await screen.findByText('Juan Pérez')).toBeInTheDocument();
-    expect(fetchMembersByStatusMock).toHaveBeenCalledWith('ACTIVE', null);
-    for (const header of ['Nombre', 'DNI', 'Origen', 'Membresía', 'Fecha de alta']) {
+    expect(fetchMembersByStatusMock).toHaveBeenCalledWith('ACTIVE', null, undefined);
+    for (const header of [
+      'Nombre',
+      'DNI',
+      'Origen',
+      'Membresía',
+      'Vencimiento',
+      'Saldo pendiente',
+      'Fecha de alta',
+    ]) {
       expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
     }
     expect(screen.getByText('10203040')).toBeInTheDocument();
@@ -144,9 +153,9 @@ describe('MembersManagementPage', () => {
     await user.click(screen.getByRole('tab', { name: 'Migrados' }));
 
     expect(await screen.findByText('Ana Gómez')).toBeInTheDocument();
-    expect(fetchMembersByStatusMock).toHaveBeenCalledWith('MIGRATED', null);
+    expect(fetchMembersByStatusMock).toHaveBeenCalledWith('MIGRATED', null, undefined);
     expect(screen.getByTestId('location-search')).toHaveTextContent('?tab=migrados');
-    expect(screen.getByText('Por vencer')).toBeInTheDocument();
+    expect(screen.getAllByText('Por vencer').length).toBeGreaterThan(0);
   });
 
   it('abre la pestaña indicada en la URL', async () => {
@@ -154,7 +163,7 @@ describe('MembersManagementPage', () => {
     renderPage('/admin/socios?tab=rechazados');
 
     expect(await screen.findByText('No hay solicitudes rechazadas')).toBeInTheDocument();
-    expect(fetchMembersByStatusMock).toHaveBeenCalledWith('REJECTED', null);
+    expect(fetchMembersByStatusMock).toHaveBeenCalledWith('REJECTED', null, undefined);
     expect(screen.getByRole('tab', { name: 'Rechazados', selected: true })).toBeInTheDocument();
   });
 
@@ -190,7 +199,7 @@ describe('MembersManagementPage', () => {
     await user.click(screen.getByRole('button', { name: 'Cargar más' }));
 
     expect(await screen.findByText('Ana Gómez')).toBeInTheDocument();
-    expect(fetchMembersByStatusMock).toHaveBeenLastCalledWith('ACTIVE', 'cursor-2');
+    expect(fetchMembersByStatusMock).toHaveBeenLastCalledWith('ACTIVE', 'cursor-2', undefined);
     expect(screen.getByText('Juan Pérez')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cargar más' })).not.toBeInTheDocument();
   });
@@ -273,6 +282,86 @@ describe('MembersManagementPage', () => {
     expect(
       within(panel).getByRole('link', { name: 'Ir a solicitudes pendientes' }),
     ).toHaveAttribute('href', '/admin/solicitudes');
+  });
+
+  describe('filtro por situación de membresía (US-052)', () => {
+    it('muestra vencimiento y saldo pendiente en cada fila sin abrir el detalle', async () => {
+      fetchMembersByStatusMock.mockResolvedValueOnce(page([ACTIVE_SUMMARY, MIGRATED_SUMMARY]));
+      renderPage();
+
+      const row = (await screen.findByText('Juan Pérez')).closest('tr') as HTMLElement;
+      expect(within(row).getByText(/120\.00/)).toBeInTheDocument();
+      expect(
+        within(row).getAllByText(formatDate('2026-06-30T05:00:00.000Z'))[0],
+      ).toBeInTheDocument();
+      // Sin saldo: guion en lugar de S/ 0.00.
+      const other = screen.getByText('Ana Gómez').closest('tr') as HTMLElement;
+      expect(within(other).queryByText(/S\/\s*0/)).not.toBeInTheDocument();
+      expect(fetchMemberDetailMock).not.toHaveBeenCalled();
+    });
+
+    it('ofrece las situaciones de membresía y consulta con membershipStatus', async () => {
+      fetchMembersByStatusMock.mockResolvedValue(page([ACTIVE_SUMMARY]));
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText('Juan Pérez');
+
+      const select = screen.getByLabelText('Situación de la membresía');
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((option) => option.textContent),
+      ).toEqual(['Todas', 'Con deuda', 'Vencidos', 'Por vencer', 'Al día', 'Sin membresía']);
+
+      await user.selectOptions(select, 'Vencidos');
+
+      await waitFor(() =>
+        expect(fetchMembersByStatusMock).toHaveBeenLastCalledWith('ACTIVE', null, 'EXPIRED'),
+      );
+      expect(screen.getByTestId('location-search')).toHaveTextContent('membresia=EXPIRED');
+    });
+
+    it('lee ?membresia= de la URL, lo conserva al cambiar de pestaña y se quita con "Todas"', async () => {
+      fetchMembersByStatusMock.mockResolvedValue(page([ACTIVE_SUMMARY]));
+      const user = userEvent.setup();
+      renderPage('/admin/socios?tab=activos&membresia=EXPIRING_SOON');
+
+      await screen.findByText('Juan Pérez');
+      expect(fetchMembersByStatusMock).toHaveBeenCalledWith('ACTIVE', null, 'EXPIRING_SOON');
+      expect(screen.getByLabelText('Situación de la membresía')).toHaveValue('EXPIRING_SOON');
+
+      await user.click(screen.getByRole('tab', { name: 'Migrados' }));
+      await waitFor(() =>
+        expect(fetchMembersByStatusMock).toHaveBeenCalledWith('MIGRATED', null, 'EXPIRING_SOON'),
+      );
+      expect(screen.getByTestId('location-search')).toHaveTextContent('membresia=EXPIRING_SOON');
+
+      await user.selectOptions(screen.getByLabelText('Situación de la membresía'), 'Todas');
+      expect(screen.getByTestId('location-search')).not.toHaveTextContent('membresia');
+    });
+
+    it('ignora un valor desconocido de la URL', async () => {
+      fetchMembersByStatusMock.mockResolvedValueOnce(page([]));
+      renderPage('/admin/socios?membresia=OTRO');
+
+      await screen.findByText('No hay socios activos');
+      expect(fetchMembersByStatusMock).toHaveBeenCalledWith('ACTIVE', null, undefined);
+      expect(screen.getByLabelText('Situación de la membresía')).toHaveValue('');
+    });
+
+    it('muestra un vacío específico del filtro y permite seguir cargando con nextCursor', async () => {
+      fetchMembersByStatusMock
+        .mockResolvedValueOnce(page([], 'cursor-2'))
+        .mockResolvedValueOnce(page([]));
+      const user = userEvent.setup();
+      renderPage('/admin/socios?membresia=DEBT');
+
+      // Página vacía con cursor: sigue ofreciendo "Cargar más" hasta agotarlo.
+      expect(await screen.findByText('Sin coincidencias en esta página')).toBeInTheDocument();
+      await user.click(await screen.findByRole('button', { name: 'Cargar más' }));
+      expect(await screen.findByText('Ningún socio coincide con el filtro')).toBeInTheDocument();
+      expect(fetchMembersByStatusMock).toHaveBeenLastCalledWith('ACTIVE', 'cursor-2', 'DEBT');
+    });
   });
 
   describe('búsqueda por DNI', () => {
