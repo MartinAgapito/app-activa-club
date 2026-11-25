@@ -65,7 +65,11 @@ export function PaymentDetailDrawer({
             </Item>
             <Item label="Plan">{MEMBERSHIP_TYPE_LABEL[payment.membershipType]}</Item>
             <Item label="Socio">
-              {memberName ? <span className="font-medium">{memberName}</span> : null}
+              <span className="font-medium">
+                {payment.member
+                  ? `${payment.member.firstName} ${payment.member.lastName}`
+                  : (memberName ?? 'Socio no disponible')}
+              </span>
               <span className="block break-all text-ink-muted">{payment.memberId}</span>
             </Item>
             <Item label="Fecha del pago (hora de Lima)">

@@ -8,8 +8,10 @@
 // se filtra por DNI exacto (`GET /members/lookup?dni=`). Filtros y panel viven
 // en la URL: `?estado=`, `?socio=<memberId>` y `?pago=<paymentId>`.
 //
-// El contrato no trae nombre del socio, motivo de rechazo ni renovación
-// automática en el pago, ni permite filtrar por rango de fechas.
+// US-081: cada pago trae el nombre del socio (`member`, o null si no se pudo
+// resolver) y se acota por rango de fechas (`?desde=` y `?hasta=`, días de
+// Lima; `hasta` inclusivo en pantalla, exclusivo en el contrato). El contrato
+// no trae motivo de rechazo ni renovación automática en el pago.
 
 import { useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -28,6 +30,7 @@ import {
 import type { PaymentStatus, PaymentSummary } from '@activa-club/shared-types';
 import { dniSchema } from '@activa-club/validation';
 import { PaymentDetailDrawer } from '../../admin/payments/PaymentDetailDrawer';
+import { paymentRangeFrom, paymentRangeTo } from '../../admin/payments/admin-payments-client';
 import { useAdminPaymentsQuery } from '../../admin/payments/admin-payments-query';
 import { useMembershipPlansQuery } from '../../members/plans-query';
 import { PAYMENT_STATUS_BADGE_VARIANT, PAYMENT_STATUS_LABEL } from '../../payments/payment-status';
@@ -74,6 +77,13 @@ export function MembershipsAdminPage() {
   const memberId = params.get('socio') ?? '';
   const openPaymentId = params.get('pago');
   const rawStatus = params.get('estado');
+  const fromDate = params.get('desde') ?? '';
+  const toDate = params.get('hasta') ?? '';
+  const rangeInvalid = fromDate !== '' && toDate !== '' && fromDate > toDate;
+  const rangeFilters = {
+    from: fromDate && !rangeInvalid ? paymentRangeFrom(fromDate) : undefined,
+    to: toDate && !rangeInvalid ? paymentRangeTo(toDate) : undefined,
+  };
 
   // Sin `estado`: "Rechazados y en verificación"; si hay socio, todos sus pagos.
   const status: StatusFilter =
@@ -126,14 +136,15 @@ export function MembershipsAdminPage() {
   const second: PaymentStatus | undefined =
     status === 'attention' ? 'PENDING_CONFIRMATION' : undefined;
   const hasRequiredFilter = status !== 'todos' || memberId !== '';
+  const queryEnabled = hasRequiredFilter && !rangeInvalid;
 
   const queryA = useAdminPaymentsQuery(
-    { memberId: memberId || undefined, status: first },
-    hasRequiredFilter,
+    { memberId: memberId || undefined, status: first, ...rangeFilters },
+    queryEnabled,
   );
   const queryB = useAdminPaymentsQuery(
-    { memberId: memberId || undefined, status: second },
-    hasRequiredFilter && second !== undefined,
+    { memberId: memberId || undefined, status: second, ...rangeFilters },
+    queryEnabled && second !== undefined,
   );
   const queries = second ? [queryA, queryB] : [queryA];
 
@@ -184,8 +195,16 @@ export function MembershipsAdminPage() {
       key: 'member',
       header: 'Socio',
       render: (payment) =>
-        resolved && resolved.memberId === payment.memberId ? (
+        payment.member ? (
+          <span className="font-semibold text-ink">
+            {payment.member.firstName} {payment.member.lastName}
+          </span>
+        ) : resolved && resolved.memberId === payment.memberId ? (
           <span className="font-semibold text-ink">{resolved.name}</span>
+        ) : payment.member === null ? (
+          <span className="text-ink-muted">
+            Socio no disponible <span className="sr-only">({shortId(payment.memberId)})</span>
+          </span>
         ) : (
           <span className="font-mono text-xs text-ink-muted" title={payment.memberId}>
             {shortId(payment.memberId)}
@@ -218,7 +237,8 @@ export function MembershipsAdminPage() {
     },
   ];
 
-  const hasActiveFilters = memberId !== '' || status !== 'attention';
+  const hasActiveFilters =
+    memberId !== '' || status !== 'attention' || fromDate !== '' || toDate !== '';
 
   return (
     <div className="flex flex-col gap-6">
@@ -307,6 +327,21 @@ export function MembershipsAdminPage() {
                 Buscar
               </Button>
             </form>
+            <Input
+              type="date"
+              label="Desde (hora de Lima)"
+              value={fromDate}
+              onChange={(event) => update({ desde: event.target.value, pago: null })}
+            />
+            <Input
+              type="date"
+              label="Hasta (hora de Lima)"
+              value={toDate}
+              onChange={(event) => update({ hasta: event.target.value, pago: null })}
+              errorMessage={
+                rangeInvalid ? 'La fecha "Hasta" no puede ser anterior a "Desde".' : undefined
+              }
+            />
           </div>
 
           {memberId ? (
@@ -324,7 +359,7 @@ export function MembershipsAdminPage() {
               className="mt-2"
               onClick={() => {
                 clearMember();
-                update({ estado: null });
+                update({ estado: null, desde: null, hasta: null });
               }}
             >
               Restablecer filtros
@@ -337,7 +372,7 @@ export function MembershipsAdminPage() {
             title="Elige un estado o busca un socio"
             description='Para ver "Todos los estados" necesitas indicar el DNI de un socio.'
           />
-        ) : (
+        ) : rangeInvalid ? null : (
           <DataTable
             caption="Pagos de los socios, del más reciente al más antiguo"
             columns={columns}
@@ -354,7 +389,7 @@ export function MembershipsAdminPage() {
             errorDescription={errorText(failed?.error, LOAD_ERROR)}
             onRetry={() => queries.forEach((query) => query.isError && void query.refetch())}
             emptyTitle="No hay pagos con este filtro"
-            emptyDescription="Prueba con otro estado u otro socio."
+            emptyDescription="Prueba con otro estado, otro socio u otro rango de fechas."
             hasMore={hasMore}
             onLoadMore={loadMore}
             isLoadingMore={isLoadingMore}

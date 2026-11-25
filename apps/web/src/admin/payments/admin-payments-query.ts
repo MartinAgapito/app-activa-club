@@ -24,7 +24,12 @@ export function useAdminPaymentsQuery(
     queryKey: [
       ...ADMIN_PAYMENTS_QUERY_KEY,
       'list',
-      { memberId: filters.memberId ?? null, status: filters.status ?? null },
+      {
+        memberId: filters.memberId ?? null,
+        status: filters.status ?? null,
+        from: filters.from ?? null,
+        to: filters.to ?? null,
+      },
     ],
     queryFn: ({ pageParam }) => listAdminPayments({ ...filters, cursor: pageParam }),
     initialPageParam: null as string | null,
