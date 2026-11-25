@@ -7,10 +7,11 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Drawer, ErrorState, Spinner } from '@activa-club/ui';
-import type { ReservationDetail, ReservationParticipant } from '@activa-club/shared-types';
+import type { ReservationDetail, ReservationDetailParticipant } from '@activa-club/shared-types';
 import { ApiRequestError } from '../../lib/api/http-client';
 import { formatDateInLima, formatTimeRangeInLima } from '../../lib/format/lima-time';
 import { RESOURCE_TYPE_LABEL } from '../../lib/format/resource';
+import { participantDisplayName } from '../../reservations/participant-display';
 import {
   RESERVATION_STATUS_BADGE_VARIANT,
   RESERVATION_STATUS_LABEL,
@@ -34,17 +35,16 @@ interface ReservationDetailDrawerProps {
 }
 
 function participantLabel(
-  participant: ReservationParticipant,
+  participant: ReservationDetailParticipant,
   holderLabel: string,
 ): { name: string; role: string } {
   switch (participant.participantType) {
     case 'HOLDER':
       return { name: holderLabel, role: 'Titular' };
     case 'MEMBER':
-      // El contrato solo expone `memberId` (sin nombre): no se inventa uno.
-      return { name: 'Socio del club', role: 'Socio' };
+      return { name: participantDisplayName(participant), role: 'Socio' };
     case 'GUEST':
-      return { name: participant.guestName ?? 'Invitado', role: 'Invitado externo' };
+      return { name: participantDisplayName(participant), role: 'Invitado externo' };
   }
 }
 

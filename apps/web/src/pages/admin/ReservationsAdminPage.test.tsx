@@ -131,6 +131,28 @@ function detail(overrides: Partial<ReservationDetail> = {}): ReservationDetail {
         startsAt: base.startsAt,
         endsAt: base.endsAt,
       },
+      {
+        participantId: 'p-3',
+        reservationId: 'res-1',
+        participantType: 'MEMBER',
+        memberId: 'm-3',
+        guestDni: null,
+        guestName: null,
+        startsAt: base.startsAt,
+        endsAt: base.endsAt,
+        member: { memberId: 'm-3', firstName: 'Carla', lastName: 'Vega' },
+      },
+      {
+        participantId: 'p-4',
+        reservationId: 'res-1',
+        participantType: 'MEMBER',
+        memberId: 'm-4',
+        guestDni: null,
+        guestName: null,
+        startsAt: base.startsAt,
+        endsAt: base.endsAt,
+        member: null,
+      },
     ],
     ...overrides,
   };
@@ -309,6 +331,8 @@ describe('ReservationsAdminPage', () => {
 
       expect(await screen.findByText('Luis Quispe')).toBeInTheDocument();
       expect(screen.getByText('(Invitado externo)')).toBeInTheDocument();
+      expect(screen.getByText('Carla Vega')).toBeInTheDocument();
+      expect(screen.getByText('Socio no disponible')).toBeInTheDocument();
       expect(screen.getByText('(Titular)')).toBeInTheDocument();
       expect(detailMock).toHaveBeenCalledWith('res-1');
       expect(screen.getByTestId('location')).toHaveTextContent('reserva=res-1');
