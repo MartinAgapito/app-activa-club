@@ -9,7 +9,8 @@ export const SUMMARY_LINKS = {
     const tab = MEMBERS_TABS.find((t) => t.status === status);
     return tab ? `/admin/socios?tab=${tab.value}` : '/admin/socios';
   },
-  // Filtro "Por vencer" de la lista de socios (US-052).
+  // Filtro "Por vencer" de la lista de socios (US-052): `membresia` es el
+  // parámetro que lee la pantalla y se traduce a `membershipStatus` de la API.
   expiringSoon: '/admin/socios?tab=activos&membresia=EXPIRING_SOON',
   paymentsFailed: '/admin/membresias?estado=FAILED',
   paymentsSucceeded: '/admin/membresias?estado=SUCCEEDED',
